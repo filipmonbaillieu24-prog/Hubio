@@ -3,6 +3,13 @@ import './CalendarPage.css';
 import { RideSummaryWithBests, FitnessProfile } from '../types/workout';
 import { computeSimulatedPMC, PlannedWorkoutItem, interpretTSB } from '../utils/pmc';
 
+function toLocalYYYYMMDD(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 import {
   Plus,
   ChevronLeft,
@@ -56,7 +63,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<PlannedWorkoutItem | null>(null);
-  const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [targetDate, setTargetDate] = useState<string>(toLocalYYYYMMDD(new Date()));
 
   // Form State
   const [formTitle, setFormTitle] = useState('Sweet Spot Training');
@@ -128,7 +135,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
       const d = new Date(year, month - 1, prevMonthLastDay - i);
       days.push({
-        dateStr: d.toISOString().slice(0, 10),
+        dateStr: toLocalYYYYMMDD(d),
         dayNum: d.getDate(),
         isCurrentMonth: false,
         dateObj: d,
@@ -139,7 +146,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
     for (let i = 1; i <= lastDayOfMonth.getDate(); i++) {
       const d = new Date(year, month, i);
       days.push({
-        dateStr: d.toISOString().slice(0, 10),
+        dateStr: toLocalYYYYMMDD(d),
         dayNum: i,
         isCurrentMonth: true,
         dateObj: d,
@@ -152,7 +159,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
     for (let i = 1; i <= remaining; i++) {
       const d = new Date(year, month + 1, i);
       days.push({
-        dateStr: d.toISOString().slice(0, 10),
+        dateStr: toLocalYYYYMMDD(d),
         dayNum: i,
         isCurrentMonth: false,
         dateObj: d,
@@ -166,7 +173,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
   const ridesByDate = useMemo(() => {
     const map = new Map<string, RideSummaryWithBests[]>();
     for (const r of rides) {
-      const key = new Date(r.date).toISOString().slice(0, 10);
+      const key = toLocalYYYYMMDD(new Date(r.date));
       const list = map.get(key) ?? [];
       list.push(r);
       map.set(key, list);
@@ -272,7 +279,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
     }));
   }, [simPMC]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toLocalYYYYMMDD(new Date());
 
   return (
     <div className="wd-calendar-page animate-slide-up">
