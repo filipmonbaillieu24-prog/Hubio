@@ -1,0 +1,34 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Tauri target & build
+src-tauri/target
+src-tauri/binaries
+src-tauri/gen
+
+# OS metadata
+.DS_Store
+Thumbs.db
+*.db
+*.sqlite
+dist/
