@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { FitnessProfile } from './types/workout';
 import { useSavedLocations } from './hooks/useSavedLocations';
 import { useRoutePlanner } from './hooks/useRoutePlanner';
-import { Activity, Brain, Compass, Settings, LayoutDashboard, Bike, Map as MapIcon, Trophy, Calendar as CalendarIcon } from 'lucide-react';
+import { Activity, Brain, Compass, Settings, LayoutDashboard, Bike, Map as MapIcon, Trophy, Calendar as CalendarIcon, LayoutGrid } from 'lucide-react';
 import { AppTitlebar } from './components/layout/AppTitlebar';
 import { RoutePage } from './components/route/RoutePage';
 
@@ -17,6 +17,8 @@ import RidePage from './pages/RidePage';
 import { TrainingPage } from './pages/TrainingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CalendarPage } from './pages/CalendarPage';
+import { ZenithHubPage } from './pages/hub/ZenithHubPage';
+import { CycloPilotPanel } from './pages/hub/CycloPilotPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette, CommandItem } from './components/CommandPalette';
 import { calibrateSummaryModels, calibrateFullModels } from './utils/localNeuralNet';
@@ -54,8 +56,8 @@ function App() {
   const { locations: savedLocations, save: saveLocation, remove: deleteLocation, rename: renameLocation } = useSavedLocations();
 
   // ── Tab navigation ──────────────────────────────────────────────────────────
-  type AppTab = 'dashboard' | 'rides' | 'calendar' | 'prs' | 'heatmap' | 'route' | 'training' | 'settings';
-  const [activeTab,      setActiveTab]      = useState<AppTab>('dashboard');
+  type AppTab = 'hub' | 'cyclopilot' | 'dashboard' | 'rides' | 'calendar' | 'prs' | 'heatmap' | 'route' | 'training' | 'settings';
+  const [activeTab,      setActiveTab]      = useState<AppTab>('hub');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedRide,   setSelectedRide]   = useState<string | null>(null);
   const [compareRideId,  setCompareRideId]  = useState<string | null>(null);
@@ -262,6 +264,7 @@ function App() {
   ], [handleRecalculate]);
 
   const navItems = [
+    { key: 'hub',       icon: <LayoutGrid      size={16} strokeWidth={1.6} />, label: 'Zenith Hub' },
     { key: 'dashboard', icon: <LayoutDashboard size={16} strokeWidth={1.6} />, label: 'Dashboard' },
     { key: 'rides',     icon: <Bike            size={16} strokeWidth={1.6} />, label: 'Mijn Ritten' },
     { key: 'calendar',  icon: <CalendarIcon    size={16} strokeWidth={1.6} />, label: 'Kalender' },
@@ -306,10 +309,11 @@ function App() {
       {/* Main Layout containing Sidebar and Viewport - pushed down by 32px for window drag region titlebar */}
       <div className="wd-app" style={{ display: 'flex', flex: 1, minHeight: 0, width: '100vw', paddingTop: '32px' }}>
         {/* Collapsible Left Sidebar */}
-        <aside className="wd-sidebar" data-collapsed={sidebarCollapsed}>
+        {activeTab !== 'hub' && activeTab !== 'cyclopilot' && (
+          <aside className="wd-sidebar" data-collapsed={sidebarCollapsed}>
           <div className="wd-sidebar-logo">
             <Bike size={20} strokeWidth={2} color="#00e5ff" />
-            {!sidebarCollapsed && <span className="wd-sidebar-logo__text">CYCLO<strong>STUDIO</strong></span>}
+            {!sidebarCollapsed && <span className="wd-sidebar-logo__text">ZENITH<strong>STUDIO</strong></span>}
           </div>
 
           <nav className="wd-nav">
@@ -370,11 +374,13 @@ function App() {
             </div>
           )}
         </aside>
+        )}
 
         {/* Viewport content */}
         <main className="wd-main">
           {/* Topbar Header */}
-          <header className="wd-topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          {activeTab !== 'hub' && activeTab !== 'cyclopilot' && (
+            <header className="wd-topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <span className="wd-topbar-title" style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800 }}>
               {activeTab === 'dashboard' && 'PRESTATIE DASHBOARD'}
               {activeTab === 'rides' && 'ACTIVITEITEN ARCHIEF'}
@@ -405,9 +411,29 @@ function App() {
               )}
             </div>
           </header>
+          )}
 
           {/* Dynamic Content Switching */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}>
+            {/* ── Zenith Ecosystem Hub View ── */}
+            {activeTab === 'hub' && (
+              <ZenithHubPage 
+                fitnessProfile={fitnessProfile}
+                fitnessMetrics={fitnessMetrics}
+                onOpenApp={(appKey) => {
+                  if (appKey === 'cyclo') setActiveTab('dashboard');
+                  else if (appKey === 'cyclopilot') setActiveTab('cyclopilot');
+                }}
+              />
+            )}
+            
+            {/* ── CycloPilot Control Panel View ── */}
+            {activeTab === 'cyclopilot' && (
+              <CycloPilotPanel 
+                onBack={() => setActiveTab('hub')}
+              />
+            )}
+
             {/* ── Analytics & History Views ── */}
             {isDashboardTab && (
               <div className="workout-tab-content" style={{ display: 'flex', flex: 1, flexDirection: 'column', minHeight: 0 }}>
