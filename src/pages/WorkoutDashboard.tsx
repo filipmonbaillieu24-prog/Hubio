@@ -316,7 +316,15 @@ const WorkoutDashboard: React.FC<Props> = ({
       <div className="wd-empty-state">
         <div className="wd-empty-icon"><Bike size={52} color="#00e5ff" strokeWidth={1.5} /></div>
         <h2>Nog geen ritten</h2>
-        <p>Sleep FIT, GPX of TCX bestanden in het zijpaneel<br />of gebruik de knop hieronder om te beginnen.</p>
+        <p style={{ marginBottom: 16 }}>Sleep FIT, GPX of TCX bestanden in het venster<br />of selecteer ze hieronder.</p>
+        <div style={{ width: '100%', maxWidth: '280px', margin: '0 auto', textAlign: 'left' }}>
+          <RideUploadZone
+            uploading={uploading}
+            uploadMsg={uploadMsg}
+            ridesCount={rides.length}
+            onHandleFiles={handleFiles}
+          />
+        </div>
       </div>
     );
 
