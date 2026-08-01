@@ -87,7 +87,7 @@ export async function autoSaveRideToGDrive(
   const fullPath = `${folder}${sep}${safeName}.gpx`;
 
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-  xml += `<gpx version="1.1" creator="Cyclo" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+  xml += `<gpx version="1.1" creator="Zenith" xmlns="http://www.topografix.com/GPX/1/1">\n`;
   xml += `  <metadata><name>${escapeXmlSimple(rideName)}</name></metadata>\n`;
   xml += `  <trk><name>${escapeXmlSimple(rideName)}</name><type>Cycling</type><trkseg>\n`;
   for (const p of pts) {
@@ -123,7 +123,7 @@ export function buildGPX(
   const startTime = new Date();
   
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-  xml += `<gpx version="1.1" creator="Cyclo" \n`;
+  xml += `<gpx version="1.1" creator="Zenith" \n`;
   xml += `  xmlns="http://www.topografix.com/GPX/1/1" \n`;
   xml += `  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" \n`;
   xml += `  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">\n`;
@@ -182,7 +182,7 @@ export function buildTCX(
   
   xml += `  <Folders>\n`;
   xml += `    <Courses>\n`;
-  xml += `      <CourseFolder Name="Cyclo">\n`;
+  xml += `      <CourseFolder Name="Zenith">\n`;
   xml += `        <CourseNameRef Id="${escapeXml(routeName)}"/>\n`;
   xml += `      </CourseFolder>\n`;
   xml += `    </Courses>\n`;

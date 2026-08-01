@@ -289,7 +289,7 @@ export const LoginPage: React.FC = () => {
           fontSize: '11px',
           color: '#94a3b8'
         }}>
-          {isSignUp ? 'Heb je al een account?' : 'Nieuw bij CycloStudio?'}{' '}
+          {isSignUp ? 'Heb je al een account?' : 'Nieuw bij Zenith Ecosysteem?'}{' '}
           <button
             onClick={() => {
               setIsSignUp(!isSignUp);

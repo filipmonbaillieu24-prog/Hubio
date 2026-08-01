@@ -8,8 +8,7 @@ export function AppTitlebar({ onMinimize, onMaximize, onClose }: AppTitlebarProp
   return (
     <div className="app-titlebar" data-tauri-drag-region>
       <div className="app-titlebar__brand" data-tauri-drag-region>
-        <span className="app-titlebar__logo">🚴</span>
-        <span className="app-titlebar__name">Cyclo</span>
+        <span className="app-titlebar__name">Zenith</span>
       </div>
       <div className="app-titlebar__drag" data-tauri-drag-region />
       <div className="app-titlebar__actions">

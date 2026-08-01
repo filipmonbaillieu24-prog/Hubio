@@ -298,7 +298,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
           </div>
 
           <p style={{ fontSize:11, color:'#94a3b8', marginBottom:8, lineHeight:1.5 }}>
-            Stel de root-map in. Cyclo maakt automatisch twee submappen aan.
+            Stel de root-map in. Zenith maakt automatisch twee submappen aan.
           </p>
 
           {/* Root pad */}
@@ -307,7 +307,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             <div style={{ display:'flex', gap:6, flex:1 }}>
               <input
                 type="text"
-                placeholder={`bv. C:\\Users\\${profile.name ?? 'jij'}\\Google Drive\\My Drive\\Cyclo`}
+                placeholder={`bv. C:\\Users\\${profile.name ?? 'jij'}\\Google Drive\\My Drive\\Zenith`}
                 value={gdrivePath}
                 onChange={e => handleGdrivePath(e.target.value)}
                 style={{ flex:1 }}

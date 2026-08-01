@@ -18,7 +18,7 @@ import { TrainingPage } from './pages/TrainingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { ZenithHubPage } from './pages/hub/ZenithHubPage';
-import { CycloPilotPanel } from './pages/hub/CycloPilotPanel';
+import { PilotPanel } from './pages/hub/PilotPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette, CommandItem } from './components/CommandPalette';
 import { calibrateSummaryModels, calibrateFullModels } from './utils/localNeuralNet';
@@ -427,9 +427,9 @@ function App() {
               />
             )}
             
-            {/* ── CycloPilot Control Panel View ── */}
+            {/* ── Pilot Control Panel View ── */}
             {activeTab === 'cyclopilot' && (
-              <CycloPilotPanel 
+              <PilotPanel 
                 onBack={() => setActiveTab('hub')}
               />
             )}

@@ -183,7 +183,7 @@ export function useRoutePlanner(onSwitchToRoute?: () => void) {
   const handleDownloadGPX = useCallback(async () => {
     const route = routes[activeRouteIndex];
     if (!route) return;
-    const name = `Cyclo_${route.stats.distance}km`;
+    const name = `Aero_${route.stats.distance}km`;
     const speed = (route.stats.distance / route.stats.duration) * 3600;
     const result = await saveExportFile(buildGPX(route.points, name, speed), `${name}.gpx`, 'application/gpx+xml');
     if (result.path) showExportMsg(`✓ Opgeslagen: ${result.path}`, true);
@@ -194,7 +194,7 @@ export function useRoutePlanner(onSwitchToRoute?: () => void) {
   const handleDownloadTCX = useCallback(async () => {
     const route = routes[activeRouteIndex];
     if (!route) return;
-    const name = `Cyclo_${route.stats.distance}km`;
+    const name = `Aero_${route.stats.distance}km`;
     const speed = (route.stats.distance / route.stats.duration) * 3600;
     const result = await saveExportFile(buildTCX(route.points, name, speed), `${name}.tcx`, 'application/vnd.garmin.tcx+xml');
     if (result.path) showExportMsg(`✓ Opgeslagen: ${result.path}`, true);

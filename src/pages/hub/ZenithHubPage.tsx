@@ -1,5 +1,4 @@
 import React from 'react';
-import { Brain, Bike, Activity, Dumbbell, Apple, Sparkles, LayoutGrid } from 'lucide-react';
 import './ZenithHub.css';
 
 interface ZenithHubPageProps {
@@ -20,32 +19,29 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
   const apps = [
     {
       key: 'cyclo',
-      title: 'Cyclo Studio',
+      title: 'Aero',
       subtitle: 'Desktop & Web Analytics',
       desc: 'Het hart van uw fysiologische data-analyse. Krijg inzicht in uw PMC-grafieken, training stress en PRs.',
-      icon: <Bike size={24} color="#00e5ff" />,
       status: 'Geïnstalleerd',
       statusColor: '#00e5ff',
-      actionText: 'Open Studio',
+      actionText: 'Open Aero',
       enabled: true
     },
     {
       key: 'cyclopilot',
-      title: 'CycloPilot',
+      title: 'Pilot',
       subtitle: 'Android Audio Companion',
       desc: 'Uw in-ear coach voor op de fiets. Real-time audio cues, geoptimaliseerd op wind en hellingen. Werkt volledig offline.',
-      icon: <Brain size={24} color="#a29bfe" />,
       status: 'Mobiel Verbonden',
-      statusColor: '#a29bfe',
-      actionText: 'Open Dashboard',
+      statusColor: '#00e5ff',
+      actionText: 'Open Pilot',
       enabled: true
     },
     {
       key: 'indigo',
-      title: 'IndiGo Run',
+      title: 'Strider',
       subtitle: 'Running Companion',
       desc: 'Ecosysteem-extensie voor hardlopers. Geïntegreerde VO2Max loopschatting en real-time cadans-coaching.',
-      icon: <Activity size={24} color="#64748b" />,
       status: 'Binnenkort',
       statusColor: '#64748b',
       actionText: 'Installeren',
@@ -53,10 +49,9 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
     },
     {
       key: 'indigogym',
-      title: 'IndigoGym',
+      title: 'Kratos',
       subtitle: 'Strength & Conditioning',
       desc: 'Kracht- en weerstandstraining met dynamische fysiologische hersteltijden gebaseerd op uw cardiovasculaire stress.',
-      icon: <Dumbbell size={24} color="#64748b" />,
       status: 'Binnenkort',
       statusColor: '#64748b',
       actionText: 'Installeren',
@@ -64,10 +59,9 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
     },
     {
       key: 'recigo',
-      title: 'ReciGo Nutrition',
+      title: 'Fuel',
       subtitle: 'Macro & Recipe Planner',
       desc: 'Nutritionele macroplanner en receptenbibliotheek, volledig afgestemd op de fysiologische energiebehoefte van uw ritten.',
-      icon: <Apple size={24} color="#64748b" />,
       status: 'Binnenkort',
       statusColor: '#64748b',
       actionText: 'Installeren',
@@ -82,14 +76,9 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
 
       {/* Header section */}
       <header className="zh-hub-header animate-slide-down">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="zh-logo-badge">
-            <LayoutGrid size={24} color="#00e5ff" />
-          </div>
-          <div>
-            <h1 className="zh-hub-title">ZENITH</h1>
-            <p className="zh-hub-subtitle">Gecentraliseerd Fysiologisch Ecosysteem</p>
-          </div>
+        <div>
+          <h1 className="zh-hub-title" style={{ fontSize: 24 }}>ZENITH</h1>
+          <p className="zh-hub-subtitle">Gecentraliseerd Fysiologisch Ecosysteem</p>
         </div>
         <div className="zh-user-badge">
           <span style={{ fontSize: 11, color: '#94a3b8' }}>Ingelogd als:</span>
@@ -100,9 +89,8 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
       {/* Fitness State Summary */}
       <section className="zh-stats-section animate-slide-up" style={{ animationDelay: '0.1s' }}>
         <div className="zh-stats-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Sparkles size={16} color="#00e5ff" />
-            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '1px' }}>
+          <div style={{ marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '1px' }}>
               Ecosysteem Fysiologische Status
             </h3>
           </div>
@@ -128,14 +116,14 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
 
       {/* App Grid */}
       <section className="zh-apps-section animate-slide-up" style={{ animationDelay: '0.2s' }}>
-        <h2 style={{ fontSize: 14, fontWeight: 900, color: '#fff', margin: '0 0 16px 4px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+        <h2 style={{ fontSize: 13, fontWeight: 900, color: '#fff', margin: '0 0 16px 4px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
           Ecosysteem Applicaties & Extensies
         </h2>
         <div className="zh-apps-grid">
           {apps.map(app => (
             <div key={app.key} className={`zh-app-card ${!app.enabled ? 'disabled' : ''}`}>
               <div className="zh-app-card-header">
-                <div className="zh-app-icon">{app.icon}</div>
+                <span className="zh-app-subtitle">{app.subtitle}</span>
                 <span 
                   className="zh-app-status-badge" 
                   style={{ 
@@ -148,17 +136,16 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
                   {app.status}
                 </span>
               </div>
-              <div className="zh-app-card-body">
-                <h3 className="zh-app-title">{app.title}</h3>
-                <span className="zh-app-subtitle">{app.subtitle}</span>
-                <p className="zh-app-desc">{app.desc}</p>
+              <div className="zh-app-card-body" style={{ flex: 1 }}>
+                <h3 className="zh-app-title" style={{ fontSize: 16, marginBottom: 8 }}>{app.title}</h3>
+                <p className="zh-app-desc" style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5, margin: 0 }}>{app.desc}</p>
               </div>
-              <div className="zh-app-card-footer">
+              <div className="zh-app-card-footer" style={{ marginTop: 20 }}>
                 {app.enabled ? (
                   <button 
                     onClick={() => onOpenApp(app.key as any)}
                     className="zh-app-btn"
-                    style={{ background: `linear-gradient(135deg, ${app.statusColor} 0%, #6c5ce7 100%)`, boxShadow: `0 4px 12px ${app.statusColor}15` }}
+                    style={{ background: 'linear-gradient(135deg, #00e5ff 0%, #6c5ce7 100%)', boxShadow: '0 4px 12px rgba(0, 229, 255, 0.1)' }}
                   >
                     {app.actionText}
                   </button>

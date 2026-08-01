@@ -1,7 +1,7 @@
 /**
- * Lokaal Offline Neuraal Netwerk (MLP) Engine voor Cyclo
+ * Lokaal Offline Neuraal Netwerk (MLP) Engine voor Zenith
  * 
- * Dit bestand bevat de complete, zelflerende machine learning engine van Cyclo.
+ * Dit bestand bevat de complete, zelflerende machine learning engine van Zenith.
  * Het gebruikt herbruikbare Multi-Layer Perceptrons (MLPs) met backpropagation (SGD)
  * die volledig in de browser draaien en hun gewichten opslaan in LocalStorage.
  * 
