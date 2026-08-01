@@ -519,6 +519,11 @@ export function estimatePowerForPoints(
 
 function isGenericFilename(name: string): boolean {
   const lower = name.toLowerCase();
+  
+  // Check if it matches the auto-generated pattern so we can re-generate/update it on recalculate
+  const isAutoPattern = /^(Ochtend|Middag|Avond|Nacht) (Wegrit|Gravelrit|MTB-rit|rit) \(\d+(\.\d+)? km\)$/.test(name);
+  if (isAutoPattern) return true;
+
   return (
     lower.startsWith('geoid') ||
     lower.startsWith('activity') ||
@@ -526,7 +531,8 @@ function isGenericFilename(name: string): boolean {
     lower.startsWith('gpx_') ||
     /^\d+$/.test(name) ||
     /^\d{4}-\d{2}-\d{2}/.test(name) ||
-    (name.length > 25 && (name.includes('_') || name.includes('-')))
+    (name.length > 25 && (name.includes('_') || name.includes('-'))) ||
+    name.endsWith('.fit') || name.endsWith('.gpx') || name.endsWith('.tcx')
   );
 }
 

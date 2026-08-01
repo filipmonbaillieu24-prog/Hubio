@@ -478,7 +478,7 @@ function App() {
 
             {/* ── Calendar View ── */}
             {activeTab === 'calendar' && (
-              <div className="workout-tab-content">
+              <div className="workout-tab-content" style={{ overflowY: 'auto', height: '100%' }}>
                 <CalendarPage rides={rides} profile={fitnessProfile} />
               </div>
             )}
