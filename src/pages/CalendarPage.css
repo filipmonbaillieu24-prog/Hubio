@@ -3,32 +3,32 @@
 .wd-calendar-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
   color: #f8fafc;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
 }
 
-/* ── Hero & KPI Banner ────────────────────────────────────────────────────── */
+/* ── Hero & KPI Banner (Glassmorphism & Neon Glow) ───────────────────────── */
 
 .wd-calendar-hero {
-  background: linear-gradient(135deg, rgba(9, 9, 11, 0.95) 0%, rgba(18, 18, 24, 0.85) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-  padding: 20px;
+  background: linear-gradient(135deg, rgba(15, 15, 20, 0.85) 0%, rgba(9, 9, 12, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
+  gap: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 229, 255, 0.03);
+  backdrop-filter: blur(20px);
 }
 
 .wd-calendar-hero__header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
   gap: 16px;
 }
@@ -38,136 +38,163 @@
   font-weight: 800;
   text-transform: uppercase;
   color: #00e5ff;
-  letter-spacing: 0.9px;
+  letter-spacing: 1.2px;
   display: inline-flex;
   align-items: center;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  padding: 4px 10px;
+  border-radius: 20px;
 }
 
 .wd-calendar-hero__title {
-  margin: 4px 0 0;
-  font-size: 20px;
-  font-weight: 800;
-  font-family: 'Outfit', sans-serif;
-  color: #f8fafc;
+  margin: 8px 0 0;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  background: linear-gradient(to right, #fff, #94a3b8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .wd-calendar-hero__kpis {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .wd-calendar-kpi {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  padding: 8px 14px;
+  border-radius: 12px;
+  padding: 10px 18px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  min-width: 140px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.wd-calendar-kpi:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .wd-calendar-kpi__label {
-  font-size: 10px;
+  font-size: 9px;
   color: #94a3b8;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .wd-calendar-kpi__val {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 900;
   font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.5px;
 }
 
 .wd-calendar-chart-wrapper {
   width: 100%;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 16px;
 }
 
-/* ── Calendar Controls ───────────────────────────────────────────────────── */
+/* ── Calendar Controls Bar ───────────────────────────────────────────────── */
 
 .wd-calendar-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 16px;
+  background: rgba(15, 15, 20, 0.5);
+  padding: 12px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
 }
 
 .wd-calendar-controls__left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .wd-cal-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  color: #e2e8f0;
   font-size: 12px;
-  font-weight: 600;
-  padding: 6px 12px;
+  font-weight: 700;
+  padding: 8px 16px;
   cursor: pointer;
-  transition: all 0.2s;
+  font-family: inherit;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .wd-cal-btn:hover {
   background: rgba(0, 229, 255, 0.1);
-  border-color: #00e5ff;
+  border-color: rgba(0, 229, 255, 0.3);
   color: #00e5ff;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.08);
 }
 
 .wd-cal-nav-group {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 
 .wd-cal-icon-btn {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  color: #cbd5e1;
-  width: 28px;
-  height: 28px;
+  border-radius: 8px;
+  color: #94a3b8;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: all 0.15s;
 }
 
 .wd-cal-icon-btn:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .wd-cal-month-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   text-transform: capitalize;
-  color: #f8fafc;
+  color: #fff;
+  letter-spacing: -0.3px;
 }
 
 .wd-cal-add-btn {
-  background: linear-gradient(135deg, #00e5ff 0%, #00b894 100%);
-  color: #09090b;
+  background: linear-gradient(135deg, #00e5ff 0%, #6c5ce7 100%);
+  color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 12px;
-  font-weight: 700;
-  padding: 8px 16px;
+  font-weight: 800;
+  padding: 10px 20px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  box-shadow: 0 4px 14px rgba(0, 229, 255, 0.25);
+  font-family: inherit;
+  box-shadow: 0 4px 15px rgba(0, 229, 255, 0.15);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .wd-cal-add-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(0, 229, 255, 0.35);
+  box-shadow: 0 6px 22px rgba(0, 229, 255, 0.25);
 }
 
 /* ── Calendar Grid ───────────────────────────────────────────────────────── */
@@ -175,44 +202,56 @@
 .wd-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  gap: 8px;
 }
 
 .wd-cal-header-cell {
   text-align: center;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   color: #64748b;
-  padding: 6px 0;
+  padding: 8px 0;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 1px;
 }
 
+/* Day Cells (Glassy Cards) */
 .wd-cal-day-cell {
-  background: rgba(18, 18, 24, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
-  min-height: 110px;
-  padding: 8px;
+  background: rgba(18, 18, 24, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.035);
+  border-radius: 14px;
+  min-height: 125px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.2s, background-color 0.2s;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  box-sizing: border-box;
+}
+
+/* Weekend Styling for visual balance */
+.wd-cal-day-cell--weekend {
+  background: rgba(25, 20, 35, 0.25);
+  border-color: rgba(255, 255, 255, 0.025);
 }
 
 .wd-cal-day-cell:hover {
-  border-color: rgba(0, 229, 255, 0.2);
-  background: rgba(255, 255, 255, 0.015);
+  border-color: rgba(0, 229, 255, 0.25);
+  background: rgba(255, 255, 255, 0.02);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3), 0 0 12px rgba(0, 229, 255, 0.02);
 }
 
 .wd-cal-day-cell--other {
-  opacity: 0.35;
+  opacity: 0.3;
 }
 
+/* Today Cell with Neon Glow */
 .wd-cal-day-cell--today {
   border-color: #00e5ff;
-  background: rgba(0, 229, 255, 0.03);
+  background: rgba(0, 229, 255, 0.02);
+  box-shadow: inset 0 0 12px rgba(0, 229, 255, 0.05), 0 0 15px rgba(0, 229, 255, 0.05);
 }
 
 .wd-cal-day-cell__top {
@@ -223,23 +262,38 @@
 
 .wd-cal-day-num {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .wd-cal-day-cell--today .wd-cal-day-num {
+  background: rgba(0, 229, 255, 0.15);
+  border: 1px solid rgba(0, 229, 255, 0.3);
   color: #00e5ff;
+  padding: 1px 6px;
+  border-radius: 20px;
+  font-size: 10px;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.1);
 }
 
 .wd-cal-day-add-btn {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
   color: #64748b;
-  font-size: 14px;
+  font-size: 12px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.2s, color 0.2s;
-  padding: 0 4px;
+  transition: all 0.2s;
+  padding: 0;
 }
 
 .wd-cal-day-cell:hover .wd-cal-day-add-btn {
@@ -248,50 +302,88 @@
 
 .wd-cal-day-add-btn:hover {
   color: #00e5ff;
+  border-color: rgba(0, 229, 255, 0.3);
+  background: rgba(0, 229, 255, 0.08);
 }
 
 .wd-cal-day-events {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   overflow-y: auto;
-  max-height: 90px;
+  flex: 1;
+  max-height: 140px;
+  padding-right: 2px;
 }
 
-/* Event Badges */
+/* Custom Scrollbars inside cell list */
+.wd-cal-day-events::-webkit-scrollbar {
+  width: 3px;
+}
+.wd-cal-day-events::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+/* Premium Card Badges */
 .wd-cal-badge {
-  border-radius: 6px;
-  padding: 4px 6px;
+  border-radius: 8px;
+  padding: 6px 8px;
   font-size: 10px;
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 2px;
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 .wd-cal-badge:hover {
-  transform: scale(1.02);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.25);
+  filter: brightness(1.1);
 }
 
 .wd-cal-badge--completed {
-  background: rgba(57, 255, 20, 0.08);
-  border: 1px solid rgba(57, 255, 20, 0.2);
+  background: linear-gradient(135deg, rgba(57, 255, 20, 0.08) 0%, rgba(57, 255, 20, 0.03) 100%);
+  border: 1px solid rgba(57, 255, 20, 0.18);
   color: #39ff14;
 }
 
 .wd-cal-badge--planned {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
   color: #cbd5e1;
 }
 
-.wd-cal-type--recovery { border-color: #74b9ff; color: #74b9ff; background: rgba(116, 185, 255, 0.08); }
-.wd-cal-type--endurance { border-color: #00b894; color: #00b894; background: rgba(0, 184, 148, 0.08); }
-.wd-cal-type--sweetspot { border-color: #fdcb6e; color: #fdcb6e; background: rgba(253, 203, 110, 0.08); }
-.wd-cal-type--threshold { border-color: #ff7675; color: #ff7675; background: rgba(255, 118, 117, 0.08); }
-.wd-cal-type--vo2max { border-color: #a29bfe; color: #a29bfe; background: rgba(162, 155, 254, 0.08); }
+/* Plan category gradients */
+.wd-cal-type--recovery {
+  border: 1px dashed rgba(116, 185, 255, 0.35);
+  color: #74b9ff;
+  background: linear-gradient(135deg, rgba(116, 185, 255, 0.08) 0%, rgba(116, 185, 255, 0.03) 100%);
+}
+.wd-cal-type--endurance {
+  border: 1px dashed rgba(0, 184, 148, 0.35);
+  color: #00b894;
+  background: linear-gradient(135deg, rgba(0, 184, 148, 0.08) 0%, rgba(0, 184, 148, 0.03) 100%);
+}
+.wd-cal-type--sweetspot {
+  border: 1px dashed rgba(253, 203, 110, 0.35);
+  color: #fdcb6e;
+  background: linear-gradient(135deg, rgba(253, 203, 110, 0.08) 0%, rgba(253, 203, 110, 0.03) 100%);
+}
+.wd-cal-type--threshold {
+  border: 1px dashed rgba(255, 118, 117, 0.35);
+  color: #ff7675;
+  background: linear-gradient(135deg, rgba(255, 118, 117, 0.08) 0%, rgba(255, 118, 117, 0.03) 100%);
+}
+.wd-cal-type--vo2max {
+  border: 1px dashed rgba(162, 155, 254, 0.35);
+  color: #a29bfe;
+  background: linear-gradient(135deg, rgba(162, 155, 254, 0.08) 0%, rgba(162, 155, 254, 0.03) 100%);
+}
 
 .wd-cal-badge__dot {
   width: 5px;
@@ -306,24 +398,29 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.2px;
 }
 
 .wd-cal-badge__tss {
   font-size: 9px;
-  font-weight: 700;
-  opacity: 0.85;
+  font-weight: 800;
+  opacity: 0.9;
   flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 4px;
+  border-radius: 4px;
 }
 
-/* ── Modal Styles ────────────────────────────────────────────────────────── */
+/* ── Modal Styles (Premium Dark Glass) ───────────────────────────────────── */
 
 .wd-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
-  z-index: 999;
+  background: rgba(9, 9, 11, 0.75);
+  backdrop-filter: blur(12px);
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -331,19 +428,19 @@
 }
 
 .wd-modal-card {
-  background: #0f0f13;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
+  background: linear-gradient(135deg, #111318 0%, #09090b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
   width: 100%;
   max-width: 440px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 229, 255, 0.02);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .wd-modal-header {
-  padding: 16px 20px;
+  padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   justify-content: space-between;
@@ -352,89 +449,124 @@
 
 .wd-modal-header h3 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: #fff;
 }
 
 .wd-modal-close {
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #94a3b8;
+  font-size: 12px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.wd-modal-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .wd-modal-body {
-  padding: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .wd-form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .wd-form-group label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .wd-form-group input,
 .wd-form-group select,
 .wd-form-group textarea {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 10px 14px;
   color: #f8fafc;
   font-size: 12px;
   outline: none;
   font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .wd-form-group input:focus,
 .wd-form-group select:focus,
 .wd-form-group textarea:focus {
   border-color: #00e5ff;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.08);
 }
 
 .wd-modal-footer {
-  padding: 16px 20px;
+  padding: 20px 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.2);
+  justify-content: flex-end;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .wd-modal-btn {
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 10px 18px;
   cursor: pointer;
   border: none;
   display: inline-flex;
   align-items: center;
+  font-family: inherit;
+  transition: all 0.2s;
 }
 
 .wd-modal-btn--primary {
-  background: #00e5ff;
-  color: #09090b;
+  background: linear-gradient(135deg, #00e5ff 0%, #6c5ce7 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 229, 255, 0.1);
+}
+
+.wd-modal-btn--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 229, 255, 0.2);
 }
 
 .wd-modal-btn--secondary {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wd-modal-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .wd-modal-btn--danger {
-  background: rgba(255, 118, 117, 0.15);
-  color: #ff7675;
-  border: 1px solid rgba(255, 118, 117, 0.3);
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.wd-modal-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.2);
 }

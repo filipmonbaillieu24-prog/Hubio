@@ -361,11 +361,13 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
           const isToday = day.dateStr === todayStr;
           const dayRides = ridesByDate.get(day.dateStr) ?? [];
           const dayPlanned = plannedByDate.get(day.dateStr) ?? [];
+          const dayOfWeek = day.dateObj.getDay();
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
           return (
             <div
               key={day.dateStr}
-              className={`wd-cal-day-cell ${!day.isCurrentMonth ? 'wd-cal-day-cell--other' : ''} ${isToday ? 'wd-cal-day-cell--today' : ''}`}
+              className={`wd-cal-day-cell ${!day.isCurrentMonth ? 'wd-cal-day-cell--other' : ''} ${isToday ? 'wd-cal-day-cell--today' : ''} ${isWeekend ? 'wd-cal-day-cell--weekend' : ''}`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, day.dateStr)}
             >
