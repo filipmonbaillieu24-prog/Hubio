@@ -15,7 +15,8 @@
         "title": "Zenith Ecosysteem",
         "width": 1280,
         "height": 800,
-        "decorations": false
+        "decorations": true,
+        "center": true
       }
     ],
     "security": {

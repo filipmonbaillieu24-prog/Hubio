@@ -1,6 +1,8 @@
 import { Workout } from '../utils/workouts';
-import { CustomBlock, zoneColors, CAL_KEY } from '../types/training';
-import { PlannedWorkoutItem } from '../utils/pmc';
+import { CustomBlock, zoneColors } from '../types/training';
+import { savePlannedWorkout, saveRoute } from './db';
+import { GeneratedRoute } from '../types/route';
+import { FitnessProfile } from '../types/workout';
 
 // ─── Custom Workout Builder Helper ───────────────────────────────────────────
 
@@ -21,22 +23,50 @@ export function customToWorkout(blocks: CustomBlock[], title: string): Workout {
 
 // ─── Calendar Planning Helper ─────────────────────────────────────────────────
 
-export function planWorkoutInCalendar(workout: Workout, dateStr: string, durationMin: number) {
-  try {
-    const existing: PlannedWorkoutItem[] = JSON.parse(localStorage.getItem(CAL_KEY) ?? '[]');
-    const tssMap: Record<string, number> = {
-      recovery: 0.4, endurance: 0.8, sweetspot: 1.1, threshold: 1.25, vo2max: 1.4,
-    };
-    const tssPerMin = tssMap[workout.type] ?? 1.0;
-    const newItem: PlannedWorkoutItem = {
-      id: 'planned_' + Date.now(),
-      date: dateStr,
-      title: workout.title,
-      type: workout.type as any,
-      durationMinutes: durationMin,
-      plannedTSS: Math.round(durationMin * tssPerMin),
-      notes: workout.description,
-    };
-    localStorage.setItem(CAL_KEY, JSON.stringify([...existing, newItem]));
-  } catch { /* ignore */ }
+export async function planWorkoutInCalendar(
+  workout: Workout,
+  dateStr: string,
+  durationMin: number,
+  profile: FitnessProfile,
+  route?: GeneratedRoute
+): Promise<void> {
+  const tssMap: Record<string, number> = {
+    recovery: 0.4, endurance: 0.8, sweetspot: 1.1, threshold: 1.25, vo2max: 1.4,
+  };
+  const tssPerMin = tssMap[workout.type] ?? 1.0;
+  
+  let routeId: string | undefined = undefined;
+  if (route) {
+    routeId = 'route_' + Date.now();
+    await saveRoute({
+      id: routeId,
+      name: route.stats.climbCategory === 'flat' ? 'Vlakke rit' : 'Heuvelachtige rit',
+      distance: route.stats.distance,
+      duration: route.stats.duration,
+      elevGain: route.stats.elevationGain,
+      points: route.points
+    });
+  }
+
+  const newItem = {
+    id: 'planned_' + Date.now(),
+    date: dateStr,
+    title: workout.title,
+    type: workout.type as any,
+    durationMinutes: durationMin,
+    plannedTSS: Math.round(durationMin * tssPerMin),
+    notes: workout.description,
+    steps: workout.blocks.map(b => ({
+      name: b.name,
+      duration: b.duration,
+      powerPct: b.powerPct,
+      zone: b.zone,
+      color: b.color
+    })),
+    routeId,
+    ftp: profile.ftp,
+    lthr: profile.lthr
+  };
+
+  await savePlannedWorkout(newItem);
 }

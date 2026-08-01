@@ -10,7 +10,7 @@ import { SmartWorkoutTab } from '../components/training/SmartWorkoutTab';
 import { WorkoutBuilderTab } from '../components/training/WorkoutBuilderTab';
 import { PeriodizationTab } from '../components/training/PeriodizationTab';
 import { ProgressPage } from './ProgressPage';
-import { planWorkoutInCalendar } from '../utils/trainingHelpers';
+
 
 import {
   Brain, Award, Sliders, Target, Activity
@@ -63,6 +63,21 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({
       options: { profile: state.intensityProfile, workoutType: routeWType }
     });
   };
+  
+  const handlePlanCustomWorkout = (workout: any, _dateStr: string, durationMin: number) => {
+    let lat = 51.0, lng = 4.5;
+    if (savedLocations.length > 0) {
+      lat = savedLocations[0].lat;
+      lng = savedLocations[0].lng;
+    }
+    onActiveWorkoutChange(workout);
+    onGenerateTrainingsroute({
+      lat,
+      lng,
+      durationMinutes: durationMin,
+      options: { profile: 'road', workoutType: 'sweetspot' }
+    });
+  };
 
   const navItems = [
     { key: 'coach',         icon: <Brain size={13} />,    label: 'AI Coach' },
@@ -99,7 +114,14 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({
       {/* Main Content Area */}
       <div style={{ flex: 1, minHeight: 0 }}>
         {activeSubTab === 'coach' && (
-          <CoachTab rides={rides} profile={profile} onProfileChange={onProfileChange} />
+          <CoachTab 
+            rides={rides} 
+            profile={profile} 
+            onProfileChange={onProfileChange} 
+            onActiveWorkoutChange={onActiveWorkoutChange}
+            onGenerateTrainingsroute={onGenerateTrainingsroute}
+            savedLocations={savedLocations}
+          />
         )}
 
         {activeSubTab === 'smart' && (
@@ -123,7 +145,7 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({
             updateBlock={state.updateBlock}
             removeBlock={state.removeBlock}
             setCustomTitle={state.setCustomTitle}
-            planWorkoutInCalendar={planWorkoutInCalendar}
+            planWorkoutInCalendar={handlePlanCustomWorkout}
             setBuildPlanned={state.setBuildPlanned}
           />
         )}

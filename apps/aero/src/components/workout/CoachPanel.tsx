@@ -9,15 +9,23 @@ import { TrainingGoal } from '../../types/workout';
 import { savePlannedWorkout } from '../../utils/db';
 import { PlannedWorkoutItem } from '../../utils/pmc';
 
+import { SavedLocation } from '../../types/route';
+
 interface CoachPanelProps {
   rides: RideSummaryWithBests[];
   profile: FitnessProfile;
   onProfileChange: (p: FitnessProfile) => void;
+  onActiveWorkoutChange?: (workout: any | null) => void;
+  onGenerateTrainingsroute?: (params: any) => void;
+  savedLocations?: SavedLocation[];
 }
 
 type FilterCategory = 'all' | 'training' | 'herstel' | 'doel' | 'waarschuwing';
 
-export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfileChange }) => {
+export const CoachPanel: React.FC<CoachPanelProps> = ({ 
+  rides, profile, onProfileChange,
+  onActiveWorkoutChange, onGenerateTrainingsroute, savedLocations = []
+}) => {
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
   
   // Daily Workout Generator states
@@ -180,6 +188,42 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfil
     } finally {
       setIsSavingWorkout(false);
     }
+  };
+
+  const handleGenerateRouteAndPlan = () => {
+    if (!generatedWorkout) return;
+    let lat = 51.0, lng = 4.5;
+    if (savedLocations && savedLocations.length > 0) {
+      lat = savedLocations[0].lat;
+      lng = savedLocations[0].lng;
+    }
+    
+    // Map Steps properly
+    const workoutToSet = {
+      id: generatedWorkout.id,
+      title: generatedWorkout.title,
+      description: generatedWorkout.notes ?? '',
+      type: generatedWorkout.type,
+      blocks: (generatedWorkout.steps ?? []).map((s: any) => ({
+        name: s.name,
+        duration: Math.round(s.duration_seconds / 60),
+        powerPct: s.powerPct ?? 0.85,
+        zone: s.zone ?? 2,
+        color: s.color ?? '#cbd5e1'
+      }))
+    };
+
+    onActiveWorkoutChange?.(workoutToSet);
+    onGenerateTrainingsroute?.({
+      lat,
+      lng,
+      durationMinutes: generatedWorkout.durationMinutes,
+      options: { 
+        profile: 'road', 
+        workoutType: (['recovery','endurance','sweetspot','threshold'].includes(generatedWorkout.type) ? generatedWorkout.type : 'threshold') as any 
+      }
+    });
+    setGeneratedWorkout(null);
   };
 
 function generateDailyWorkoutHelper(
@@ -656,7 +700,7 @@ function generateDailyWorkoutHelper(
               })}
             </div>
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => setGeneratedWorkout(null)}
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, color: '#cbd5e1', fontSize: 11, fontWeight: 700, padding: '8px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
@@ -666,9 +710,15 @@ function generateDailyWorkoutHelper(
               <button 
                 onClick={handleSaveGeneratedWorkout}
                 disabled={isSavingWorkout}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#cbd5e1', fontSize: 11, fontWeight: 700, padding: '8px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {isSavingWorkout ? 'Inplannen...' : 'Plan Zonder Route'}
+              </button>
+              <button 
+                onClick={handleGenerateRouteAndPlan}
                 style={{ background: 'linear-gradient(135deg, #cbd5e1 0%, #39ff14 100%)', border: 'none', borderRadius: 8, color: '#09090b', fontSize: 11, fontWeight: 800, padding: '8px 16px', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                {isSavingWorkout ? 'Opslaan...' : 'Accepteren & Opslaan'}
+                Genereer Route & Plan
               </button>
             </div>
           </div>

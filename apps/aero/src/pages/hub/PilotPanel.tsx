@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Download, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import './ZenithHub.css';
 
 interface PilotPanelProps {
@@ -9,6 +10,26 @@ interface PilotPanelProps {
 }
 
 export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
+  const [localIp, setLocalIp] = useState<string | null>(null);
+  const [useLocalDevLink, setUseLocalDevLink] = useState(false);
+
+  useEffect(() => {
+    const fetchIp = async () => {
+      try {
+        const ip = await invoke<string>('get_local_ip');
+        setLocalIp(ip);
+      } catch (err) {
+        console.error('Kon lokale IP niet ophalen:', err);
+      }
+    };
+    fetchIp();
+  }, []);
+
+  const isDev = import.meta.env.DEV;
+  const downloadUrl = (useLocalDevLink && localIp)
+    ? `http://${localIp}:1420/app-debug.apk` 
+    : 'https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk';
+
   return (
     <div className="zh-hub-container">
       {/* Background radial glow */}
@@ -21,7 +42,9 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#64748b' }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
-          <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Alpha build beschikbaar</span>
+          <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {useLocalDevLink ? 'Lokale dev build' : 'Alpha build'} beschikbaar
+          </span>
         </div>
       </header>
 
@@ -39,7 +62,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
             display: 'inline-block'
           }}>
             <QRCodeSVG
-              value="https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk"
+              value={downloadUrl}
               size={180}
               bgColor={"#ffffff"}
               fgColor={"#09090b"}
@@ -50,7 +73,9 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
 
           <h2 style={{ fontSize: 20, fontWeight: 900, color: '#f8fafc', margin: '0 0 6px', fontFamily: 'Outfit, sans-serif' }}>Download Pilot</h2>
           <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 24px', maxWidth: 280, lineHeight: 1.5 }}>
-            Scan de QR-code met uw Android-toestel om de Pilot companion-app direct te downloaden en installeren.
+            {useLocalDevLink 
+              ? "Scan de QR-code met uw Android-telefoon op hetzelfde wifi-netwerk om uw zojuist gebouwde lokale APK direct te downloaden."
+              : "Scan de QR-code met uw Android-toestel om de Pilot companion-app direct te downloaden en installeren."}
           </p>
 
           <a 
@@ -76,7 +101,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
             onClick={async (e) => {
               e.preventDefault();
               try {
-                await openUrl('https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk');
+                await openUrl(downloadUrl);
               } catch (err) {
                 console.error(err);
               }
@@ -84,7 +109,29 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
           >
             <Download size={16} /> Directe Download (.apk)
           </a>
-          <span style={{ fontSize: 9, color: '#64748b', marginTop: 8 }}>Versie 1.0.0-alpha • 14.8 MB</span>
+          
+          {isDev && localIp && (
+            <button
+              onClick={() => setUseLocalDevLink(!useLocalDevLink)}
+              style={{
+                marginTop: 14,
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: useLocalDevLink ? '#39ff14' : '#94a3b8',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'all 0.2s'
+              }}
+            >
+              {useLocalDevLink ? '✓ Gekoppeld aan Lokale PC' : 'Koppel aan Lokale PC (Dev)'}
+            </button>
+          )}
+          
+          <span style={{ fontSize: 9, color: '#64748b', marginTop: 10 }}>Versie 1.0.0-alpha • 14.8 MB</span>
         </div>
 
         {/* Right Column: Key Features & Instructions */}

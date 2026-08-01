@@ -43,11 +43,21 @@ fn ensure_dir(path: String) -> Result<(), String> {
         .map_err(|e| format!("Kon map niet aanmaken '{}': {}", path, e))
 }
 
+use std::net::UdpSocket;
+
+#[tauri::command]
+fn get_local_ip() -> Result<String, String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+    socket.connect("8.8.8.8:80").map_err(|e| e.to_string())?;
+    let local_addr = socket.local_addr().map_err(|e| e.to_string())?;
+    Ok(local_addr.ip().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, fetch_route, save_file, dir_exists, ensure_dir])
+        .invoke_handler(tauri::generate_handler![greet, fetch_route, save_file, dir_exists, ensure_dir, get_local_ip])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

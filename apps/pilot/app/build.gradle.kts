@@ -81,4 +81,10 @@ dependencies {
   implementation(libs.androidx.navigation3.ui)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+
+  // Supabase & Ktor
+  implementation(libs.supabase.postgrest)
+  implementation(libs.supabase.auth)
+  implementation(libs.ktor.client.okhttp)
+  implementation(libs.kotlinx.serialization.json)
 }

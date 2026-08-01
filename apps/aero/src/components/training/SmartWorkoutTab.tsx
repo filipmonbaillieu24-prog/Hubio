@@ -280,7 +280,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
                 <button onClick={() => {
                   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
                   const d = tomorrow.toISOString().slice(0, 10);
-                  planWorkoutInCalendar(activeWorkout, d, duration);
+                  planWorkoutInCalendar(activeWorkout, d, duration, profile);
                   setPlanConfirm(d);
                   setTimeout(() => setPlanConfirm(null), 3000);
                 }} style={{ padding: '8px 0', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', background: planConfirm ? 'rgba(57,255,20,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${planConfirm ? 'rgba(57,255,20,0.25)' : 'rgba(255,255,255,0.06)'}`, color: planConfirm ? '#39ff14' : '#94a3b8', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>

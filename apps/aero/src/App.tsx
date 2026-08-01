@@ -24,6 +24,7 @@ import { CommandPalette, CommandItem } from './components/CommandPalette';
 import { calibrateSummaryModels, calibrateFullModels } from './utils/localNeuralNet';
 import { supabase } from './utils/supabaseClient';
 import { LoginPage } from './pages/LoginPage';
+import { planWorkoutInCalendar } from './utils/trainingHelpers';
 import './index.css';
 
 
@@ -58,6 +59,27 @@ function App() {
   // ── Tab navigation ──────────────────────────────────────────────────────────
   type AppTab = 'hub' | 'cyclopilot' | 'dashboard' | 'rides' | 'calendar' | 'prs' | 'heatmap' | 'route' | 'training' | 'settings';
   const [activeTab,      setActiveTab]      = useState<AppTab>('hub');
+  
+  // ── Fitness profile (persisted in localStorage) ─────────────────────────────
+  const [fitnessProfile, setFitnessProfile] = useState<FitnessProfile>(() => {
+    try {
+      const stored = localStorage.getItem('cyclo_fitness_profile');
+      return stored ? JSON.parse(stored) : { autoEFTP: true, autoLTHR: true };
+    } catch { return { autoEFTP: true, autoLTHR: true }; }
+  });
+
+  const handleProfileChange = async (p: FitnessProfile) => {
+    setFitnessProfile(p);
+    localStorage.setItem('cyclo_fitness_profile', JSON.stringify(p));
+    if (session?.user) {
+      await supabase.auth.updateUser({
+        data: {
+          fitness_profile: p,
+          name: p.name || undefined
+        }
+      });
+    }
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedRide,   setSelectedRide]   = useState<string | null>(null);
   const [compareRideId,  setCompareRideId]  = useState<string | null>(null);
@@ -91,6 +113,14 @@ function App() {
     setError,
     setHoverPoint,
   } = useRoutePlanner(() => setActiveTab('route'));
+  
+  const handlePlanWorkoutOnRoute = useCallback(async (date: string, route: any) => {
+    if (!activeWorkout) return;
+    const durationMin = activeWorkout.blocks.reduce((acc: number, b: any) => acc + b.duration, 0) / 60;
+    await planWorkoutInCalendar(activeWorkout, date, durationMin, fitnessProfile, route);
+    setActiveWorkout(null);
+    setActiveTab('training');
+  }, [activeWorkout, fitnessProfile]);
 
   // Rides & fysiologische recalculate state
   const [rides, setRides] = useState<RideSummaryWithBests[]>([]);
@@ -156,26 +186,7 @@ function App() {
 
 
 
-  // ── Fitness profile (persisted in localStorage) ─────────────────────────────
-  const [fitnessProfile, setFitnessProfile] = useState<FitnessProfile>(() => {
-    try {
-      const stored = localStorage.getItem('cyclo_fitness_profile');
-      return stored ? JSON.parse(stored) : { autoEFTP: true, autoLTHR: true };
-    } catch { return { autoEFTP: true, autoLTHR: true }; }
-  });
 
-  const handleProfileChange = async (p: FitnessProfile) => {
-    setFitnessProfile(p);
-    localStorage.setItem('cyclo_fitness_profile', JSON.stringify(p));
-    if (session?.user) {
-      await supabase.auth.updateUser({
-        data: {
-          fitness_profile: p,
-          name: p.name || undefined
-        }
-      });
-    }
-  };
 
   const reloadRides = useCallback(async () => {
     if (!session) return;
@@ -598,6 +609,7 @@ function App() {
                   onCloseError={() => setError(null)}
                   onHoverPoint={setHoverPoint}
                   activeWorkout={activeWorkout}
+                  onPlanWorkout={handlePlanWorkoutOnRoute}
                 />
               </div>
             )}

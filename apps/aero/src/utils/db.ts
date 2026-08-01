@@ -222,7 +222,7 @@ export async function deleteGear(id: string): Promise<void> {
 
 // ─── Planned Workouts Supabase API ──────────────────────────────────────────
 
-export async function savePlannedWorkout(workout: PlannedWorkoutItem): Promise<void> {
+export async function savePlannedWorkout(workout: PlannedWorkoutItem & { ftp?: number; lthr?: number }): Promise<void> {
   const userId = await getUserId();
   const row = {
     id: workout.id,
@@ -234,13 +234,15 @@ export async function savePlannedWorkout(workout: PlannedWorkoutItem): Promise<v
     planned_tss: workout.plannedTSS,
     notes: workout.notes,
     steps: workout.steps || [],
-    route_id: workout.routeId
+    route_id: workout.routeId,
+    ftp: workout.ftp ?? null,
+    lthr: workout.lthr ?? null
   };
   const { error } = await supabase.from('planned_workouts').upsert(row);
   if (error) throw error;
 }
 
-export async function getAllPlannedWorkouts(): Promise<PlannedWorkoutItem[]> {
+export async function getAllPlannedWorkouts(): Promise<(PlannedWorkoutItem & { ftp?: number; lthr?: number })[]> {
   const { data, error } = await supabase
     .from('planned_workouts')
     .select('*')
@@ -257,11 +259,51 @@ export async function getAllPlannedWorkouts(): Promise<PlannedWorkoutItem[]> {
     plannedTSS: row.planned_tss,
     notes: row.notes,
     steps: row.steps,
-    routeId: row.route_id
+    routeId: row.route_id,
+    ftp: row.ftp ?? undefined,
+    lthr: row.lthr ?? undefined
   }));
 }
 
 export async function deletePlannedWorkout(id: string): Promise<void> {
   const { error } = await supabase.from('planned_workouts').delete().eq('id', id);
   if (error) throw error;
+}
+
+// ─── Routes Supabase API ──────────────────────────────────────────────────────
+
+export async function saveRoute(route: {
+  id: string;
+  name: string;
+  distance: number;
+  duration: number;
+  elevGain: number;
+  points: any[];
+}): Promise<void> {
+  const userId = await getUserId();
+  const row = {
+    id: route.id,
+    user_id: userId,
+    name: route.name,
+    distance: route.distance,
+    duration: route.duration,
+    elev_gain: route.elevGain,
+    points: route.points
+  };
+  const { error } = await supabase.from('routes').upsert(row);
+  if (error) throw error;
+}
+
+export async function getRoute(id: string): Promise<any | undefined> {
+  const { data, error } = await supabase.from('routes').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!data) return undefined;
+  return {
+    id: data.id,
+    name: data.name,
+    distance: Number(data.distance),
+    duration: Number(data.duration),
+    elevGain: Number(data.elev_gain),
+    points: data.points || []
+  };
 }
