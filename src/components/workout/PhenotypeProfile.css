@@ -1,0 +1,133 @@
+.pp-pheno-card {
+  background: var(--bg-card, #121214);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.pp-pheno-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pp-pheno-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main, #f8fafc);
+  margin: 0;
+}
+
+.pp-pheno-subtitle {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+.pp-pheno-badge-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.pp-pheno-badge-icon {
+  font-size: 24px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pp-pheno-type {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-primary, #00e5ff);
+}
+
+.pp-pheno-desc {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #94a3b8;
+  margin: 4px 0 0;
+}
+
+.pp-pheno-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-pheno-score-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pp-pheno-score-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pp-pheno-score-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.pp-pheno-score-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.pp-pheno-bar-container {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pp-pheno-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pp-pheno-insights {
+  background: rgba(255, 255, 255, 0.01);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  padding-top: 12px;
+}
+
+.pp-insight-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pp-insight-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-primary, #00e5ff);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pp-insight-val {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #cbd5e1;
+  margin: 0;
+}

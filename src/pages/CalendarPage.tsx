@@ -1,0 +1,534 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import './CalendarPage.css';
+import { RideSummaryWithBests, FitnessProfile } from '../types/workout';
+import { computeSimulatedPMC, PlannedWorkoutItem, interpretTSB } from '../utils/pmc';
+
+import {
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  TrendingUp,
+  CheckCircle2,
+  Trash2,
+} from 'lucide-react';
+
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Line,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ReferenceLine
+} from 'recharts';
+
+interface CalendarPageProps {
+  rides: RideSummaryWithBests[];
+  profile: FitnessProfile;
+}
+
+const STORAGE_KEY = 'cyclo_planned_workouts';
+
+export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
+
+  // ── 1. Geplande workouts state (localStorage) ─────────────────────────────
+  const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Kon geplande workouts niet laden uit storage:', e);
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(plannedWorkouts));
+  }, [plannedWorkouts]);
+
+  // ── 2. Datum & Navigatie state ─────────────────────────────────────────────
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode] = useState<'month' | 'week'>('month');
+
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingWorkout, setEditingWorkout] = useState<PlannedWorkoutItem | null>(null);
+  const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().slice(0, 10));
+
+  // Form State
+  const [formTitle, setFormTitle] = useState('Sweet Spot Training');
+  const [formType, setFormType] = useState<PlannedWorkoutItem['type']>('sweetspot');
+  const [formDuration, setFormDuration] = useState(60);
+  const [formTSS, setFormTSS] = useState(65);
+  const [formNotes, setFormNotes] = useState('');
+
+  // ── 3. Drag and Drop state ──────────────────────────────────────────────────
+  const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
+
+  // ── 4. Bereken PMC Simulatie ────────────────────────────────────────────────
+  const simPMC = useMemo(() => {
+    const tssList = rides
+      .filter(r => (r.tss ?? r.hrTSS) != null)
+      .map(r => ({ date: r.date, tss: (r.tss ?? r.hrTSS)! }));
+    return computeSimulatedPMC(tssList, plannedWorkouts, 35);
+  }, [rides, plannedWorkouts]);
+
+  const latestSimPoint = useMemo(() => {
+    if (simPMC.length === 0) return { ctl: 0, atl: 0, tsb: 0 };
+    return simPMC[simPMC.length - 1];
+  }, [simPMC]);
+
+  const currentFormStatus = useMemo(() => {
+    return interpretTSB(latestSimPoint.tsb);
+  }, [latestSimPoint]);
+
+  // ── 5. Datum hulpfuncties ───────────────────────────────────────────────────
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const handlePrev = () => {
+    const next = new Date(currentDate);
+    if (viewMode === 'month') {
+      next.setMonth(next.getMonth() - 1);
+    } else {
+      next.setDate(next.getDate() - 7);
+    }
+    setCurrentDate(next);
+  };
+
+  const handleNext = () => {
+    const next = new Date(currentDate);
+    if (viewMode === 'month') {
+      next.setMonth(next.getMonth() + 1);
+    } else {
+      next.setDate(next.getDate() + 7);
+    }
+    setCurrentDate(next);
+  };
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  // Maak maanddagen matrix
+  const calendarDays = useMemo(() => {
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+
+    let startDayOfWeek = firstDayOfMonth.getDay() - 1; // 0 = Maandag
+    if (startDayOfWeek === -1) startDayOfWeek = 6; // Zondag
+
+    const days: { dateStr: string; dayNum: number; isCurrentMonth: boolean; dateObj: Date }[] = [];
+
+    // Vorige maand dagen opvullen
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      const d = new Date(year, month - 1, prevMonthLastDay - i);
+      days.push({
+        dateStr: d.toISOString().slice(0, 10),
+        dayNum: d.getDate(),
+        isCurrentMonth: false,
+        dateObj: d,
+      });
+    }
+
+    // Huidige maand dagen
+    for (let i = 1; i <= lastDayOfMonth.getDate(); i++) {
+      const d = new Date(year, month, i);
+      days.push({
+        dateStr: d.toISOString().slice(0, 10),
+        dayNum: i,
+        isCurrentMonth: true,
+        dateObj: d,
+      });
+    }
+
+    // Volgende maand dagen opvullen tot 35 of 42 cellen
+    const totalNeeded = days.length > 35 ? 42 : 35;
+    const remaining = totalNeeded - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({
+        dateStr: d.toISOString().slice(0, 10),
+        dayNum: i,
+        isCurrentMonth: false,
+        dateObj: d,
+      });
+    }
+
+    return days;
+  }, [year, month]);
+
+  // Map voltooide ritten en geplande workouts per dag
+  const ridesByDate = useMemo(() => {
+    const map = new Map<string, RideSummaryWithBests[]>();
+    for (const r of rides) {
+      const key = new Date(r.date).toISOString().slice(0, 10);
+      const list = map.get(key) ?? [];
+      list.push(r);
+      map.set(key, list);
+    }
+    return map;
+  }, [rides]);
+
+  const plannedByDate = useMemo(() => {
+    const map = new Map<string, PlannedWorkoutItem[]>();
+    for (const p of plannedWorkouts) {
+      const list = map.get(p.date) ?? [];
+      list.push(p);
+      map.set(p.date, list);
+    }
+    return map;
+  }, [plannedWorkouts]);
+
+  // Modal openen om toe te voegen / bewerken
+  const handleOpenAddModal = (dateStr: string) => {
+    setEditingWorkout(null);
+    setTargetDate(dateStr);
+    setFormTitle('Sweet Spot Intervallen');
+    setFormType('sweetspot');
+    setFormDuration(60);
+    setFormTSS(65);
+    setFormNotes('');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (item: PlannedWorkoutItem) => {
+    setEditingWorkout(item);
+    setTargetDate(item.date);
+    setFormTitle(item.title);
+    setFormType(item.type);
+    setFormDuration(item.durationMinutes);
+    setFormTSS(item.plannedTSS);
+    setFormNotes(item.notes ?? '');
+    setIsModalOpen(true);
+  };
+
+  const handleSaveWorkout = () => {
+    if (!formTitle.trim()) return;
+
+    if (editingWorkout) {
+      setPlannedWorkouts(prev => prev.map(p => p.id === editingWorkout.id ? {
+        ...p,
+        date: targetDate,
+        title: formTitle,
+        type: formType,
+        durationMinutes: formDuration,
+        plannedTSS: formTSS,
+        notes: formNotes,
+      } : p));
+    } else {
+      const newWorkout: PlannedWorkoutItem = {
+        id: 'plan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        date: targetDate,
+        title: formTitle,
+        type: formType,
+        durationMinutes: formDuration,
+        plannedTSS: formTSS,
+        notes: formNotes,
+      };
+      setPlannedWorkouts(prev => [...prev, newWorkout]);
+    }
+    setIsModalOpen(false);
+  };
+
+  const handleDeleteWorkout = (id: string) => {
+    setPlannedWorkouts(prev => prev.filter(p => p.id !== id));
+    setIsModalOpen(false);
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('text/plain', id);
+    setDraggedWorkoutId(id);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetDateStr: string) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain') || draggedWorkoutId;
+    if (id) {
+      setPlannedWorkouts(prev => prev.map(p => p.id === id ? { ...p, date: targetDateStr } : p));
+    }
+    setDraggedWorkoutId(null);
+  };
+
+  // Format chart data voor Recharts
+  const chartData = useMemo(() => {
+    return simPMC.map(pt => ({
+      dateStr: new Date(pt.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+      rawDate: pt.date,
+      ctl: pt.ctl,
+      atl: pt.atl,
+      tsb: pt.tsb,
+      tss: pt.tss,
+      isSimulated: pt.isSimulated,
+    }));
+  }, [simPMC]);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="wd-calendar-page animate-slide-up">
+      {/* ── 1. Top Banner met PMC Simulatie KPI's ────────────────────────────── */}
+      <div className="wd-calendar-hero">
+        <div className="wd-calendar-hero__header">
+          <div>
+            <span className="wd-calendar-hero__tag">
+              <TrendingUp size={13} style={{ color: '#00e5ff', marginRight: 4 }} />
+              Periodisering & PMC Voorspelling
+            </span>
+            <h2 className="wd-calendar-hero__title">Trainingskalender</h2>
+          </div>
+
+          <div className="wd-calendar-hero__kpis">
+            <div className="wd-calendar-kpi">
+              <span className="wd-calendar-kpi__label">Fitheid (CTL +35d)</span>
+              <strong className="wd-calendar-kpi__val" style={{ color: '#00e5ff' }}>
+                {Math.round(latestSimPoint.ctl)}
+              </strong>
+            </div>
+            <div className="wd-calendar-kpi">
+              <span className="wd-calendar-kpi__label">Vermoeidheid (ATL +35d)</span>
+              <strong className="wd-calendar-kpi__val" style={{ color: '#ff7675' }}>
+                {Math.round(latestSimPoint.atl)}
+              </strong>
+            </div>
+            <div className="wd-calendar-kpi">
+              <span className="wd-calendar-kpi__label">Vorm (TSB +35d)</span>
+              <strong className="wd-calendar-kpi__val" style={{ color: currentFormStatus.color }}>
+                {latestSimPoint.tsb > 0 ? `+${Math.round(latestSimPoint.tsb)}` : Math.round(latestSimPoint.tsb)} {currentFormStatus.emoji}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Recharts Simulatie Grafiek */}
+        <div className="wd-calendar-chart-wrapper">
+          <ResponsiveContainer width="100%" height={160}>
+            <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+              <XAxis dataKey="dateStr" tick={{ fill: '#64748b', fontSize: 10 }} stroke="rgba(255,255,255,0.05)" />
+              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} stroke="rgba(255,255,255,0.05)" />
+              <Tooltip
+                contentStyle={{ background: '#09090b', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11, color: '#fff' }}
+              />
+              <ReferenceLine x={new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} stroke="#00e5ff" strokeDasharray="3 3" label={{ value: 'Vandaag', fill: '#00e5ff', fontSize: 10 }} />
+              <Bar dataKey="tss" fill="rgba(255,255,255,0.08)" radius={[2, 2, 0, 0]} name="Dagelijkse TSS" />
+              <Line type="monotone" dataKey="ctl" stroke="#00e5ff" strokeWidth={2} dot={false} name="Fitheid (CTL)" />
+              <Line type="monotone" dataKey="atl" stroke="#ff7675" strokeWidth={1.5} dot={false} name="Vermoeidheid (ATL)" />
+              <Line type="monotone" dataKey="tsb" stroke="#fdcb6e" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Vorm (TSB)" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ── 2. Kalender Controls Bar ─────────────────────────────────────────── */}
+      <div className="wd-calendar-controls">
+        <div className="wd-calendar-controls__left">
+          <button className="wd-cal-btn" onClick={handleToday}>Vandaag</button>
+          <div className="wd-cal-nav-group">
+            <button className="wd-cal-icon-btn" onClick={handlePrev}><ChevronLeft size={16} /></button>
+            <button className="wd-cal-icon-btn" onClick={handleNext}><ChevronRight size={16} /></button>
+          </div>
+          <h3 className="wd-cal-month-title">
+            {currentDate.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}
+          </h3>
+        </div>
+
+        <div className="wd-calendar-controls__right">
+          <button className="wd-cal-add-btn" onClick={() => handleOpenAddModal(todayStr)}>
+            <Plus size={14} style={{ marginRight: 4 }} /> Workout Plannen
+          </button>
+        </div>
+      </div>
+
+      {/* ── 3. Maand Grid ────────────────────────────────────────────────────── */}
+      <div className="wd-calendar-grid">
+        {/* Dagen van de week headers */}
+        {['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].map(d => (
+          <div key={d} className="wd-cal-header-cell">{d}</div>
+        ))}
+
+        {/* Kalender Dagen */}
+        {calendarDays.map(day => {
+          const isToday = day.dateStr === todayStr;
+          const dayRides = ridesByDate.get(day.dateStr) ?? [];
+          const dayPlanned = plannedByDate.get(day.dateStr) ?? [];
+
+          return (
+            <div
+              key={day.dateStr}
+              className={`wd-cal-day-cell ${!day.isCurrentMonth ? 'wd-cal-day-cell--other' : ''} ${isToday ? 'wd-cal-day-cell--today' : ''}`}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, day.dateStr)}
+            >
+              <div className="wd-cal-day-cell__top">
+                <span className="wd-cal-day-num">{day.dayNum}</span>
+                <button
+                  className="wd-cal-day-add-btn"
+                  title="Plan workout op deze dag"
+                  onClick={() => handleOpenAddModal(day.dateStr)}
+                >
+                  +
+                </button>
+              </div>
+
+              <div className="wd-cal-day-events">
+                {/* Voltooide Ritten */}
+                {dayRides.map(r => (
+                  <div key={r.id} className="wd-cal-badge wd-cal-badge--completed" title={`Voltooid: ${r.name} (${Math.round(r.distance)}km)`}>
+
+                    <CheckCircle2 size={10} style={{ flexShrink: 0, color: '#39ff14' }} />
+                    <span className="wd-cal-badge__title">{r.name}</span>
+                    <span className="wd-cal-badge__tss">{Math.round(r.tss ?? r.hrTSS ?? 0)}TSS</span>
+                  </div>
+                ))}
+
+                {/* Geplande Workouts */}
+                {dayPlanned.map(p => (
+                  <div
+                    key={p.id}
+                    className={`wd-cal-badge wd-cal-badge--planned wd-cal-type--${p.type}`}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, p.id)}
+                    onClick={() => handleOpenEditModal(p)}
+                    title={`Gepland: ${p.title} (${p.durationMinutes}m, ${p.plannedTSS} TSS). Klik om te bewerken, sleep om te verplaatsen.`}
+                  >
+                    <span className="wd-cal-badge__dot" />
+                    <span className="wd-cal-badge__title">{p.title}</span>
+                    <span className="wd-cal-badge__tss">{p.plannedTSS}TSS</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── 4. Workout Plannen / Bewerken Modal ───────────────────────────────── */}
+      {isModalOpen && (
+        <div className="wd-modal-backdrop animate-fade-in" onClick={() => setIsModalOpen(false)}>
+          <div className="wd-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="wd-modal-header">
+              <h3>{editingWorkout ? 'Workout Bewerken' : 'Nieuwe Workout Plannen'}</h3>
+              <button className="wd-modal-close" onClick={() => setIsModalOpen(false)}>✕</button>
+            </div>
+
+            <div className="wd-modal-body">
+              <div className="wd-form-group">
+                <label>Datum</label>
+                <input
+                  type="date"
+                  value={targetDate}
+                  onChange={e => setTargetDate(e.target.value)}
+                />
+              </div>
+
+              <div className="wd-form-group">
+                <label>Titel van Workout</label>
+                <input
+                  type="text"
+                  placeholder="bv. Sweet Spot 2x15m"
+                  value={formTitle}
+                  onChange={e => setFormTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="wd-form-group">
+                <label>Type Training</label>
+                <select
+                  value={formType}
+                  onChange={e => {
+                    const t = e.target.value as PlannedWorkoutItem['type'];
+                    setFormType(t);
+                    // Automatische inschatting TSS op basis van duur & type
+                    if (t === 'recovery') setFormTSS(Math.round(formDuration * 0.4));
+                    if (t === 'endurance') setFormTSS(Math.round(formDuration * 0.8));
+                    if (t === 'sweetspot') setFormTSS(Math.round(formDuration * 1.1));
+                    if (t === 'threshold') setFormTSS(Math.round(formDuration * 1.25));
+                    if (t === 'vo2max') setFormTSS(Math.round(formDuration * 1.4));
+                  }}
+                >
+                  <option value="recovery">💙 Actief Herstel (Z1)</option>
+                  <option value="endurance">🟢 Duurtraining (Z2)</option>
+                  <option value="sweetspot">🟡 Sweet Spot Intervallen (Z3/Z4)</option>
+                  <option value="threshold">🔴 Drempel / FTP (Z4)</option>
+                  <option value="vo2max">💜 VO2Max Intervallen (Z5)</option>
+                  <option value="custom">⚡ Aangepast</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="wd-form-group">
+                  <label>Duur (minuten)</label>
+                  <input
+                    type="number"
+                    min={15}
+                    max={360}
+                    value={formDuration}
+                    onChange={e => {
+                      const dur = parseInt(e.target.value) || 0;
+                      setFormDuration(dur);
+                    }}
+                  />
+                </div>
+
+                <div className="wd-form-group">
+                  <label>Verwachte TSS</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={500}
+                    value={formTSS}
+                    onChange={e => setFormTSS(parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+
+              <div className="wd-form-group">
+                <label>Notities / Instructies</label>
+                <textarea
+                  rows={3}
+                  placeholder="bv. Warm-up 15m, 2x 15m op 220W met 5m herstel..."
+                  value={formNotes}
+                  onChange={e => setFormNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="wd-modal-footer">
+              {editingWorkout && (
+                <button
+                  className="wd-modal-btn wd-modal-btn--danger"
+                  onClick={() => handleDeleteWorkout(editingWorkout.id)}
+                >
+                  <Trash2 size={13} style={{ marginRight: 4 }} /> Verwijderen
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              <button
+                className="wd-modal-btn wd-modal-btn--secondary"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Annuleren
+              </button>
+              <button
+                className="wd-modal-btn wd-modal-btn--primary"
+                onClick={handleSaveWorkout}
+              >
+                Opslaan & Simuleren
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

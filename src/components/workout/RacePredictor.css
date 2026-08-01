@@ -1,0 +1,115 @@
+.pp-predictor-card {
+  background: var(--bg-card, #121214);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.pp-predictor-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pp-predictor-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main, #f8fafc);
+  margin: 0;
+}
+
+.pp-predictor-subtitle {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+.pp-predictions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pp-prediction-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: all 0.2s ease;
+}
+
+.pp-prediction-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(0, 229, 255, 0.15);
+  transform: translateX(2px);
+}
+
+.pp-pred-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pp-pred-dist {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-primary, #00e5ff);
+  background: rgba(0, 229, 255, 0.06);
+  padding: 4px 8px;
+  border-radius: 6px;
+  min-width: 42px;
+  text-align: center;
+}
+
+.pp-pred-lbl {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.pp-pred-sub {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.pp-pred-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-pred-timer-icon {
+  color: #64748b;
+}
+
+.pp-pred-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: #39ff14; /* Neon groen voor de eindtijden */
+  text-shadow: 0 0 10px rgba(57, 255, 20, 0.15);
+}
+
+.pp-predictor-warning {
+  display: flex;
+  gap: 10px;
+  background: rgba(225, 112, 85, 0.05);
+  border: 1px solid rgba(225, 112, 85, 0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #fca5a5;
+}
+
+.pp-warning-icon {
+  color: #e17055;
+  flex-shrink: 0;
+  margin-top: 1px;
+}

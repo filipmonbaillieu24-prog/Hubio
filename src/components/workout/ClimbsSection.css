@@ -1,0 +1,44 @@
+/* ── Climbs Section in RidePage ───────────────────────────────────────────── */
+.rp-climb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.rp-climb-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left-width: 4px; /* Dynamische kleur via inline style */
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.rp-climb-card:hover {
+  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateX(2px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.rp-climb-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main, #f8fafc);
+  display: block;
+  margin-bottom: 2px;
+}
+.rp-climb-stats {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+}
+.rp-climb-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  border: 1px solid currentColor;
+}

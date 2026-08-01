@@ -1,0 +1,6 @@
+.rp-map-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.08));
+}

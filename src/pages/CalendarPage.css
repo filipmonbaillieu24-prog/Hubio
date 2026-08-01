@@ -1,0 +1,440 @@
+/* ── Calendar Page Main Layout ───────────────────────────────────────────── */
+
+.wd-calendar-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  color: #f8fafc;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* ── Hero & KPI Banner ────────────────────────────────────────────────────── */
+
+.wd-calendar-hero {
+  background: linear-gradient(135deg, rgba(9, 9, 11, 0.95) 0%, rgba(18, 18, 24, 0.85) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+}
+
+.wd-calendar-hero__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.wd-calendar-hero__tag {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #00e5ff;
+  letter-spacing: 0.9px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.wd-calendar-hero__title {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: #f8fafc;
+}
+
+.wd-calendar-hero__kpis {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wd-calendar-kpi {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wd-calendar-kpi__label {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.wd-calendar-kpi__val {
+  font-size: 16px;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+}
+
+.wd-calendar-chart-wrapper {
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  padding-top: 12px;
+}
+
+/* ── Calendar Controls ───────────────────────────────────────────────────── */
+
+.wd-calendar-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.wd-calendar-controls__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wd-cal-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wd-cal-btn:hover {
+  background: rgba(0, 229, 255, 0.1);
+  border-color: #00e5ff;
+  color: #00e5ff;
+}
+
+.wd-cal-nav-group {
+  display: flex;
+  gap: 4px;
+}
+
+.wd-cal-icon-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  color: #cbd5e1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.wd-cal-icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wd-cal-month-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: capitalize;
+  color: #f8fafc;
+}
+
+.wd-cal-add-btn {
+  background: linear-gradient(135deg, #00e5ff 0%, #00b894 100%);
+  color: #09090b;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 4px 14px rgba(0, 229, 255, 0.25);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.wd-cal-add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 229, 255, 0.35);
+}
+
+/* ── Calendar Grid ───────────────────────────────────────────────────────── */
+
+.wd-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.wd-cal-header-cell {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.wd-cal-day-cell {
+  background: rgba(18, 18, 24, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  min-height: 110px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.2s, background-color 0.2s;
+  position: relative;
+}
+
+.wd-cal-day-cell:hover {
+  border-color: rgba(0, 229, 255, 0.2);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.wd-cal-day-cell--other {
+  opacity: 0.35;
+}
+
+.wd-cal-day-cell--today {
+  border-color: #00e5ff;
+  background: rgba(0, 229, 255, 0.03);
+}
+
+.wd-cal-day-cell__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wd-cal-day-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.wd-cal-day-cell--today .wd-cal-day-num {
+  color: #00e5ff;
+}
+
+.wd-cal-day-add-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  padding: 0 4px;
+}
+
+.wd-cal-day-cell:hover .wd-cal-day-add-btn {
+  opacity: 1;
+}
+
+.wd-cal-day-add-btn:hover {
+  color: #00e5ff;
+}
+
+.wd-cal-day-events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 90px;
+}
+
+/* Event Badges */
+.wd-cal-badge {
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+
+.wd-cal-badge:hover {
+  transform: scale(1.02);
+}
+
+.wd-cal-badge--completed {
+  background: rgba(57, 255, 20, 0.08);
+  border: 1px solid rgba(57, 255, 20, 0.2);
+  color: #39ff14;
+}
+
+.wd-cal-badge--planned {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+}
+
+.wd-cal-type--recovery { border-color: #74b9ff; color: #74b9ff; background: rgba(116, 185, 255, 0.08); }
+.wd-cal-type--endurance { border-color: #00b894; color: #00b894; background: rgba(0, 184, 148, 0.08); }
+.wd-cal-type--sweetspot { border-color: #fdcb6e; color: #fdcb6e; background: rgba(253, 203, 110, 0.08); }
+.wd-cal-type--threshold { border-color: #ff7675; color: #ff7675; background: rgba(255, 118, 117, 0.08); }
+.wd-cal-type--vo2max { border-color: #a29bfe; color: #a29bfe; background: rgba(162, 155, 254, 0.08); }
+
+.wd-cal-badge__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.wd-cal-badge__title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.wd-cal-badge__tss {
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+/* ── Modal Styles ────────────────────────────────────────────────────────── */
+
+.wd-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.wd-modal-card {
+  background: #0f0f13;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wd-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wd-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.wd-modal-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.wd-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wd-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wd-form-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.wd-form-group input,
+.wd-form-group select,
+.wd-form-group textarea {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #f8fafc;
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+}
+
+.wd-form-group input:focus,
+.wd-form-group select:focus,
+.wd-form-group textarea:focus {
+  border-color: #00e5ff;
+}
+
+.wd-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.wd-modal-btn {
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.wd-modal-btn--primary {
+  background: #00e5ff;
+  color: #09090b;
+}
+
+.wd-modal-btn--secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+}
+
+.wd-modal-btn--danger {
+  background: rgba(255, 118, 117, 0.15);
+  color: #ff7675;
+  border: 1px solid rgba(255, 118, 117, 0.3);
+}

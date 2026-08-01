@@ -1,0 +1,35 @@
+/* Heatmap card & map wrapper */
+.wd-heatmap-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 150px);
+  min-height: 450px;
+}
+
+.wd-heatmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.wd-heatmap-map {
+  flex: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.08));
+  position: relative;
+  background: rgba(0,0,0,0.3);
+}
+
+.wd-heatmap-footer {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}

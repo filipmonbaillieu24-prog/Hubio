@@ -1,0 +1,24 @@
+/* Split analysis */
+.rp-split-grid { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+.rp-split-header,
+.rp-split-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.rp-split-header {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: #3a3a4a;
+}
+.rp-split-row { background: rgba(255,255,255,0.025); }
+.rp-split-row:hover { background: rgba(255,255,255,0.04); }
+.rp-split-label { color: var(--text-muted, #94a3b8); }
+.rp-split-row span:not(.rp-split-label) { color: var(--text-main, #f8fafc); text-align: center; }
+.rp-split-row span:last-child { text-align: right; }

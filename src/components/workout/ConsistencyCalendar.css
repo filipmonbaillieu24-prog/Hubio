@@ -1,0 +1,42 @@
+/* ── Consistency calendar ─────────────────────────────────────────────────── */
+.wd-cal-wrap {
+  display: flex;
+  gap: 5px;
+  align-items: flex-start;
+}
+.wd-cal-dow {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  padding-top: 1px;
+}
+.wd-cal-dow span {
+  font-size: 8px;
+  color: #64748b; /* Beter leesbare contrastkleur */
+  height: 10px;
+  line-height: 10px;
+  text-align: right;
+  width: 10px;
+}
+.wd-cal-grid {
+  display: flex;
+  gap: 2.5px;
+  flex: 1;
+}
+.wd-cal-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  flex: 1;
+}
+.wd-cal-cell {
+  height: 10px;
+  border-radius: 2px;
+  cursor: default;
+  background: rgba(255, 255, 255, 0.035); /* Transparante gevulde basis voor lege dagen */
+  transition: all 0.2s ease;
+}
+.wd-cal-cell:hover { 
+  opacity: 0.75; 
+  transform: scale(1.15); /* Subtiele hover-interactie */
+}
