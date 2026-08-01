@@ -67,7 +67,7 @@ export const PowerDurationCurve: React.FC<Props> = ({
       <div className="pdc-header">
         <h3 className="pdc-title">{hasPower ? '⚡ Power Duration Curve' : '🚴 Snelheidscurve'}</h3>
         <div className="pdc-legend">
-          <span className="pdc-legend__dot" style={{ background: '#00e5ff' }} /> All-time
+          <span className="pdc-legend__dot" style={{ background: '#a5b4fc' }} /> All-time
           {hasLast90Data && (
             <>
               <span className="pdc-legend__dot" style={{ background: '#39ff14' }} /> Laatste 90d
@@ -84,8 +84,8 @@ export const PowerDurationCurve: React.FC<Props> = ({
         <ComposedChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
           <defs>
             <linearGradient id="pdcAllTime" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#00e5ff" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#00e5ff" stopOpacity={0} />
+              <stop offset="5%"  stopColor="#a5b4fc" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="pdcLast90" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor="#39ff14" stopOpacity={0.18} />
@@ -112,11 +112,11 @@ export const PowerDurationCurve: React.FC<Props> = ({
           <Area
             type="monotone"
             dataKey="allTime"
-            stroke="#00e5ff"
+            stroke="#a5b4fc"
             strokeWidth={2.5}
             fill="url(#pdcAllTime)"
-            dot={{ fill: '#00e5ff', r: 4, strokeWidth: 0 }}
-            activeDot={{ r: 6, fill: '#00e5ff', stroke: '#fff', strokeWidth: 1.5 }}
+            dot={{ fill: '#a5b4fc', r: 4, strokeWidth: 0 }}
+            activeDot={{ r: 6, fill: '#a5b4fc', stroke: '#fff', strokeWidth: 1.5 }}
             connectNulls
           />
           {hasLast90Data && (

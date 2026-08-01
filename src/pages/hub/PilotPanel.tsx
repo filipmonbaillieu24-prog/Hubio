@@ -54,7 +54,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({
   return (
     <div className="zh-hub-container">
       {/* Background radial glow */}
-      <div className="zh-hub-glow" style={{ background: 'radial-gradient(circle at 80% 20%, rgba(0, 229, 255, 0.12) 0%, transparent 60%)' }} />
+      <div className="zh-hub-glow" style={{ background: 'radial-gradient(circle at 80% 20%, rgba(165, 180, 252, 0.12) 0%, transparent 60%)' }} />
 
       {/* Header */}
       <header className="zh-hub-header animate-slide-down">
@@ -63,7 +63,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({
         </button>
         <div className="zh-user-badge">
           <span style={{ fontSize: 11, color: '#94a3b8' }}>Status:</span>
-          <strong style={{ color: '#00e5ff', fontSize: 12 }}>COMPANION VERBONDEN</strong>
+          <strong style={{ color: '#a5b4fc', fontSize: 12 }}>COMPANION VERBONDEN</strong>
         </div>
       </header>
 
@@ -85,8 +85,8 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({
             <p style={{ fontSize: 12, color: '#94a3b8' }}>Laden...</p>
           ) : todayWorkout ? (
             <div>
-              <div style={{ background: 'rgba(0, 229, 255, 0.03)', border: '1px solid rgba(0, 229, 255, 0.15)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
-                <span style={{ fontSize: 9, fontWeight: 900, color: '#00e5ff', textTransform: 'uppercase' }}>Vandaag Actief</span>
+              <div style={{ background: 'rgba(165, 180, 252, 0.03)', border: '1px solid rgba(165, 180, 252, 0.15)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                <span style={{ fontSize: 9, fontWeight: 900, color: '#a5b4fc', textTransform: 'uppercase' }}>Vandaag Actief</span>
                 <h4 style={{ margin: '2px 0 6px', fontSize: 14, fontWeight: 800, color: '#fff' }}>{todayWorkout.title}</h4>
                 <div style={{ display: 'flex', gap: 10, fontSize: 11, color: '#94a3b8' }}>
                   <span>Duur: <strong style={{ color: '#fff' }}>{todayWorkout.durationMinutes} min</strong></span>
@@ -157,7 +157,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({
               {mockCues.map((cue, idx) => (
                 <div key={idx} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: 8, padding: 8, fontSize: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, opacity: 0.7 }}>
-                    <span style={{ color: '#00e5ff', fontWeight: 800 }}>[{cue.type.toUpperCase()}]</span>
+                    <span style={{ color: '#a5b4fc', fontWeight: 800 }}>[{cue.type.toUpperCase()}]</span>
                     <span>{cue.time}</span>
                   </div>
                   <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.4 }}>{cue.text}</p>

@@ -23,7 +23,7 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
       subtitle: 'Desktop & Web Analytics',
       desc: 'Het hart van uw fysiologische data-analyse. Krijg inzicht in uw PMC-grafieken, training stress en PRs.',
       status: 'Geïnstalleerd',
-      statusColor: '#00e5ff',
+      statusColor: '#a5b4fc',
       actionText: 'Open Aero',
       enabled: true
     },
@@ -33,7 +33,7 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
       subtitle: 'Android Audio Companion',
       desc: 'Uw in-ear coach voor op de fiets. Real-time audio cues, geoptimaliseerd op wind en hellingen. Werkt volledig offline.',
       status: 'Mobiel Verbonden',
-      statusColor: '#00e5ff',
+      statusColor: '#a5b4fc',
       actionText: 'Open Pilot',
       enabled: true
     },
@@ -100,7 +100,7 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
           <div className="zh-stats-grid">
             <div className="zh-stat-item">
               <span className="zh-stat-label">Fitheid (CTL)</span>
-              <strong className="zh-stat-value" style={{ color: '#00e5ff' }}>{ctl}</strong>
+              <strong className="zh-stat-value" style={{ color: '#a5b4fc' }}>{ctl}</strong>
             </div>
             <div className="zh-stat-item">
               <span className="zh-stat-label">Vermoeidheid (ATL)</span>
@@ -145,7 +145,7 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
                   <button 
                     onClick={() => onOpenApp(app.key as any)}
                     className="zh-app-btn"
-                    style={{ background: 'linear-gradient(135deg, #00e5ff 0%, #6c5ce7 100%)', boxShadow: '0 4px 12px rgba(0, 229, 255, 0.1)' }}
+                    style={{ background: 'linear-gradient(135deg, #a5b4fc 0%, #6c5ce7 100%)', boxShadow: '0 4px 12px rgba(165, 180, 252, 0.1)' }}
                   >
                     {app.actionText}
                   </button>

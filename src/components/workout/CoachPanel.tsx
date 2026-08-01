@@ -135,7 +135,7 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfil
   if (rides.length < 2) {
     return (
       <div className="wd-section-card" style={{ padding: 24, textAlign: 'center', color: '#cbd5e1' }}>
-        <Brain size={32} strokeWidth={1.5} style={{ color: '#00e5ff', marginBottom: 12 }} />
+        <Brain size={32} strokeWidth={1.5} style={{ color: '#a5b4fc', marginBottom: 12 }} />
         <p style={{ margin: 0 }}>Upload minimaal 2 ritten met hartslag- of vermogensgegevens om gepersonaliseerd AI-trainingsadvies te genereren.</p>
       </div>
     );
@@ -483,7 +483,7 @@ function generateDailyWorkoutHelper(
     <div className="wd-coach-panel animate-slide-up">
       {/* 0. Doel-selectie widget */}
       <div className="wd-section-card wd-goal-selector">
-        <h4 style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#00e5ff', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <h4 style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#a5b4fc', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>🎯</span> Selecteer je Trainingsdoel
         </h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
@@ -517,8 +517,8 @@ function generateDailyWorkoutHelper(
           <h3>Jouw AI Training Coach</h3>
           <p>{getGreetingMessage()}</p>
           <div className="wd-coach-hero-metrics">
-            <span className="wd-coach-metric-tag" style={{ borderLeft: '2px solid #00e5ff' }}>
-              Fitheid (CTL): <strong style={{ color: '#00e5ff', fontSize: 12 }}>{Math.round(pmcStatus.latest.ctl)}</strong>
+            <span className="wd-coach-metric-tag" style={{ borderLeft: '2px solid #a5b4fc' }}>
+              Fitheid (CTL): <strong style={{ color: '#a5b4fc', fontSize: 12 }}>{Math.round(pmcStatus.latest.ctl)}</strong>
             </span>
             <span className="wd-coach-metric-tag" style={{ borderLeft: '2px solid #ff7675' }}>
               Vermoeidheid (ATL): <strong style={{ color: '#ff7675', fontSize: 12 }}>{Math.round(pmcStatus.latest.atl)}</strong>
@@ -532,9 +532,9 @@ function generateDailyWorkoutHelper(
       </div>
 
       {/* ─── AI DAGTRAINING GENERATOR WIDGET ─── */}
-      <div className="wd-section-card" style={{ background: 'linear-gradient(135deg, rgba(108, 92, 231, 0.05) 0%, rgba(0, 229, 255, 0.02) 100%)', border: '1px solid rgba(108, 92, 231, 0.15)', marginBottom: 20 }}>
+      <div className="wd-section-card" style={{ background: 'linear-gradient(135deg, rgba(108, 92, 231, 0.05) 0%, rgba(165, 180, 252, 0.02) 100%)', border: '1px solid rgba(108, 92, 231, 0.15)', marginBottom: 20 }}>
         <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 900, color: '#fff', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Sparkles size={16} style={{ color: '#00e5ff', filter: 'drop-shadow(0 0 4px rgba(0, 229, 255, 0.5))' }} /> AI Dagtraining Generator
+          <Sparkles size={16} style={{ color: '#a5b4fc', filter: 'drop-shadow(0 0 4px rgba(165, 180, 252, 0.5))' }} /> AI Dagtraining Generator
         </h3>
         <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.5 }}>
           Genereer direct een gestructureerde training voor vandaag op basis van uw trainingsdoel, fitheid en beschikbare tijd.
@@ -565,7 +565,7 @@ function generateDailyWorkoutHelper(
             onClick={handleGenerateDailyWorkout}
             style={{ 
               marginTop: 18,
-              background: 'linear-gradient(135deg, #00e5ff 0%, #6c5ce7 100%)',
+              background: 'linear-gradient(135deg, #a5b4fc 0%, #6c5ce7 100%)',
               border: 'none',
               borderRadius: 8,
               color: '#fff',
@@ -573,7 +573,7 @@ function generateDailyWorkoutHelper(
               fontWeight: 800,
               padding: '10px 18px',
               cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(0, 229, 255, 0.15)',
+              boxShadow: '0 4px 15px rgba(165, 180, 252, 0.15)',
               fontFamily: 'inherit',
               transition: 'transform 0.15s'
             }}
@@ -607,11 +607,11 @@ function generateDailyWorkoutHelper(
           <div className="animate-slide-up" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 8 }}>
               <div>
-                <span style={{ fontSize: 9, fontWeight: 900, color: '#00e5ff', textTransform: 'uppercase', letterSpacing: '0.8px' }}>AI Trainingsvoorstel</span>
+                <span style={{ fontSize: 9, fontWeight: 900, color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.8px' }}>AI Trainingsvoorstel</span>
                 <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' }}>{generatedWorkout.title}</h4>
               </div>
               <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
-                <span>Duur: <strong style={{ color: '#00e5ff' }}>{generatedWorkout.durationMinutes} min</strong></span>
+                <span>Duur: <strong style={{ color: '#a5b4fc' }}>{generatedWorkout.durationMinutes} min</strong></span>
                 <span style={{ color: '#64748b' }}>|</span>
                 <span>TSS: <strong style={{ color: '#ff7675' }}>{generatedWorkout.plannedTSS}</strong></span>
               </div>
@@ -666,7 +666,7 @@ function generateDailyWorkoutHelper(
               <button 
                 onClick={handleSaveGeneratedWorkout}
                 disabled={isSavingWorkout}
-                style={{ background: 'linear-gradient(135deg, #00e5ff 0%, #39ff14 100%)', border: 'none', borderRadius: 8, color: '#09090b', fontSize: 11, fontWeight: 800, padding: '8px 16px', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ background: 'linear-gradient(135deg, #a5b4fc 0%, #39ff14 100%)', border: 'none', borderRadius: 8, color: '#09090b', fontSize: 11, fontWeight: 800, padding: '8px 16px', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
                 {isSavingWorkout ? 'Opslaan...' : 'Accepteren & Opslaan'}
               </button>
@@ -683,7 +683,7 @@ function generateDailyWorkoutHelper(
             <h4 style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: '#fff', fontFamily: 'Outfit, sans-serif' }}>{weeklyPlan.title}</h4>
           </div>
           <div style={{ display: 'flex', gap: 10, fontSize: 11, background: 'rgba(0,0,0,0.2)', padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)' }}>
-            <span style={{ color: '#cbd5e1' }}>Richtlijn: <strong style={{ color: '#00e5ff' }}>~{weeklyPlan.hours} uur/week</strong></span>
+            <span style={{ color: '#cbd5e1' }}>Richtlijn: <strong style={{ color: '#a5b4fc' }}>~{weeklyPlan.hours} uur/week</strong></span>
             <span style={{ color: '#64748b' }}>|</span>
             <span style={{ color: '#cbd5e1' }}>TSS doel: <strong style={{ color: '#ff7675' }}>{weeklyPlan.tss}</strong></span>
           </div>
@@ -692,7 +692,7 @@ function generateDailyWorkoutHelper(
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {weeklyPlan.workouts.map((w, idx) => (
             <div key={idx} className="wd-plan-workout-item">
-              <span style={{ color: '#00e5ff', fontWeight: 900, fontSize: 14 }}>✓</span>
+              <span style={{ color: '#a5b4fc', fontWeight: 900, fontSize: 14 }}>✓</span>
               <span>{w}</span>
             </div>
           ))}
@@ -742,7 +742,7 @@ function generateDailyWorkoutHelper(
                 <p className="wd-coach-card__body">{a.body}</p>
                 {a.action && (
                   <div className="wd-coach-card__action">
-                    <Sparkles size={11} strokeWidth={1.6} style={{ color: '#00e5ff', marginRight: 4 }} />
+                    <Sparkles size={11} strokeWidth={1.6} style={{ color: '#a5b4fc', marginRight: 4 }} />
                     <span>Actiepunt: <strong>{a.action}</strong></span>
                   </div>
                 )}
@@ -755,7 +755,7 @@ function generateDailyWorkoutHelper(
       {/* 4. Brandstof Calculator */}
       <div className="wd-fuel-calculator" style={{ marginTop: 24, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 24 }}>
         <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 800, color: '#f8fafc', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Coffee size={16} strokeWidth={1.6} style={{ color: '#00e5ff' }} /> Brandstof & Voeding Planner (Toekomstige Ritten)
+          <Coffee size={16} strokeWidth={1.6} style={{ color: '#a5b4fc' }} /> Brandstof & Voeding Planner (Toekomstige Ritten)
         </h3>
         
         <div className="wd-fuel-calc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
@@ -796,14 +796,14 @@ function generateDailyWorkoutHelper(
                 step="1"
                 value={plannedTemperature}
                 onChange={(e) => setPlannedTemperature(parseInt(e.target.value))}
-                style={{ width: '100%', accentColor: '#00e5ff', background: 'rgba(255,255,255,0.05)' }}
+                style={{ width: '100%', accentColor: '#a5b4fc', background: 'rgba(255,255,255,0.05)' }}
               />
             </div>
           </div>
           
           {/* Results Card */}
           <div className="wd-fuel-calc-results" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#00e5ff', letterSpacing: '0.8px' }}>Voedingsadvies & Brandstofplan</span>
+            <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#a5b4fc', letterSpacing: '0.8px' }}>Voedingsadvies & Brandstofplan</span>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 4 }}>
               <div style={{ background: 'rgba(255,255,255,0.01)', padding: 10, borderRadius: 8, border: '1px solid rgba(255,255,255,0.03)' }}>
@@ -820,8 +820,8 @@ function generateDailyWorkoutHelper(
               </div>
               <div style={{ background: 'rgba(255,255,255,0.01)', padding: 10, borderRadius: 8, border: '1px solid rgba(255,255,255,0.03)' }}>
                 <span style={{ display: 'block', fontSize: 10, color: '#94a3b8', marginBottom: 2 }}>Vochtbehoefte</span>
-                <strong style={{ fontSize: 14, color: '#00e5ff', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Droplets size={13} style={{ color: '#00e5ff' }} /> {(calculatorFuel.totalFluid / 1000).toFixed(1)}L
+                <strong style={{ fontSize: 14, color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Droplets size={13} style={{ color: '#a5b4fc' }} /> {(calculatorFuel.totalFluid / 1000).toFixed(1)}L
                 </strong>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.01)', padding: 10, borderRadius: 8, border: '1px solid rgba(255,255,255,0.03)' }}>

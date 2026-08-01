@@ -89,9 +89,9 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {trainingProfile.isFlexible ? (
               trainingProfile.activeWeeks > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.15)' }}>
-                  <Trophy size={12} color="#00e5ff" />
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#00e5ff' }}>{trainingProfile.activeWeeks} actieve weken</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, background: 'rgba(165, 180, 252,0.08)', border: '1px solid rgba(165, 180, 252,0.15)' }}>
+                  <Trophy size={12} color="#a5b4fc" />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#a5b4fc' }}>{trainingProfile.activeWeeks} actieve weken</span>
                 </div>
               )
             ) : (
@@ -140,9 +140,9 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
               </div>
             )}
             {localAiAdvice && (
-              <div style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 8, background: 'rgba(0,229,255,0.04)', border: '1px solid rgba(0,229,255,0.12)', borderRadius: 8, padding: '6px 10px', marginTop: 4 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 8, background: 'rgba(165, 180, 252,0.04)', border: '1px solid rgba(165, 180, 252,0.12)', borderRadius: 8, padding: '6px 10px', marginTop: 4 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: 9, fontWeight: 900, color: '#00e5ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fysiologische analyse — Notities gescand</span>
+                  <span style={{ fontSize: 9, fontWeight: 900, color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fysiologische analyse — Notities gescand</span>
                   <span style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.4 }}>{localAiAdvice.reason}</span>
                 </div>
               </div>
@@ -152,7 +152,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
           <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
             <div style={{ textAlign: 'center', minWidth: 70 }}>
               <div style={{ fontSize: 7, fontWeight: 800, color: '#64748b' }}>FITHEID (CTL)</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#00e5ff', fontFamily: 'Outfit' }}>{Math.round(pmcData.ctl)}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#a5b4fc', fontFamily: 'Outfit' }}>{Math.round(pmcData.ctl)}</div>
             </div>
             <div style={{ borderLeft: '1px solid rgba(255,255,255,0.06)', height: 28 }} />
             <div style={{ textAlign: 'center', minWidth: 70 }}>
@@ -177,7 +177,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, padding: 20, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             {/* Linkerzijde */}
             <div>
-              <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#00e5ff', letterSpacing: '1px' }}>Aanbevolen Workout</span>
+              <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: '#a5b4fc', letterSpacing: '1px' }}>Aanbevolen Workout</span>
               <h3 style={{ margin: '4px 0 6px', fontFamily: 'Outfit, sans-serif', fontSize: 19, fontWeight: 800, color: '#f8fafc' }}>{activeWorkout.title}</h3>
               <p style={{ fontSize: 12, color: '#cbd5e1', margin: '0 0 12px', lineHeight: 1.5 }}>{activeWorkout.description}</p>
               {typeCountWarning && (
@@ -188,7 +188,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                 {[
                   { label: 'Doel', value: effectiveType === 'recovery' ? 'Herstelrit' : effectiveType === 'endurance' ? 'Vetverbranding' : effectiveType === 'sweetspot' ? 'Aerobe Conditie' : effectiveType === 'threshold' ? 'FTP Drempel' : 'Zuurstofopname', color: '#f8fafc' },
-                  { label: 'Afstand', value: `~${Math.round((duration / 60) * (effectiveType === 'recovery' ? 24 : effectiveType === 'endurance' ? 28 : 31))} km`, color: '#00e5ff' },
+                  { label: 'Afstand', value: `~${Math.round((duration / 60) * (effectiveType === 'recovery' ? 24 : effectiveType === 'endurance' ? 28 : 31))} km`, color: '#a5b4fc' },
                   { label: 'Calorieën', value: `~${Math.round((duration / 60) * (tssImpact.normPower * 3.6 / 4.184))} kcal`, color: '#fdcb6e' },
                   { label: 'Cadans', value: effectiveType === 'recovery' ? '90-100 RPM' : effectiveType === 'vo2max' ? '95-105 RPM' : '85-95 RPM', color: '#39ff14' },
                 ].map(({ label, value, color }) => (
@@ -205,7 +205,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pas Training Aan</span>
                 {(selectedType !== null || duration !== 60) && (
-                  <button onClick={() => { setSelectedType(null); setDuration(60); }} style={{ background: 'none', border: 'none', color: '#00e5ff', fontSize: 10, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button onClick={() => { setSelectedType(null); setDuration(60); }} style={{ background: 'none', border: 'none', color: '#a5b4fc', fontSize: 10, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <RefreshCw size={10} /> Reset
                   </button>
                 )}
@@ -239,7 +239,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
                 </span>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {([45, 60, 75, 90, 120] as const).map(d => (
-                    <button key={d} onClick={() => setDuration(d)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', background: duration === d ? 'rgba(0,229,255,0.1)' : 'rgba(255,255,255,0.01)', border: `1px solid ${duration === d ? 'rgba(0,229,255,0.3)' : 'rgba(255,255,255,0.04)'}`, color: duration === d ? '#00e5ff' : '#cbd5e1', fontSize: 10, fontWeight: 800, transition: 'all 0.15s' }}>{d}m</button>
+                    <button key={d} onClick={() => setDuration(d)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', background: duration === d ? 'rgba(165, 180, 252,0.1)' : 'rgba(255,255,255,0.01)', border: `1px solid ${duration === d ? 'rgba(165, 180, 252,0.3)' : 'rgba(255,255,255,0.04)'}`, color: duration === d ? '#a5b4fc' : '#cbd5e1', fontSize: 10, fontWeight: 800, transition: 'all 0.15s' }}>{d}m</button>
                   ))}
                 </div>
               </div>
@@ -261,7 +261,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
               </div>
               <div>
                 <h4 style={{ margin: '0 0 5px', fontSize: 9, fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' }}>
-                  <Sliders size={11} color="#00e5ff" /> Ondergrond
+                  <Sliders size={11} color="#a5b4fc" /> Ondergrond
                 </h4>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {(['road','gravel','mtb'] as const).map(p => (
@@ -273,7 +273,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
-              <button onClick={handleGenerateRoute} style={{ width: '100%', background: 'linear-gradient(135deg, #00e5ff 0%, #39ff14 100%)', border: 'none', borderRadius: 8, color: '#09090b', fontSize: 12, fontWeight: 800, padding: '10px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 12px rgba(0,229,255,0.15)', fontFamily: 'inherit' }}>
+              <button onClick={handleGenerateRoute} style={{ width: '100%', background: 'linear-gradient(135deg, #a5b4fc 0%, #39ff14 100%)', border: 'none', borderRadius: 8, color: '#09090b', fontSize: 12, fontWeight: 800, padding: '10px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 12px rgba(165, 180, 252,0.15)', fontFamily: 'inherit' }}>
                 <Play size={13} fill="#09090b" /> Genereer Route ({duration} min · {effectiveType})
               </button>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -339,8 +339,8 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
           {/* Weekplan */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {trainingProfile.isFlexible ? (
-              <div style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.04), rgba(0,229,255,0.01))', border: '1px solid rgba(0,229,255,0.15)', borderRadius: 12, padding: '16px' }}>
-                <div style={{ fontSize: 9, fontWeight: 800, color: '#00e5ff', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>⚡ Flexibel Schema Actief</div>
+              <div style={{ background: 'linear-gradient(135deg, rgba(165, 180, 252,0.04), rgba(165, 180, 252,0.01))', border: '1px solid rgba(165, 180, 252,0.15)', borderRadius: 12, padding: '16px' }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>⚡ Flexibel Schema Actief</div>
                 <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: 10, color: '#64748b' }}>Laatste rit</div>
@@ -364,9 +364,9 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
                     const isRidden = !!d.rideInfo;
                     const isFuture = d.date > new Date().toISOString().slice(0,10);
                     return (
-                      <div key={d.day} style={{ padding: '8px 2px', textAlign: 'center', borderRight: i < 6 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: isRidden ? 'rgba(57,255,20,0.06)' : isToday ? 'rgba(0,229,255,0.04)' : 'transparent', cursor: !isRidden && d.type !== 'rest' ? 'pointer' : 'default', opacity: !isFuture && !isRidden && !isToday ? 0.5 : 1 }}
+                      <div key={d.day} style={{ padding: '8px 2px', textAlign: 'center', borderRight: i < 6 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: isRidden ? 'rgba(57,255,20,0.06)' : isToday ? 'rgba(165, 180, 252,0.04)' : 'transparent', cursor: !isRidden && d.type !== 'rest' ? 'pointer' : 'default', opacity: !isFuture && !isRidden && !isToday ? 0.5 : 1 }}
                         onClick={() => !isRidden && d.type !== 'rest' && setSelectedType(d.type as WorkoutType)}>
-                        <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? '#00e5ff' : '#475569', marginBottom: 4 }}>{d.day}</div>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? '#a5b4fc' : '#475569', marginBottom: 4 }}>{d.day}</div>
                         {isRidden ? (
                           <>
                             <div style={{ fontSize: 11, marginBottom: 2 }}>✅</div>
@@ -389,21 +389,21 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
             <div style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.7px' }}>📊 Wekelijkse TSS voortgang</span>
-                <span style={{ fontSize: 10, fontWeight: 800, color: weekLoadData.weekTSS >= weekLoadData.weekGoal ? '#39ff14' : '#00e5ff' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: weekLoadData.weekTSS >= weekLoadData.weekGoal ? '#39ff14' : '#a5b4fc' }}>
                   {weekLoadData.weekTSS} / {weekLoadData.weekGoal} TSS ({Math.round((weekLoadData.weekTSS / Math.max(1, weekLoadData.weekGoal)) * 100)}%)
                 </span>
               </div>
               <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginBottom: 12 }}>
-                <div style={{ height: '100%', width: `${Math.min(100, (weekLoadData.weekTSS / Math.max(1, weekLoadData.weekGoal)) * 100)}%`, background: 'linear-gradient(90deg, #00e5ff, #39ff14)', borderRadius: 2 }} />
+                <div style={{ height: '100%', width: `${Math.min(100, (weekLoadData.weekTSS / Math.max(1, weekLoadData.weekGoal)) * 100)}%`, background: 'linear-gradient(90deg, #a5b4fc, #39ff14)', borderRadius: 2 }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, alignItems: 'flex-end', height: 40 }}>
                 {weekLoadData.days.map(d => {
                   const pct = Math.min(100, (d.tss / Math.max(1, weekLoadData.maxTSS)) * 100);
                   return (
                     <div key={d.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                      <div style={{ fontSize: 7, fontWeight: 700, color: d.isToday ? '#00e5ff' : '#64748b', marginBottom: 2 }}>{d.tss > 0 ? d.tss : ''}</div>
-                      <div style={{ width: '100%', height: `${Math.max(4, pct)}%`, background: d.isToday ? '#00e5ff' : d.tss > 0 ? '#00b894' : 'rgba(255,255,255,0.05)', borderRadius: '2px 2px 0 0' }} />
-                      <span style={{ fontSize: 8, fontWeight: 700, color: d.isToday ? '#00e5ff' : '#475569', marginTop: 3 }}>{d.label}</span>
+                      <div style={{ fontSize: 7, fontWeight: 700, color: d.isToday ? '#a5b4fc' : '#64748b', marginBottom: 2 }}>{d.tss > 0 ? d.tss : ''}</div>
+                      <div style={{ width: '100%', height: `${Math.max(4, pct)}%`, background: d.isToday ? '#a5b4fc' : d.tss > 0 ? '#00b894' : 'rgba(255,255,255,0.05)', borderRadius: '2px 2px 0 0' }} />
+                      <span style={{ fontSize: 8, fontWeight: 700, color: d.isToday ? '#a5b4fc' : '#475569', marginTop: 3 }}>{d.label}</span>
                     </div>
                   );
                 })}
@@ -430,8 +430,8 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
                 </div>
               </div>
             ) : (
-              <div style={{ background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.05), rgba(0, 229, 255, 0.015))', border: '1px solid rgba(0, 229, 255, 0.15)', borderRadius: 12, padding: '14px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 800, color: '#00e5ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ background: 'linear-gradient(135deg, rgba(165, 180, 252, 0.05), rgba(165, 180, 252, 0.015))', border: '1px solid rgba(165, 180, 252, 0.15)', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 800, color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   <Brain size={13} /> Eerste Rit Loggen
                 </div>
                 <p style={{ margin: '6px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
@@ -451,7 +451,7 @@ export const SmartWorkoutTab: React.FC<SmartWorkoutTabProps> = ({
           ].map((tip, i) => (
             <div key={i} style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: '#00e5ff' }}>{tip.icon}</span>
+                <span style={{ color: '#a5b4fc' }}>{tip.icon}</span>
                 <span style={{ fontSize: 10, fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tip.title}</span>
               </div>
               <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>{tip.tip}</p>

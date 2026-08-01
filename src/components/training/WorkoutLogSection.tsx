@@ -42,16 +42,16 @@ export const WorkoutLogSection: React.FC<WorkoutLogSectionProps> = ({ logs, onAd
     <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 12, padding: 18, marginTop: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Award size={16} color="#00e5ff" />
+          <Award size={16} color="#a5b4fc" />
           <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#f8fafc' }}>Handmatig Logboek & RPE Tracker</h4>
         </div>
         <button
           onClick={() => setShowAdd((v) => !v)}
           style={{
-            background: 'rgba(0, 229, 255, 0.12)',
-            border: '1px solid rgba(0, 229, 255, 0.2)',
+            background: 'rgba(165, 180, 252, 0.12)',
+            border: '1px solid rgba(165, 180, 252, 0.2)',
             borderRadius: 6,
-            color: '#00e5ff',
+            color: '#a5b4fc',
             fontSize: 11,
             fontWeight: 600,
             padding: '4px 10px',
@@ -123,7 +123,7 @@ export const WorkoutLogSection: React.FC<WorkoutLogSectionProps> = ({ logs, onAd
           <button
             type="submit"
             style={{
-              background: '#00e5ff',
+              background: '#a5b4fc',
               border: 'none',
               borderRadius: 6,
               color: '#090a0f',
@@ -159,7 +159,7 @@ export const WorkoutLogSection: React.FC<WorkoutLogSectionProps> = ({ logs, onAd
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>{item.date}</span>
                 <span style={{ color: '#f8fafc', fontWeight: 700 }}>{item.workoutType}</span>
-                <span style={{ color: '#00e5ff' }}>{item.durationMinutes}m</span>
+                <span style={{ color: '#a5b4fc' }}>{item.durationMinutes}m</span>
                 <span style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4, color: '#cbd5e1' }}>RPE {item.rpe}/10</span>
                 {item.notes && <span style={{ color: '#64748b', fontStyle: 'italic' }}>"{item.notes}"</span>}
               </div>

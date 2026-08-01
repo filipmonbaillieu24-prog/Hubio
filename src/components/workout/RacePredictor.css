@@ -46,7 +46,7 @@
 
 .pp-prediction-item:hover {
   background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(0, 229, 255, 0.15);
+  border-color: rgba(165, 180, 252, 0.15);
   transform: translateX(2px);
 }
 
@@ -59,8 +59,8 @@
 .pp-pred-dist {
   font-size: 14px;
   font-weight: 800;
-  color: var(--color-primary, #00e5ff);
-  background: rgba(0, 229, 255, 0.06);
+  color: var(--color-primary, #a5b4fc);
+  background: rgba(165, 180, 252, 0.06);
   padding: 4px 8px;
   border-radius: 6px;
   min-width: 42px;

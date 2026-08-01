@@ -62,7 +62,7 @@ export const TrainingDistribution: React.FC<TrainingDistributionProps> = ({ ride
       tip = "Dit is de meest efficiënte methode om je aerobe drempel te verhogen zonder oververmoeid te raken. Blijf zo trainen!";
     } else if (pctLID >= 60 && pctMID >= 15 && pctMID <= 30 && pctHID < pctMID) {
       model = "Piramide (Pyramidal)";
-      color = "#00e5ff";
+      color = "#a5b4fc";
       desc = "Een solide piramidemodel. De basis bestaat uit rustige duurritten, aangevuld met een redelijk aandeel tempowerk (Zone 3/4) en een klein aandeel echte sprints/intervallen.";
       tip = "Ideaal voor het opbouwen van een all-round basisconditie en tempohardheid in het voorseizoen.";
     } else if (pctMID >= 35) {
@@ -105,7 +105,7 @@ export const TrainingDistribution: React.FC<TrainingDistributionProps> = ({ ride
       <div className="wd-section-card">
         <div className="wd-section-card__head">
           <span className="wd-section-card__title">
-            <BarChart2 size={13} style={{ display: 'inline', marginRight: 5, color: '#00e5ff' }} />
+            <BarChart2 size={13} style={{ display: 'inline', marginRight: 5, color: '#a5b4fc' }} />
             Trainingsdistributie & Zones
           </span>
         </div>
@@ -120,7 +120,7 @@ export const TrainingDistribution: React.FC<TrainingDistributionProps> = ({ ride
     <div className="wd-section-card">
       <div className="wd-section-card__head">
         <span className="wd-section-card__title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <BarChart2 size={13} style={{ color: '#00e5ff' }} />
+          <BarChart2 size={13} style={{ color: '#a5b4fc' }} />
           Trainingsdistributie ({analysis.isPowerBased ? 'Vermogen' : 'Hartslag'})
         </span>
       </div>

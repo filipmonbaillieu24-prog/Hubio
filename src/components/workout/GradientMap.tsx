@@ -30,12 +30,12 @@ export const MapBoundsUpdater: React.FC<{ positions: [number, number][] }> = ({ 
 const rideHoverIcon = L.divIcon({
   className: 'poi-marker-hover',
   html: `<div style="
-    background-color: #00e5ff; 
+    background-color: #a5b4fc; 
     width: 16px; 
     height: 16px; 
     border-radius: 50%; 
     border: 2px solid #ffffff; 
-    box-shadow: 0 0 15px #00e5ff, 0 0 5px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 0 15px #a5b4fc, 0 0 5px rgba(0, 0, 0, 0.8);
     animation: marker-pulse 1.5s infinite ease-out;
   "></div>`,
   iconSize: [16, 16],

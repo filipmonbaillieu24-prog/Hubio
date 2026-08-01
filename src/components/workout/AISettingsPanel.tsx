@@ -172,9 +172,9 @@ export const AISettingsPanel: React.FC = () => {
             onClick={handleTestConnection}
             disabled={testing}
             style={{
-              background: 'rgba(0, 229, 255, 0.1)',
-              border: '1px solid rgba(0, 229, 255, 0.25)',
-              color: '#00e5ff',
+              background: 'rgba(165, 180, 252, 0.1)',
+              border: '1px solid rgba(165, 180, 252, 0.25)',
+              color: '#a5b4fc',
               padding: '8px 16px',
               fontSize: 11,
               fontWeight: 800,

@@ -41,7 +41,7 @@ export const PMCPanel: React.FC<PMCPanelProps> = ({ rides, timeRange = 90 }) => 
     <div className="wd-section-card wd-section-card--grow">
       <div className="wd-section-card__head">
         <span className="wd-section-card__title">
-          <TrendingUp size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, color: '#00e5ff' }} />
+          <TrendingUp size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, color: '#a5b4fc' }} />
           Performance Management
         </span>
         <span className="wd-trend" style={{ background: `${tsbInfo.color}22`, color: tsbInfo.color, padding: '2px 8px', borderRadius: 6 }}>
@@ -77,7 +77,7 @@ export const PMCPanel: React.FC<PMCPanelProps> = ({ rides, timeRange = 90 }) => 
           
           {/* TSB Zones op de achtergrond */}
           <ReferenceArea y1={25} y2={50} fill="rgba(100, 116, 139, 0.02)" label={{ value: "Transition Zone", fill: "rgba(100, 116, 139, 0.25)", fontSize: 8, position: 'insideTopLeft' }} />
-          <ReferenceArea y1={0} y2={25} fill="rgba(0, 229, 255, 0.015)" label={{ value: "Freshness / Taper Zone", fill: "rgba(0, 229, 255, 0.25)", fontSize: 8, position: 'insideTopLeft' }} />
+          <ReferenceArea y1={0} y2={25} fill="rgba(165, 180, 252, 0.015)" label={{ value: "Freshness / Taper Zone", fill: "rgba(165, 180, 252, 0.25)", fontSize: 8, position: 'insideTopLeft' }} />
           <ReferenceArea y1={-10} y2={-30} fill="rgba(0, 184, 148, 0.015)" label={{ value: "Optimal Training Zone", fill: "rgba(0, 184, 148, 0.25)", fontSize: 8, position: 'insideTopLeft' }} />
           <ReferenceArea y1={-30} y2={-50} fill="rgba(255, 118, 117, 0.015)" label={{ value: "Overload Danger Zone", fill: "rgba(255, 118, 117, 0.25)", fontSize: 8, position: 'insideTopLeft' }} />
 

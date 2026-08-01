@@ -45,8 +45,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             onClick={() => setActiveSubTab(item.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-              background: activeSubTab === item.key ? 'rgba(0, 229, 255, 0.1)' : 'transparent',
-              color: activeSubTab === item.key ? '#00e5ff' : '#94a3b8',
+              background: activeSubTab === item.key ? 'rgba(165, 180, 252, 0.1)' : 'transparent',
+              color: activeSubTab === item.key ? '#a5b4fc' : '#94a3b8',
               transition: 'all 0.15s', fontFamily: 'inherit'
             }}
           >

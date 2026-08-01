@@ -43,8 +43,8 @@ export const PRSection: React.FC<PRSectionProps> = ({
           onClick={() => setActiveTab('conditie')}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-            background: activeTab === 'conditie' ? 'rgba(0, 229, 255, 0.1)' : 'transparent',
-            color: activeTab === 'conditie' ? '#00e5ff' : '#94a3b8',
+            background: activeTab === 'conditie' ? 'rgba(165, 180, 252, 0.1)' : 'transparent',
+            color: activeTab === 'conditie' ? '#a5b4fc' : '#94a3b8',
             transition: 'all 0.15s',
             fontFamily: 'inherit'
           }}
@@ -56,8 +56,8 @@ export const PRSection: React.FC<PRSectionProps> = ({
           onClick={() => setActiveTab('vermogen')}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-            background: activeTab === 'vermogen' ? 'rgba(0, 229, 255, 0.1)' : 'transparent',
-            color: activeTab === 'vermogen' ? '#00e5ff' : '#94a3b8',
+            background: activeTab === 'vermogen' ? 'rgba(165, 180, 252, 0.1)' : 'transparent',
+            color: activeTab === 'vermogen' ? '#a5b4fc' : '#94a3b8',
             transition: 'all 0.15s',
             fontFamily: 'inherit'
           }}
@@ -69,8 +69,8 @@ export const PRSection: React.FC<PRSectionProps> = ({
           onClick={() => setActiveTab('klims')}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-            background: activeTab === 'klims' ? 'rgba(0, 229, 255, 0.1)' : 'transparent',
-            color: activeTab === 'klims' ? '#00e5ff' : '#94a3b8',
+            background: activeTab === 'klims' ? 'rgba(165, 180, 252, 0.1)' : 'transparent',
+            color: activeTab === 'klims' ? '#a5b4fc' : '#94a3b8',
             transition: 'all 0.15s',
             fontFamily: 'inherit'
           }}
@@ -89,7 +89,7 @@ export const PRSection: React.FC<PRSectionProps> = ({
               <div className="wd-section-card" style={{ margin: 0 }}>
                 <div className="wd-section-card__head">
                   <span className="wd-section-card__title">
-                    <Brain size={13} style={{ display:'inline', verticalAlign:'middle', marginRight:5, color:'#00e5ff' }} />
+                    <Brain size={13} style={{ display:'inline', verticalAlign:'middle', marginRight:5, color:'#a5b4fc' }} />
                     Offline AI eFTP Prognose (Volgende 8 weken)
                   </span>
                   <span style={{ fontSize: 10, color: 'var(--text-muted, #94a3b8)' }}>
@@ -142,7 +142,7 @@ export const PRSection: React.FC<PRSectionProps> = ({
                     <div>
                       <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 12px', lineHeight: 1.4 }}>
                         Ons offline neuraal netwerk voorspelt dat je drempelvermogen (eFTP) over 8 weken stijgt naar 
-                        <strong style={{ color: '#00e5ff', marginLeft: 4 }}>
+                        <strong style={{ color: '#a5b4fc', marginLeft: 4 }}>
                           {finalPredicted} Watt
                         </strong> (een verandering van {ftpDiff >= 0 ? '+' : ''}{Math.round((ftpDiff / currentFtpVal) * 100)}%), 
                         gebaseerd op je wekelijkse consistentie van <strong>{consistency.toFixed(1)} trainingen/week</strong>.
@@ -170,10 +170,10 @@ export const PRSection: React.FC<PRSectionProps> = ({
                           <Line
                             type="monotone"
                             dataKey="voorspelling"
-                            stroke="#00e5ff"
+                            stroke="#a5b4fc"
                             strokeWidth={2}
                             strokeDasharray="4 4"
-                            dot={{ fill: '#00e5ff', r: 3 }}
+                            dot={{ fill: '#a5b4fc', r: 3 }}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -198,8 +198,8 @@ export const PRSection: React.FC<PRSectionProps> = ({
 
               return (
                 <div className="wd-section-card" style={{
-                  background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.03), rgba(108, 92, 231, 0.01))',
-                  border: '1px solid rgba(0, 229, 255, 0.1)',
+                  background: 'linear-gradient(135deg, rgba(165, 180, 252, 0.03), rgba(108, 92, 231, 0.01))',
+                  border: '1px solid rgba(165, 180, 252, 0.1)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 8,
@@ -207,11 +207,11 @@ export const PRSection: React.FC<PRSectionProps> = ({
                   margin: 0
                 }}>
                   <div className="wd-section-card__head" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                    <Brain size={14} color="#00e5ff" />
+                    <Brain size={14} color="#a5b4fc" />
                     <span className="wd-section-card__title" style={{ fontSize: 11 }}>AI VO2max Schatting</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                    <div style={{ fontSize: '24px', fontWeight: 300, color: '#00e5ff', lineHeight: 1 }}>
+                    <div style={{ fontSize: '24px', fontWeight: 300, color: '#a5b4fc', lineHeight: 1 }}>
                       {estimatedVO2} <span style={{ fontSize: '10px', color: '#64748b' }}>ml/kg/min</span>
                     </div>
                     <span style={{ fontSize: 10, color: '#cbd5e1', lineHeight: 1.4, marginTop: 4 }}>
@@ -239,7 +239,7 @@ export const PRSection: React.FC<PRSectionProps> = ({
                     return val ? (
                       <div className="wd-best-item" key={key} style={{ background: 'rgba(255,255,255,0.01)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span className="wd-best-dur" style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.4px' }}>{label}</span>
-                        <span className="wd-best-val" style={{ fontSize: '16px', fontWeight: 300, color: 'var(--color-primary, #00e5ff)' }}>{val} km/h</span>
+                        <span className="wd-best-val" style={{ fontSize: '16px', fontWeight: 300, color: 'var(--color-primary, #a5b4fc)' }}>{val} km/h</span>
                       </div>
                     ) : null;
                   })}

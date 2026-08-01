@@ -58,7 +58,7 @@ export const ClimbsSection: React.FC<ClimbsSectionProps> = ({ points, ftp, weigh
     <div className="rp-chart-card">
       <div className="wd-chart-card__head" style={{ marginBottom: 10 }}>
         <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Mountain size={16} color="#00e5ff" />
+          <Mountain size={16} color="#a5b4fc" />
           Gedetecteerde beklimmingen ({climbs.length})
         </h3>
       </div>
@@ -69,12 +69,12 @@ export const ClimbsSection: React.FC<ClimbsSectionProps> = ({ points, ftp, weigh
           alignItems: 'flex-start',
           gap: 10,
           padding: '10px 12px',
-          background: 'rgba(0, 229, 255, 0.03)',
-          border: '1px solid rgba(0, 229, 255, 0.08)',
+          background: 'rgba(165, 180, 252, 0.03)',
+          border: '1px solid rgba(165, 180, 252, 0.08)',
           borderRadius: 10,
           marginBottom: 12
         }}>
-          <Brain size={16} color="#00e5ff" style={{ flexShrink: 0, marginTop: 1 }} />
+          <Brain size={16} color="#a5b4fc" style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 10, fontWeight: 800, color: '#f8fafc' }}>AI Klimstijl: {climbingStyle.style} (gem. {climbingStyle.avgCadence} rpm)</span>
             <p style={{ fontSize: 10, color: '#cbd5e1', margin: 0, lineHeight: 1.4 }}>{climbingStyle.desc}</p>
@@ -107,7 +107,7 @@ export const ClimbsSection: React.FC<ClimbsSectionProps> = ({ points, ftp, weigh
                   {' '}Gem. {climb.avgGrade}%
                 </span>
                 <span className="rp-climb-stats" style={{ display: 'block', color: 'var(--text-muted, #94a3b8)', marginTop: 2, fontSize: 10 }}>
-                  ⏱️ Tijd: <strong>{fmtTime(actualTimeSec)}</strong> (AI voorspelling: <strong style={{ color: '#00e5ff' }}>{fmtTime(predictedSec)}</strong>)
+                  ⏱️ Tijd: <strong>{fmtTime(actualTimeSec)}</strong> (AI voorspelling: <strong style={{ color: '#a5b4fc' }}>{fmtTime(predictedSec)}</strong>)
                 </span>
               </div>
               <span className="rp-climb-badge" style={{ color: color, background: color + '15' }}>

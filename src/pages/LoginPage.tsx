@@ -60,7 +60,7 @@ export const LoginPage: React.FC = () => {
       minHeight: '100vh',
       width: '100vw',
       background: '#09090b',
-      backgroundImage: 'radial-gradient(circle at 10% 20%, rgba(0, 229, 255, 0.04) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(108, 92, 231, 0.05) 0%, transparent 40%)',
+      backgroundImage: 'radial-gradient(circle at 10% 20%, rgba(165, 180, 252, 0.04) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(108, 92, 231, 0.05) 0%, transparent 40%)',
       fontFamily: "'Outfit', sans-serif",
       color: '#f8fafc',
       padding: '24px',
@@ -168,7 +168,7 @@ export const LoginPage: React.FC = () => {
                     transition: 'border-color 0.15s',
                     boxSizing: 'border-box'
                   }}
-                  onFocus={e => e.target.style.borderColor = 'rgba(0, 229, 255, 0.4)'}
+                  onFocus={e => e.target.style.borderColor = 'rgba(165, 180, 252, 0.4)'}
                   onBlur={e => e.target.style.borderColor = 'rgba(255, 255, 255, 0.05)'}
                 />
               </div>
@@ -198,7 +198,7 @@ export const LoginPage: React.FC = () => {
                   transition: 'border-color 0.15s',
                   boxSizing: 'border-box'
                 }}
-                onFocus={e => e.target.style.borderColor = 'rgba(0, 229, 255, 0.4)'}
+                onFocus={e => e.target.style.borderColor = 'rgba(165, 180, 252, 0.4)'}
                 onBlur={e => e.target.style.borderColor = 'rgba(255, 255, 255, 0.05)'}
               />
             </div>
@@ -227,7 +227,7 @@ export const LoginPage: React.FC = () => {
                   transition: 'border-color 0.15s',
                   boxSizing: 'border-box'
                 }}
-                onFocus={e => e.target.style.borderColor = 'rgba(0, 229, 255, 0.4)'}
+                onFocus={e => e.target.style.borderColor = 'rgba(165, 180, 252, 0.4)'}
                 onBlur={e => e.target.style.borderColor = 'rgba(255, 255, 255, 0.05)'}
               />
             </div>
@@ -237,7 +237,7 @@ export const LoginPage: React.FC = () => {
             type="submit"
             disabled={loading}
             style={{
-              background: 'linear-gradient(135deg, #00e5ff, #6c5ce7)',
+              background: 'linear-gradient(135deg, #a5b4fc, #6c5ce7)',
               border: 'none',
               borderRadius: '10px',
               color: '#fff',
@@ -247,7 +247,7 @@ export const LoginPage: React.FC = () => {
               cursor: 'pointer',
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
-              boxShadow: '0 4px 15px rgba(0, 229, 255, 0.15)',
+              boxShadow: '0 4px 15px rgba(165, 180, 252, 0.15)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -289,7 +289,7 @@ export const LoginPage: React.FC = () => {
             style={{
               background: 'none',
               border: 'none',
-              color: '#00e5ff',
+              color: '#a5b4fc',
               fontWeight: 700,
               cursor: 'pointer',
               padding: 0,

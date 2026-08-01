@@ -17,7 +17,7 @@
   left: 10%;
   width: 50vw;
   height: 50vw;
-  background: radial-gradient(circle at center, rgba(0, 229, 255, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle at center, rgba(165, 180, 252, 0.08) 0%, transparent 70%);
   z-index: 0;
   pointer-events: none;
 }
@@ -33,15 +33,15 @@
 }
 
 .zh-logo-badge {
-  background: rgba(0, 229, 255, 0.08);
-  border: 1px solid rgba(0, 229, 255, 0.25);
+  background: rgba(165, 180, 252, 0.08);
+  border: 1px solid rgba(165, 180, 252, 0.25);
   border-radius: 12px;
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.1);
+  box-shadow: 0 0 15px rgba(165, 180, 252, 0.1);
 }
 
 .zh-hub-title {
@@ -144,8 +144,8 @@
 
 .zh-app-card:hover:not(.disabled) {
   transform: translateY(-4px);
-  border-color: rgba(0, 229, 255, 0.2);
-  box-shadow: 0 12px 30px rgba(0, 229, 255, 0.05);
+  border-color: rgba(165, 180, 252, 0.2);
+  box-shadow: 0 12px 30px rgba(165, 180, 252, 0.05);
 }
 
 .zh-app-card.disabled {

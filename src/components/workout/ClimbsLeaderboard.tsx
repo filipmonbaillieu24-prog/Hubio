@@ -20,7 +20,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'HC':    '#6c5ce7',
   'Cat 1': '#a29bfe',
   'Cat 2': '#00b894',
-  'Cat 3': '#00e5ff',
+  'Cat 3': '#a5b4fc',
   'Cat 4': '#fdcb6e',
 };
 

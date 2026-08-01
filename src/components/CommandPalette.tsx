@@ -86,7 +86,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, commands }) =
         background: '#0f0f13',
         border: '1px solid rgba(255,255,255,0.1)',
         borderRadius: 16,
-        boxShadow: '0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(0,229,255,0.06)',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(165, 180, 252,0.06)',
         overflow: 'hidden',
         fontFamily: 'Inter, system-ui, sans-serif',
         animation: 'slideDown 0.15s ease',
@@ -170,8 +170,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, commands }) =
                           gap: 10,
                           padding: '8px 14px',
                           cursor: 'pointer',
-                          background: isActive ? 'rgba(0,229,255,0.07)' : 'transparent',
-                          borderLeft: isActive ? '2px solid #00e5ff' : '2px solid transparent',
+                          background: isActive ? 'rgba(165, 180, 252,0.07)' : 'transparent',
+                          borderLeft: isActive ? '2px solid #a5b4fc' : '2px solid transparent',
                           transition: 'background 0.08s, border-color 0.08s',
                         }}
                       >
@@ -179,9 +179,9 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, commands }) =
                         <div style={{
                           width: 30, height: 30,
                           borderRadius: 8,
-                          background: isActive ? 'rgba(0,229,255,0.1)' : 'rgba(255,255,255,0.04)',
+                          background: isActive ? 'rgba(165, 180, 252,0.1)' : 'rgba(255,255,255,0.04)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: isActive ? '#00e5ff' : '#64748b',
+                          color: isActive ? '#a5b4fc' : '#64748b',
                           flexShrink: 0,
                         }}>
                           {cmd.icon}

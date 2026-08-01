@@ -51,7 +51,7 @@
 .pp-pheno-type {
   font-size: 14px;
   font-weight: 800;
-  color: var(--color-primary, #00e5ff);
+  color: var(--color-primary, #a5b4fc);
 }
 
 .pp-pheno-desc {
@@ -120,7 +120,7 @@
 .pp-insight-lbl {
   font-size: 10px;
   font-weight: 700;
-  color: var(--color-primary, #00e5ff);
+  color: var(--color-primary, #a5b4fc);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
