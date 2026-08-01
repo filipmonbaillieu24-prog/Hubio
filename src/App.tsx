@@ -478,8 +478,25 @@ function App() {
 
             {/* ── Calendar View ── */}
             {activeTab === 'calendar' && (
-              <div className="workout-tab-content" style={{ overflowY: 'auto', height: '100%' }}>
-                <CalendarPage rides={rides} profile={fitnessProfile} />
+              <div className="workout-tab-content" style={{ display: 'flex', flex: 1, flexDirection: 'column', minHeight: 0, height: '100%', width: '100%', overflowY: selectedRide ? 'hidden' : 'auto' }}>
+                {!selectedRide ? (
+                  <CalendarPage
+                    rides={rides}
+                    profile={fitnessProfile}
+                    onSelectRide={(id) => setSelectedRide(id)}
+                  />
+                ) : (
+                  <div className="wd-detail-panel wd-detail-panel--full" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', width: '100%' }}>
+                    <ErrorBoundary>
+                      <RidePage
+                        rideId={selectedRide}
+                        onBack={() => setSelectedRide(null)}
+                        profile={fitnessProfile}
+                        onChange={reloadRides}
+                      />
+                    </ErrorBoundary>
+                  </div>
+                )}
               </div>
             )}
 

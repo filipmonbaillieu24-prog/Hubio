@@ -34,11 +34,12 @@ import {
 interface CalendarPageProps {
   rides: RideSummaryWithBests[];
   profile: FitnessProfile;
+  onSelectRide?: (id: string) => void;
 }
 
 const STORAGE_KEY = 'cyclo_planned_workouts';
 
-export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
+export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide }) => {
 
   // ── 1. Geplande workouts state (localStorage) ─────────────────────────────
   const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutItem[]>(() => {
@@ -394,7 +395,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
                 {dayRides.map(r => (
                   <div
                     key={r.id}
-                    className="wd-cal-badge wd-cal-badge--completed"
+                    className="wd-cal-badge wd-cal-badge--completed" onClick={() => onSelectRide?.(r.id)}
                     title={`Voltooid: ${r.name}\nAfstand: ${r.distance.toFixed(1)} km\nTijd: ${Math.round(r.duration / 60)} min\nHoogte: ${r.elevGain} m\nGem: ${r.avgSpeed.toFixed(1)} km/h\nBelasting: ${Math.round(r.tss ?? r.hrTSS ?? 0)} TSS`}
                     style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '2px', padding: '6px 8px' }}
                   >
