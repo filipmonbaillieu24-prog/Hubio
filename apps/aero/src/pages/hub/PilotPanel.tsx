@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, Download, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import './ZenithHub.css';
 
 interface PilotPanelProps {
@@ -29,84 +30,21 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
         {/* Left Column: QR Code & Download Action */}
         <div className="zh-pilot-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
           <div style={{ 
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))',
-            border: '1px solid rgba(203, 213, 225, 0.15)',
-            borderRadius: 24,
-            padding: 24,
+            background: '#ffffff',
+            borderRadius: 16,
+            padding: 16,
             marginBottom: 24,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
-            position: 'relative'
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            display: 'inline-block'
           }}>
-            {/* Mock QR Code Vector */}
-            <svg width="180" height="180" viewBox="0 0 29 29" style={{ fill: '#cbd5e1', display: 'block' }}>
-              {/* Corner position detection patterns */}
-              {/* Top-Left */}
-              <rect x="0" y="0" width="7" height="7" />
-              <rect x="1" y="1" width="5" height="5" style={{ fill: '#09090b' }} />
-              <rect x="2" y="2" width="3" height="3" />
-              
-              {/* Top-Right */}
-              <rect x="22" y="0" width="7" height="7" />
-              <rect x="23" y="1" width="5" height="5" style={{ fill: '#09090b' }} />
-              <rect x="24" y="2" width="3" height="3" />
-              
-              {/* Bottom-Left */}
-              <rect x="0" y="22" width="7" height="7" />
-              <rect x="1" y="23" width="5" height="5" style={{ fill: '#09090b' }} />
-              <rect x="2" y="24" width="3" height="3" />
-
-              {/* Align and timing pixels */}
-              <rect x="6" y="8" width="1" height="1" />
-              <rect x="8" y="6" width="1" height="1" />
-              <rect x="10" y="8" width="1" height="1" />
-              <rect x="12" y="6" width="1" height="1" />
-              <rect x="14" y="8" width="1" height="1" />
-              <rect x="16" y="6" width="1" height="1" />
-              <rect x="18" y="8" width="1" height="1" />
-              <rect x="20" y="6" width="1" height="1" />
-              <rect x="8" y="10" width="1" height="1" />
-              <rect x="8" y="12" width="1" height="1" />
-              <rect x="8" y="14" width="1" height="1" />
-              <rect x="8" y="16" width="1" height="1" />
-              <rect x="8" y="18" width="1" height="1" />
-              <rect x="8" y="20" width="1" height="1" />
-
-              {/* Data pixels */}
-              <rect x="10" y="10" width="2" height="1" />
-              <rect x="13" y="10" width="1" height="3" />
-              <rect x="15" y="11" width="3" height="2" />
-              <rect x="19" y="10" width="2" height="1" />
-              <rect x="11" y="13" width="1" height="2" />
-              <rect x="15" y="14" width="2" height="1" />
-              <rect x="18" y="13" width="1" height="4" />
-              <rect x="20" y="12" width="1" height="2" />
-              <rect x="10" y="16" width="4" height="1" />
-              <rect x="12" y="18" width="2" height="2" />
-              <rect x="15" y="16" width="1" height="3" />
-              <rect x="17" y="18" width="3" height="1" />
-              <rect x="20" y="16" width="1" height="2" />
-              <rect x="21" y="18" width="1" height="3" />
-              
-              <rect x="10" y="22" width="1" height="3" />
-              <rect x="12" y="23" width="3" height="1" />
-              <rect x="16" y="22" width="2" height="2" />
-              <rect x="19" y="23" width="2" height="3" />
-              <rect x="22" y="22" width="1" height="2" />
-              <rect x="24" y="23" width="3" height="1" />
-              <rect x="26" y="25" width="2" height="2" />
-              <rect x="23" y="26" width="2" height="1" />
-              <rect x="22" y="28" width="4" height="1" />
-              <rect x="14" y="25" width="2" height="3" />
-              <rect x="17" y="27" width="1" height="2" />
-              <rect x="19" y="27" width="2" height="1" />
-              <rect x="11" y="27" width="2" height="1" />
-              <rect x="0" y="15" width="3" height="1" />
-              <rect x="2" y="12" width="1" height="3" />
-              <rect x="4" y="10" width="2" height="2" />
-              <rect x="5" y="14" width="2" height="1" />
-              <rect x="3" y="17" width="4" height="2" />
-              <rect x="0" y="19" width="2" height="2" />
-            </svg>
+            <QRCodeSVG
+              value="https://github.com/filipmonbaillieu24-prog/Hubio/releases"
+              size={180}
+              bgColor={"#ffffff"}
+              fgColor={"#09090b"}
+              level={"M"}
+              includeMargin={false}
+            />
           </div>
 
           <h2 style={{ fontSize: 20, fontWeight: 900, color: '#f8fafc', margin: '0 0 6px', fontFamily: 'Outfit, sans-serif' }}>Download Pilot</h2>
