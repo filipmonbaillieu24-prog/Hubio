@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft, Download, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import './ZenithHub.css';
 
 interface PilotPanelProps {
@@ -38,7 +39,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
             display: 'inline-block'
           }}>
             <QRCodeSVG
-              value="https://github.com/filipmonbaillieu24-prog/Hubio/releases"
+              value="https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk"
               size={180}
               bgColor={"#ffffff"}
               fgColor={"#09090b"}
@@ -72,7 +73,14 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
               transition: 'all 0.2s',
               boxShadow: '0 4px 12px rgba(203, 213, 225, 0.15)'
             }}
-            onClick={(e) => { e.preventDefault(); alert('De alpha APK download start binnenkort...'); }}
+            onClick={async (e) => {
+              e.preventDefault();
+              try {
+                await openUrl('https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk');
+              } catch (err) {
+                console.error(err);
+              }
+            }}
           >
             <Download size={16} /> Directe Download (.apk)
           </a>
