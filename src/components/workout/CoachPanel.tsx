@@ -141,9 +141,11 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfil
   return (
     <div className="wd-coach-panel animate-slide-up">
       {/* 0. Doel-selectie widget */}
-      <div className="wd-section-card" style={{ marginBottom: 20, padding: 18, background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.03) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(0, 229, 255, 0.08)' }}>
-        <h4 style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#00e5ff', letterSpacing: '0.8px' }}>🎯 Selecteer je Trainingsdoel</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+      <div className="wd-section-card wd-goal-selector">
+        <h4 style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#00e5ff', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🎯</span> Selecteer je Trainingsdoel
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
           {([
             { key: 'general',   label: '🍀 Algemeen',   desc: 'Conditie opbouwen' },
             { key: 'climbing',  label: '⛰️ Klimmen',    desc: 'Kracht & W/kg' },
@@ -155,20 +157,10 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfil
               <button
                 key={goal.key}
                 onClick={() => handleGoalChange(goal.key)}
-                style={{
-                  background: isSelected ? 'rgba(0, 229, 255, 0.12)' : 'rgba(255,255,255,0.02)',
-                  border: isSelected ? '1px solid #00e5ff' : '1px solid rgba(255,255,255,0.05)',
-                  borderRadius: 10,
-                  padding: '10px 8px',
-                  color: isSelected ? '#00e5ff' : '#cbd5e1',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  transition: 'all 0.2s',
-                  fontFamily: 'inherit'
-                }}
+                className={`wd-goal-btn ${isSelected ? 'active' : ''}`}
               >
-                <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 2 }}>{goal.label}</div>
-                <div style={{ fontSize: 9, color: isSelected ? '#00e5ff' : '#64748b', opacity: 0.85 }}>{goal.desc}</div>
+                <span style={{ fontWeight: 800, fontSize: 13, display: 'block' }}>{goal.label}</span>
+                <span style={{ fontSize: 9, opacity: 0.8 }}>{goal.desc}</span>
               </button>
             );
           })}
@@ -178,15 +170,22 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfil
       {/* 1. AI Coach Welcome Header */}
       <div className="wd-coach-hero-banner">
         <div className="wd-coach-hero-avatar">
-          <Brain size={32} strokeWidth={1.5} className="wd-coach-brain-glow" />
+          <Brain size={34} strokeWidth={1.5} className="wd-coach-brain-glow" />
         </div>
         <div className="wd-coach-hero-content">
           <h3>Jouw AI Training Coach</h3>
           <p>{getGreetingMessage()}</p>
           <div className="wd-coach-hero-metrics">
-            <span style={{ color: '#00e5ff' }}>Fitheid (CTL): <strong>{Math.round(pmcStatus.latest.ctl)}</strong></span>
-            <span style={{ color: '#ff7675' }}>Vermoeidheid (ATL): <strong>{Math.round(pmcStatus.latest.atl)}</strong></span>
-            <span style={{ color: pmcStatus.tsbStatus.color }}>Vorm (TSB): <strong>{Math.round(pmcStatus.latest.tsb)}</strong> ({pmcStatus.tsbStatus.label})</span>
+            <span className="wd-coach-metric-tag" style={{ borderLeft: '2px solid #00e5ff' }}>
+              Fitheid (CTL): <strong style={{ color: '#00e5ff', fontSize: 12 }}>{Math.round(pmcStatus.latest.ctl)}</strong>
+            </span>
+            <span className="wd-coach-metric-tag" style={{ borderLeft: '2px solid #ff7675' }}>
+              Vermoeidheid (ATL): <strong style={{ color: '#ff7675', fontSize: 12 }}>{Math.round(pmcStatus.latest.atl)}</strong>
+            </span>
+            <span className="wd-coach-metric-tag" style={{ borderLeft: `2px solid ${pmcStatus.tsbStatus.color}` }}>
+              Vorm (TSB): <strong style={{ color: pmcStatus.tsbStatus.color, fontSize: 12 }}>{Math.round(pmcStatus.latest.tsb)}</strong>
+              <span style={{ opacity: 0.7, fontSize: 9 }}>({pmcStatus.tsbStatus.label})</span>
+            </span>
           </div>
         </div>
       </div>
@@ -195,23 +194,23 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfil
       <AICoachChatWidget profile={profile} rides={rides} />
 
       {/* 1.5 Dynamisch Wekelijks Trainingsplan */}
-      <div className="wd-section-card" style={{ marginBottom: 20, padding: 18 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div className="wd-section-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#a29bfe', letterSpacing: '0.8px' }}>Aanbevolen trainingsplan</span>
-            <h4 style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 800, color: '#f8fafc', fontFamily: 'Outfit, sans-serif' }}>{weeklyPlan.title}</h4>
+            <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', color: '#a29bfe', letterSpacing: '1px' }}>Aanbevolen trainingsplan</span>
+            <h4 style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 800, color: '#fff', fontFamily: 'Outfit, sans-serif' }}>{weeklyPlan.title}</h4>
           </div>
-          <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+          <div style={{ display: 'flex', gap: 10, fontSize: 11, background: 'rgba(0,0,0,0.2)', padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)' }}>
             <span style={{ color: '#cbd5e1' }}>Richtlijn: <strong style={{ color: '#00e5ff' }}>~{weeklyPlan.hours} uur/week</strong></span>
-            <span style={{ color: '#94a3b8' }}>|</span>
+            <span style={{ color: '#64748b' }}>|</span>
             <span style={{ color: '#cbd5e1' }}>TSS doel: <strong style={{ color: '#ff7675' }}>{weeklyPlan.tss}</strong></span>
           </div>
         </div>
-        <p style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5, margin: '0 0 12px' }}>{weeklyPlan.description}</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <p style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6, margin: '0 0 14px' }}>{weeklyPlan.description}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {weeklyPlan.workouts.map((w, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: '#cbd5e1' }}>
-              <span style={{ color: '#00e5ff', fontWeight: 700 }}>•</span>
+            <div key={idx} className="wd-plan-workout-item">
+              <span style={{ color: '#00e5ff', fontWeight: 900, fontSize: 14 }}>✓</span>
               <span>{w}</span>
             </div>
           ))}

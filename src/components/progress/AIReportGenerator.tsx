@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, Clipboard, AlertTriangle } from 'lucide-react';
+import '../workout/CoachPanel.css';
 import { FitnessProfile, RideSummaryWithBests } from '../../types/workout';
 
 interface AIReportGeneratorProps {

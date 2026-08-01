@@ -157,46 +157,24 @@ Houd hier rekening mee in je adviezen. Geef korte, concrete, direct toepasbare c
   }
 
   return (
-    <div
-      className="wd-section-card animate-slide-up"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: 380,
-        marginBottom: 20,
-        border: '1px solid rgba(0, 229, 255, 0.08)',
-        background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.015) 0%, rgba(255,255,255,0.005) 100%)',
-        padding: 0,
-        overflow: 'hidden',
-        borderRadius: 14,
-      }}
-    >
+    <div className="wd-chat-widget-card animate-slide-up">
       {/* Header */}
-      <div
-        style={{
-          padding: '10px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
-          background: 'rgba(255,255,255,0.005)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Brain size={18} style={{ color: '#00e5ff' }} />
+      <div className="wd-chat-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Brain size={20} style={{ color: '#00e5ff', filter: 'drop-shadow(0 0 4px rgba(0, 229, 255, 0.4))' }} />
           <div>
-            <h4 style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+            <h4 style={{ margin: 0, fontSize: 12, fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
               Interactief Coach Gesprek
             </h4>
-            <span style={{ fontSize: 9, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} /> Live verbonden ({provider === 'ollama' ? 'Lokaal' : 'OpenAI'})
+            <span style={{ fontSize: 9, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', display: 'inline-block', boxShadow: '0 0 6px #34d399' }} /> Live verbonden ({provider === 'ollama' ? 'Offline Lokaal' : 'OpenAI Cloud'})
             </span>
           </div>
         </div>
       </div>
 
       {/* Messages viewport */}
-      <div style={{ flex: 1, padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="wd-chat-messages-container">
         {messages.map((m, idx) => {
           const isUser = m.role === 'user';
           return (
@@ -204,41 +182,35 @@ Houd hier rekening mee in je adviezen. Geef korte, concrete, direct toepasbare c
               key={idx}
               style={{
                 alignSelf: isUser ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
+                maxWidth: '80%',
                 display: 'flex',
-                gap: 8,
+                gap: 10,
                 flexDirection: isUser ? 'row-reverse' : 'row',
+                alignItems: 'flex-start',
               }}
+              className="animate-slide-up"
             >
               <div
                 style={{
-                  width: 22,
-                  height: 22,
+                  width: 26,
+                  height: 26,
                   borderRadius: '50%',
-                  background: isUser ? 'rgba(0,229,255,0.1)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isUser ? 'rgba(0,229,255,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                  background: isUser ? 'rgba(108, 92, 231, 0.2)' : 'rgba(0, 229, 255, 0.1)',
+                  border: `1px solid ${isUser ? 'rgba(108, 92, 231, 0.4)' : 'rgba(0, 229, 255, 0.3)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 10,
-                  color: isUser ? '#00e5ff' : '#64748b',
+                  fontSize: 11,
+                  color: isUser ? '#a29bfe' : '#00e5ff',
                   flexShrink: 0,
-                  marginTop: 2,
+                  boxShadow: `0 2px 6px ${isUser ? 'rgba(108, 92, 231, 0.1)' : 'rgba(0, 229, 255, 0.1)'}`,
                 }}
               >
-                {isUser ? <User size={11} /> : <Brain size={11} />}
+                {isUser ? <User size={12} /> : <Brain size={12} />}
               </div>
               <div
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  fontSize: 11,
-                  lineHeight: 1.5,
-                  background: isUser ? 'rgba(0, 229, 255, 0.04)' : 'rgba(255,255,255,0.015)',
-                  border: `1px solid ${isUser ? 'rgba(0, 229, 255, 0.08)' : 'rgba(255,255,255,0.04)'}`,
-                  color: '#cbd5e1',
-                  whiteSpace: 'pre-wrap',
-                }}
+                className={`wd-chat-bubble ${isUser ? 'wd-chat-bubble--user' : 'wd-chat-bubble--assistant'}`}
+                style={{ whiteSpace: 'pre-wrap' }}
               >
                 {m.content}
               </div>
@@ -248,32 +220,34 @@ Houd hier rekening mee in je adviezen. Geef korte, concrete, direct toepasbare c
 
         {/* Typing indicator */}
         {sending && (
-          <div style={{ alignSelf: 'flex-start', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ alignSelf: 'flex-start', display: 'flex', gap: 10, alignItems: 'center' }}>
             <div
               style={{
-                width: 22,
-                height: 22,
+                width: 26,
+                height: 26,
                 borderRadius: '50%',
-                background: 'rgba(255,255,255,0.03)',
+                background: 'rgba(0, 229, 255, 0.05)',
+                border: '1px solid rgba(0, 229, 255, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                color: '#00e5ff',
               }}
             >
-              <Brain size={11} style={{ color: '#64748b' }} />
+              <Brain size={12} />
             </div>
-            <div style={{ display: 'flex', gap: 3, padding: '10px 14px', background: 'rgba(255,255,255,0.015)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.03)' }}>
-              <span className="typing-dot" style={{ width: 4, height: 4, background: '#64748b', borderRadius: '50%' }} />
-              <span className="typing-dot" style={{ width: 4, height: 4, background: '#64748b', borderRadius: '50%', animationDelay: '0.2s' }} />
-              <span className="typing-dot" style={{ width: 4, height: 4, background: '#64748b', borderRadius: '50%', animationDelay: '0.4s' }} />
+            <div style={{ display: 'flex', gap: 4, padding: '10px 14px', background: 'rgba(255,255,255,0.015)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.03)' }}>
+              <span className="typing-dot" style={{ width: 4, height: 4, background: '#00e5ff', borderRadius: '50%' }} />
+              <span className="typing-dot" style={{ width: 4, height: 4, background: '#00e5ff', borderRadius: '50%', animationDelay: '0.2s' }} />
+              <span className="typing-dot" style={{ width: 4, height: 4, background: '#00e5ff', borderRadius: '50%', animationDelay: '0.4s' }} />
             </div>
           </div>
         )}
 
         {/* Error State */}
         {error && (
-          <div style={{ alignSelf: 'center', margin: '6px 0', padding: '6px 12px', background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 8, fontSize: 10, color: '#f87171' }}>
-            {error}
+          <div style={{ alignSelf: 'center', margin: '8px 0', padding: '8px 16px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 10, fontSize: 11, color: '#f87171' }}>
+            ⚠️ {error}
           </div>
         )}
 
@@ -281,52 +255,21 @@ Houd hier rekening mee in je adviezen. Geef korte, concrete, direct toepasbare c
       </div>
 
       {/* Input Form */}
-      <form
-        onSubmit={handleSend}
-        style={{
-          padding: '8px 12px',
-          borderTop: '1px solid rgba(255,255,255,0.04)',
-          background: 'rgba(255,255,255,0.005)',
-          display: 'flex',
-          gap: 8,
-        }}
-      >
+      <form onSubmit={handleSend} className="wd-chat-input-bar">
         <input
           type="text"
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="Stel een vraag aan de coach over je ritten of herstel..."
+          placeholder="Stel een vraag aan de coach over je ritten, zones of herstel..."
           disabled={sending}
-          style={{
-            flex: 1,
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 8,
-            padding: '8px 12px',
-            fontSize: 11,
-            color: '#f8fafc',
-            outline: 'none',
-            fontFamily: 'inherit',
-          }}
+          className="wd-chat-input-field"
         />
         <button
           type="submit"
           disabled={!input.trim() || sending}
-          style={{
-            background: input.trim() && !sending ? 'linear-gradient(135deg, #00e5ff, #39ff14)' : 'rgba(255,255,255,0.02)',
-            color: input.trim() && !sending ? '#09090b' : '#475569',
-            border: 'none',
-            borderRadius: 8,
-            width: 32,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: input.trim() && !sending ? 'pointer' : 'default',
-            transition: 'all 0.15s',
-          }}
+          className="wd-chat-send-btn"
         >
-          <Send size={12} />
+          <Send size={14} />
         </button>
       </form>
     </div>

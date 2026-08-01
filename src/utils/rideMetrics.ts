@@ -415,9 +415,10 @@ export function calcPowerUnderFatigue(
     const count = right - left + 1;
     const avg = sum / count;
 
-    // Controleer of de start van dit venster onder of boven de 1000 kJ ligt
+    // Dynamische vermoeidheidsdrempel: 1000 kJ voor lange ritten, 50% van totaal kJ voor kortere ritten
+    const fatigueThreshold = kjAccum > 1200 ? 1000 : (kjAccum * 0.5);
     const startKJ = kjAtPoint[left];
-    if (startKJ < 1000) {
+    if (startKJ < fatigueThreshold) {
       if (avg > freshBest) freshBest = avg;
     } else {
       if (avg > fatiguedBest) fatiguedBest = avg;
