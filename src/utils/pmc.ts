@@ -87,6 +87,8 @@ export interface PlannedWorkoutItem {
   durationMinutes: number;
   plannedTSS: number;
   notes?: string;
+  steps?: any[];
+  routeId?: string;
 }
 
 export interface SimulatedPMCPoint extends PMCPoint {

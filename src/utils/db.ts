@@ -1,3 +1,4 @@
+import { PlannedWorkoutItem } from './pmc';
 import { supabase } from './supabaseClient';
 import { Ride, Gear } from '../types/workout';
 
@@ -216,5 +217,51 @@ export async function getAllGear(): Promise<Gear[]> {
 
 export async function deleteGear(id: string): Promise<void> {
   const { error } = await supabase.from('gear').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Planned Workouts Supabase API ──────────────────────────────────────────
+
+export async function savePlannedWorkout(workout: PlannedWorkoutItem): Promise<void> {
+  const userId = await getUserId();
+  const row = {
+    id: workout.id,
+    user_id: userId,
+    date: workout.date,
+    title: workout.title,
+    type: workout.type,
+    duration_minutes: workout.durationMinutes,
+    planned_tss: workout.plannedTSS,
+    notes: workout.notes,
+    steps: workout.steps || [],
+    route_id: workout.routeId
+  };
+  const { error } = await supabase.from('planned_workouts').upsert(row);
+  if (error) throw error;
+}
+
+export async function getAllPlannedWorkouts(): Promise<PlannedWorkoutItem[]> {
+  const { data, error } = await supabase
+    .from('planned_workouts')
+    .select('*')
+    .order('date', { ascending: true });
+    
+  if (error) throw error;
+  
+  return (data || []).map(row => ({
+    id: row.id,
+    date: row.date,
+    title: row.title,
+    type: row.type as any,
+    durationMinutes: row.duration_minutes,
+    plannedTSS: row.planned_tss,
+    notes: row.notes,
+    steps: row.steps,
+    routeId: row.route_id
+  }));
+}
+
+export async function deletePlannedWorkout(id: string): Promise<void> {
+  const { error } = await supabase.from('planned_workouts').delete().eq('id', id);
   if (error) throw error;
 }

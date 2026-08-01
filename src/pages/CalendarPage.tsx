@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import './CalendarPage.css';
 import { RideSummaryWithBests, FitnessProfile } from '../types/workout';
 import { computeSimulatedPMC, PlannedWorkoutItem, interpretTSB } from '../utils/pmc';
+import { savePlannedWorkout, getAllPlannedWorkouts, deletePlannedWorkout } from '../utils/db';
 
 function toLocalYYYYMMDD(date: Date): string {
   const y = date.getFullYear();
@@ -37,24 +38,24 @@ interface CalendarPageProps {
   onSelectRide?: (id: string) => void;
 }
 
-const STORAGE_KEY = 'cyclo_planned_workouts';
+
 
 export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide }) => {
 
-  // ── 1. Geplande workouts state (localStorage) ─────────────────────────────
-  const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Kon geplande workouts niet laden uit storage:', e);
-      return [];
-    }
-  });
+  // ── 1. Geplande workouts state (Supabase) ──────────────────────────────────
+  const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutItem[]>([]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(plannedWorkouts));
-  }, [plannedWorkouts]);
+    const loadWorkouts = async () => {
+      try {
+        const list = await getAllPlannedWorkouts();
+        setPlannedWorkouts(list);
+      } catch (err) {
+        console.error('Kon geplande workouts niet laden uit Supabase:', err);
+      }
+    };
+    loadWorkouts();
+  }, []);
 
   // ── 2. Datum & Navigatie state ─────────────────────────────────────────────
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -215,37 +216,48 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
     setIsModalOpen(true);
   };
 
-  const handleSaveWorkout = () => {
+  const handleSaveWorkout = async () => {
     if (!formTitle.trim()) return;
-
-    if (editingWorkout) {
-      setPlannedWorkouts(prev => prev.map(p => p.id === editingWorkout.id ? {
-        ...p,
-        date: targetDate,
-        title: formTitle,
-        type: formType,
-        durationMinutes: formDuration,
-        plannedTSS: formTSS,
-        notes: formNotes,
-      } : p));
-    } else {
-      const newWorkout: PlannedWorkoutItem = {
-        id: 'plan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-        date: targetDate,
-        title: formTitle,
-        type: formType,
-        durationMinutes: formDuration,
-        plannedTSS: formTSS,
-        notes: formNotes,
-      };
-      setPlannedWorkouts(prev => [...prev, newWorkout]);
+    try {
+      if (editingWorkout) {
+        const updated: PlannedWorkoutItem = {
+          ...editingWorkout,
+          date: targetDate,
+          title: formTitle,
+          type: formType,
+          durationMinutes: formDuration,
+          plannedTSS: formTSS,
+          notes: formNotes,
+        };
+        await savePlannedWorkout(updated);
+        setPlannedWorkouts(prev => prev.map(p => p.id === editingWorkout.id ? updated : p));
+      } else {
+        const newWorkout: PlannedWorkoutItem = {
+          id: 'plan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          date: targetDate,
+          title: formTitle,
+          type: formType,
+          durationMinutes: formDuration,
+          plannedTSS: formTSS,
+          notes: formNotes,
+        };
+        await savePlannedWorkout(newWorkout);
+        setPlannedWorkouts(prev => [...prev, newWorkout]);
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Fout bij opslaan geplande workout:', err);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDeleteWorkout = (id: string) => {
-    setPlannedWorkouts(prev => prev.filter(p => p.id !== id));
-    setIsModalOpen(false);
+  const handleDeleteWorkout = async (id: string) => {
+    try {
+      await deletePlannedWorkout(id);
+      setPlannedWorkouts(prev => prev.filter(p => p.id !== id));
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Fout bij verwijderen geplande workout:', err);
+    }
   };
 
   // Drag and drop handlers
@@ -258,11 +270,20 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, targetDateStr: string) => {
+  const handleDrop = async (e: React.DragEvent, targetDateStr: string) => {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain') || draggedWorkoutId;
     if (id) {
-      setPlannedWorkouts(prev => prev.map(p => p.id === id ? { ...p, date: targetDateStr } : p));
+      const workout = plannedWorkouts.find(p => p.id === id);
+      if (workout) {
+        try {
+          const updated = { ...workout, date: targetDateStr };
+          await savePlannedWorkout(updated);
+          setPlannedWorkouts(prev => prev.map(p => p.id === id ? updated : p));
+        } catch (err) {
+          console.error('Fout bij verplaatsen geplande workout:', err);
+        }
+      }
     }
     setDraggedWorkoutId(null);
   };
