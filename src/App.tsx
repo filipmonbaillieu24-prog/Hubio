@@ -20,10 +20,36 @@ import { CalendarPage } from './pages/CalendarPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette, CommandItem } from './components/CommandPalette';
 import { calibrateSummaryModels, calibrateFullModels } from './utils/localNeuralNet';
+import { supabase } from './utils/supabaseClient';
+import { LoginPage } from './pages/LoginPage';
 import './index.css';
 
 
 function App() {
+  const [session, setSession] = useState<any>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setSessionLoading(false);
+      if (session?.user) {
+        const profile = session.user.user_metadata?.fitness_profile;
+        if (profile) setFitnessProfile(profile);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        const profile = session.user.user_metadata?.fitness_profile;
+        if (profile) setFitnessProfile(profile);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Saved locations (persisted in localStorage)
   const { locations: savedLocations, save: saveLocation, remove: deleteLocation, rename: renameLocation } = useSavedLocations();
 
@@ -136,20 +162,31 @@ function App() {
     } catch { return { autoEFTP: true, autoLTHR: true }; }
   });
 
-  const handleProfileChange = (p: FitnessProfile) => {
+  const handleProfileChange = async (p: FitnessProfile) => {
     setFitnessProfile(p);
     localStorage.setItem('cyclo_fitness_profile', JSON.stringify(p));
+    if (session?.user) {
+      await supabase.auth.updateUser({
+        data: {
+          fitness_profile: p,
+          name: p.name || undefined
+        }
+      });
+    }
   };
 
   const reloadRides = useCallback(async () => {
+    if (!session) return;
     const data = await getAllRideSummaries();
     setRides(data);
     calibrateSummaryModels(data, fitnessProfile.ftp ?? 220, fitnessProfile.weight ?? 75);
-  }, [fitnessProfile.ftp, fitnessProfile.weight]);
+  }, [fitnessProfile.ftp, fitnessProfile.weight, session]);
 
   useEffect(() => {
-    reloadRides();
-  }, [reloadRides]);
+    if (session) {
+      reloadRides();
+    }
+  }, [reloadRides, session]);
 
   const profileAge = useMemo(() => {
     if (!fitnessProfile.birthDate) return undefined;
@@ -233,6 +270,18 @@ function App() {
 
   const isDashboardTab = activeTab === 'dashboard' || activeTab === 'rides' || activeTab === 'prs' || activeTab === 'heatmap';
 
+  if (sessionLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', width: '100vw', background: '#09090b' }}>
+        <div style={{ width: '40px', height: '40px', border: '3px solid rgba(0, 229, 255, 0.1)', borderTop: '3px solid #00e5ff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
       <AppTitlebar
@@ -290,6 +339,28 @@ function App() {
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#f8fafc' }}>{fitnessProfile.name ?? 'Atleet'}</span>
               </div>
+              <button
+                onClick={() => supabase.auth.signOut()}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderRadius: '6px',
+                  color: '#ff7675',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '6px',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  width: '100%',
+                  fontFamily: 'inherit',
+                  marginTop: '4px',
+                  transition: 'background 0.15s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'}
+              >
+                Uitloggen
+              </button>
             </div>
           )}
         </aside>

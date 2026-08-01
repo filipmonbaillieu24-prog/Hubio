@@ -1,120 +1,190 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { supabase } from './supabaseClient';
 import { Ride, Gear } from '../types/workout';
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
+// ─── Mapper Helpers ────────────────────────────────────────────────────────────
 
-interface CycloDB extends DBSchema {
-  rides: {
-    key:     string;
-    value:   Ride;
-    indexes: { byDate: number };
-  };
-  gear: {
-    key:     string;
-    value:   Gear;
+function mapSupabaseRide(row: any): Ride {
+  return {
+    id: row.id,
+    name: row.name,
+    date: Number(row.date),
+    distance: Number(row.distance),
+    duration: row.duration,
+    elevGain: row.elev_gain,
+    avgSpeed: Number(row.avg_speed),
+    avgPower: row.avg_power,
+    avgHR: row.avg_hr,
+    hasPower: row.has_power,
+    hasHR: row.has_hr,
+    hasGPS: row.has_gps,
+    points: row.points || [],
+    bestEfforts: row.best_efforts || {},
+    bestSpeedEfforts: row.best_speed_efforts || {},
+    ...(row.metadata || {})
   };
 }
 
-// ─── DB singleton ─────────────────────────────────────────────────────────────
+async function rideToRow(ride: Ride) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Gebruiker is niet ingelogd.");
 
-let _db: IDBPDatabase<CycloDB> | null = null;
+  const {
+    id, name, date, distance, duration, elevGain, avgSpeed, avgPower, avgHR,
+    hasPower, hasHR, hasGPS, points, bestEfforts, bestSpeedEfforts,
+    ...metadata
+  } = ride;
 
-async function getDB(): Promise<IDBPDatabase<CycloDB>> {
-  if (_db) return _db;
-  _db = await openDB<CycloDB>('cyclo-workouts', 2, {
-    upgrade(db, oldVersion) {
-      if (oldVersion < 1) {
-        const store = db.createObjectStore('rides', { keyPath: 'id' });
-        store.createIndex('byDate', 'date');
-      }
-      if (oldVersion < 2) {
-        if (!db.objectStoreNames.contains('gear')) {
-          db.createObjectStore('gear', { keyPath: 'id' });
-        }
-      }
-    },
-  });
-  return _db;
+  return {
+    id,
+    user_id: user.id,
+    name,
+    date,
+    distance,
+    duration,
+    elev_gain: elevGain,
+    avg_speed: avgSpeed,
+    avg_power: avgPower ?? null,
+    avg_hr: avgHR ?? null,
+    has_power: hasPower,
+    has_hr: hasHR,
+    has_gps: hasGPS,
+    points: points || null,
+    best_efforts: bestEfforts || null,
+    best_speed_efforts: bestSpeedEfforts || null,
+    metadata
+  };
+}
+
+function mapSupabaseGear(row: any): Gear {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type as any,
+    brand: row.brand || undefined,
+    model: row.model || undefined,
+    weight: row.weight ? Number(row.weight) : undefined,
+    active: row.active,
+    distance: 0,
+    components: row.components || []
+  };
+}
+
+async function gearToRow(gear: Gear) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Gebruiker is niet ingelogd.");
+
+  const { id, name, type, brand, model, weight, active, components } = gear;
+  return {
+    id,
+    user_id: user.id,
+    name,
+    type,
+    brand: brand || null,
+    model: model || null,
+    weight: weight ?? null,
+    active,
+    components
+  };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function saveRide(ride: Ride): Promise<void> {
-  const db = await getDB();
-  await db.put('rides', ride);
+  const row = await rideToRow(ride);
+  const { error } = await supabase.from('rides').upsert(row);
+  if (error) throw error;
 }
 
 export async function getRide(id: string): Promise<Ride | undefined> {
-  const db = await getDB();
-  return db.get('rides', id);
+  const { data, error } = await supabase.from('rides').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? mapSupabaseRide(data) : undefined;
 }
 
-/** Returns ride summaries (no GPS points) sorted newest first.
- * bestEfforts and bestSpeedEfforts ARE included for dashboard PRs. */
 export async function getAllRideSummaries(): Promise<(Omit<Ride, 'points'>)[]> {
-  const db    = await getDB();
-  const rides = await db.getAllFromIndex('rides', 'byDate');
-  return rides.reverse().map(({ points: _p, ...rest }) => rest);
+  // Select fields without points to optimize load
+  const { data, error } = await supabase
+    .from('rides')
+    .select('id, name, date, distance, duration, elev_gain, avg_speed, avg_power, avg_hr, has_power, has_hr, has_gps, best_efforts, best_speed_efforts, metadata')
+    .order('date', { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map(row => {
+    const { points: _p, ...rest } = mapSupabaseRide(row);
+    return rest;
+  });
 }
 
 export async function getAllRides(): Promise<Ride[]> {
-  const db = await getDB();
-  const rides = await db.getAllFromIndex('rides', 'byDate');
-  return rides.reverse();
+  const { data, error } = await supabase
+    .from('rides')
+    .select('*')
+    .order('date', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map(mapSupabaseRide);
 }
 
 export async function deleteRide(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('rides', id);
+  const { error } = await supabase.from('rides').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function getAllRidesFull(): Promise<Ride[]> {
-  const db = await getDB();
-  return db.getAll('rides');
+  return getAllRides();
 }
 
 export async function rideExists(id: string): Promise<boolean> {
-  const db = await getDB();
-  const key = await db.getKey('rides', id);
-  return key !== undefined;
+  const { data, error } = await supabase.from('rides').select('id').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data !== null;
 }
 
-/** Patch metadata (notes, label, weather) on an existing ride without recomputing. */
 export async function updateRideMeta(
   id: string,
   patch: Partial<Pick<import('../types/workout').Ride, 'notes' | 'label' | 'weather' | 'gearId' | 'rpe' | 'aiAnalysis'>>
 ): Promise<void> {
-  const db   = await getDB();
-  const ride = await db.get('rides', id);
-  if (!ride) return;
-  await db.put('rides', { ...ride, ...patch });
+  const { data, error: getErr } = await supabase.from('rides').select('metadata').eq('id', id).maybeSingle();
+  if (getErr || !data) return;
+  const newMetadata = { ...(data.metadata || {}), ...patch };
+  const { error } = await supabase.from('rides').update({ metadata: newMetadata }).eq('id', id);
+  if (error) throw error;
 }
 
 // ─── Gear Tracker API ─────────────────────────────────────────────────────────
 
 export async function saveGear(gear: Gear): Promise<void> {
-  const db = await getDB();
-  await db.put('gear', gear);
+  const row = await gearToRow(gear);
+  const { error } = await supabase.from('gear').upsert(row);
+  if (error) throw error;
 }
 
 export async function getGear(id: string): Promise<Gear | undefined> {
-  const db = await getDB();
-  return db.get('gear', id);
+  const { data, error } = await supabase.from('gear').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? mapSupabaseGear(data) : undefined;
 }
 
 export async function getAllGear(): Promise<Gear[]> {
-  const db = await getDB();
-  const gears = await db.getAll('gear');
-  const rides = await db.getAll('rides');
+  const { data: gearsData, error: gearsErr } = await supabase.from('gear').select('*');
+  if (gearsErr) throw gearsErr;
 
-  // Recalculate distance for each gear and its components based on associated rides
+  const { data: ridesData, error: ridesErr } = await supabase.from('rides').select('date, distance, metadata');
+  if (ridesErr) throw ridesErr;
+
+  const gears = (gearsData || []).map(mapSupabaseGear);
+  const rides = (ridesData || []).map(r => ({
+    date: Number(r.date),
+    distance: Number(r.distance),
+    gearId: r.metadata?.gearId
+  }));
+
   return gears.map(g => {
-    // Filter rides associated with this gear
     const gearRides = rides.filter(r => r.gearId === g.id);
     const totalDist = gearRides.reduce((sum, r) => sum + r.distance, 0);
 
     const updatedComponents = g.components.map(c => {
-      // Find history dates to sum up only rides after the last reset (installedAt timestamp)
       const installTime = c.installedAt || 0;
       const compRides = gearRides.filter(r => r.date >= installTime);
       const compDist = compRides.reduce((sum, r) => sum + r.distance, 0);
@@ -130,6 +200,6 @@ export async function getAllGear(): Promise<Gear[]> {
 }
 
 export async function deleteGear(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('gear', id);
+  const { error } = await supabase.from('gear').delete().eq('id', id);
+  if (error) throw error;
 }
