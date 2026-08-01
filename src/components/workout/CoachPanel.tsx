@@ -6,7 +6,6 @@ import { computePMC, interpretTSB } from '../../utils/pmc';
 import { Brain, Sparkles, CheckCircle2, Sliders, Coffee, Flame, Droplets } from 'lucide-react';
 import { calculateFuel } from '../../utils/fueling';
 import { TrainingGoal } from '../../types/workout';
-import { AICoachChatWidget } from './AICoachChatWidget';
 
 interface CoachPanelProps {
   rides: RideSummaryWithBests[];
@@ -189,9 +188,6 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({ rides, profile, onProfil
           </div>
         </div>
       </div>
-
-      {/* ─── INTERACTIEVE AI COACH CHAT WIDGET ─── */}
-      <AICoachChatWidget profile={profile} rides={rides} />
 
       {/* 1.5 Dynamisch Wekelijks Trainingsplan */}
       <div className="wd-section-card">
