@@ -1,6 +1,24 @@
 import { supabase } from './supabaseClient';
 import { Ride, Gear } from '../types/workout';
 
+// Cache the current user ID to avoid duplicate auth network requests inside loops
+let currentUserId: string | null = null;
+
+// Listen to auth state changes to keep currentUserId updated in memory
+supabase.auth.onAuthStateChange((_event, session) => {
+  currentUserId = session?.user?.id || null;
+});
+
+async function getUserId(): Promise<string> {
+  if (currentUserId) return currentUserId;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    currentUserId = session.user.id;
+    return currentUserId;
+  }
+  throw new Error("Gebruiker is niet ingelogd.");
+}
+
 // ─── Mapper Helpers ────────────────────────────────────────────────────────────
 
 function mapSupabaseRide(row: any): Ride {
@@ -25,9 +43,8 @@ function mapSupabaseRide(row: any): Ride {
 }
 
 async function rideToRow(ride: Ride) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Gebruiker is niet ingelogd.");
-
+  const userId = await getUserId();
+  
   const {
     id, name, date, distance, duration, elevGain, avgSpeed, avgPower, avgHR,
     hasPower, hasHR, hasGPS, points, bestEfforts, bestSpeedEfforts,
@@ -36,7 +53,7 @@ async function rideToRow(ride: Ride) {
 
   return {
     id,
-    user_id: user.id,
+    user_id: userId,
     name,
     date,
     distance,
@@ -70,13 +87,12 @@ function mapSupabaseGear(row: any): Gear {
 }
 
 async function gearToRow(gear: Gear) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Gebruiker is niet ingelogd.");
+  const userId = await getUserId();
 
   const { id, name, type, brand, model, weight, active, components } = gear;
   return {
     id,
-    user_id: user.id,
+    user_id: userId,
     name,
     type,
     brand: brand || null,
@@ -102,7 +118,6 @@ export async function getRide(id: string): Promise<Ride | undefined> {
 }
 
 export async function getAllRideSummaries(): Promise<(Omit<Ride, 'points'>)[]> {
-  // Select fields without points to optimize load
   const { data, error } = await supabase
     .from('rides')
     .select('id, name, date, distance, duration, elev_gain, avg_speed, avg_power, avg_hr, has_power, has_hr, has_gps, best_efforts, best_speed_efforts, metadata')

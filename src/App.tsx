@@ -197,28 +197,34 @@ function App() {
 
   const handleRecalculate = useCallback(async () => {
     setRecalculating(true);
-    const allRides = await getAllRidesFull();
-    for (const ride of allRides) {
-      const rideDate = ride.date ?? Date.now();
-      const weightForRide = getWeightForDate(fitnessProfile, rideDate);
-      const recomputed = computeRide(ride.id, ride.name, ride.points, {
-        ftp: fitnessProfile.ftp ?? globaleFTP,
-        lthr: fitnessProfile.lthr,
-        maxHR: fitnessProfile.maxHR,
-        gender: fitnessProfile.gender,
-        age: profileAge,
-        weight: weightForRide,
-      });
-      await saveRide({ ...recomputed, points: ride.points });
+    try {
+      const allRides = await getAllRidesFull();
+      for (const ride of allRides) {
+        const rideDate = ride.date ?? Date.now();
+        const weightForRide = getWeightForDate(fitnessProfile, rideDate);
+        const recomputed = computeRide(ride.id, ride.name, ride.points, {
+          ftp: fitnessProfile.ftp ?? globaleFTP,
+          lthr: fitnessProfile.lthr,
+          maxHR: fitnessProfile.maxHR,
+          gender: fitnessProfile.gender,
+          age: profileAge,
+          weight: weightForRide,
+        });
+        await saveRide({ ...recomputed, points: ride.points });
+      }
+      const freshSummaries = await getAllRideSummaries();
+      setRides(freshSummaries);
+      
+      const activeFTP = fitnessProfile.ftp ?? globaleFTP ?? 220;
+      const activeWeight = fitnessProfile.weight ?? 75;
+      calibrateSummaryModels(freshSummaries, activeFTP, activeWeight);
+      calibrateFullModels(freshSummaries, allRides, activeFTP, activeWeight);
+    } catch (e) {
+      console.error("Fout tijdens herberekenen van ritten:", e);
+      alert("Er is een fout opgetreden bij het verwerken van de ritten: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setRecalculating(false);
     }
-    const freshSummaries = await getAllRideSummaries();
-    setRides(freshSummaries);
-    // Deep calibration for both summary and GPS-based models
-    const activeFTP = fitnessProfile.ftp ?? globaleFTP ?? 220;
-    const activeWeight = fitnessProfile.weight ?? 75;
-    calibrateSummaryModels(freshSummaries, activeFTP, activeWeight);
-    calibrateFullModels(freshSummaries, allRides, activeFTP, activeWeight);
-    setRecalculating(false);
   }, [fitnessProfile, globaleFTP, profileAge]);
 
   const handleMinimize = async () => {
