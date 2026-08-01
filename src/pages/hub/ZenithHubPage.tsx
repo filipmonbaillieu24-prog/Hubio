@@ -5,12 +5,14 @@ interface ZenithHubPageProps {
   fitnessProfile: any;
   fitnessMetrics: { ctl: number; atl: number; tsb: number };
   onOpenApp: (appKey: 'cyclo' | 'cyclopilot') => void;
+  onLogout: () => void;
 }
 
 export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
   fitnessProfile,
   fitnessMetrics,
   onOpenApp,
+  onLogout,
 }) => {
   const ctl = Math.round(fitnessMetrics.ctl);
   const atl = Math.round(fitnessMetrics.atl);
@@ -80,9 +82,32 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
           <h1 className="zh-hub-title" style={{ fontSize: 24 }}>ZENITH</h1>
           <p className="zh-hub-subtitle">Gecentraliseerd Fysiologisch Ecosysteem</p>
         </div>
-        <div className="zh-user-badge">
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>Ingelogd als:</span>
-          <strong style={{ color: '#fff', fontSize: 12 }}>{fitnessProfile.name ?? 'Atleet'}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="zh-user-badge">
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>Ingelogd als:</span>
+            <strong style={{ color: '#fff', fontSize: 12 }}>{fitnessProfile.name ?? 'Atleet'}</strong>
+          </div>
+          <button
+            onClick={onLogout}
+            style={{
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '10px',
+              color: '#ff7675',
+              fontSize: '11px',
+              fontWeight: 800,
+              padding: '8px 16px',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontFamily: 'inherit',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
+          >
+            Uitloggen
+          </button>
         </div>
       </header>
 

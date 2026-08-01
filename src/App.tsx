@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { FitnessProfile } from './types/workout';
 import { useSavedLocations } from './hooks/useSavedLocations';
 import { useRoutePlanner } from './hooks/useRoutePlanner';
-import { Activity, Brain, Compass, Settings, LayoutDashboard, Bike, Map as MapIcon, Trophy, Calendar as CalendarIcon, LayoutGrid } from 'lucide-react';
+import { Activity, Brain, Compass, Settings, LayoutDashboard, Bike, Map as MapIcon, Trophy, Calendar as CalendarIcon } from 'lucide-react';
 import { AppTitlebar } from './components/layout/AppTitlebar';
 import { RoutePage } from './components/route/RoutePage';
 
@@ -264,7 +264,6 @@ function App() {
   ], [handleRecalculate]);
 
   const navItems = [
-    { key: 'hub',       icon: <LayoutGrid      size={16} strokeWidth={1.6} />, label: 'Zenith Hub' },
     { key: 'dashboard', icon: <LayoutDashboard size={16} strokeWidth={1.6} />, label: 'Dashboard' },
     { key: 'rides',     icon: <Bike            size={16} strokeWidth={1.6} />, label: 'Mijn Ritten' },
     { key: 'calendar',  icon: <CalendarIcon    size={16} strokeWidth={1.6} />, label: 'Kalender' },
@@ -311,10 +310,49 @@ function App() {
         {/* Collapsible Left Sidebar */}
         {activeTab !== 'hub' && activeTab !== 'cyclopilot' && (
           <aside className="wd-sidebar" data-collapsed={sidebarCollapsed}>
-          <div className="wd-sidebar-logo">
-            <Bike size={20} strokeWidth={2} color="#cbd5e1" />
-            {!sidebarCollapsed && <span className="wd-sidebar-logo__text">ZENITH<strong>STUDIO</strong></span>}
-          </div>
+            <div className="wd-sidebar-logo" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: 12, marginBottom: 12 }}>
+              {!sidebarCollapsed ? (
+                <>
+                  <button 
+                    onClick={() => setActiveTab('hub')}
+                    style={{ 
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      borderRadius: '6px',
+                      color: 'var(--text-muted)', 
+                      fontSize: '10px', 
+                      cursor: 'pointer', 
+                      padding: '4px 8px',
+                      fontFamily: 'inherit',
+                      fontWeight: 700,
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                  >
+                    ← Zenith Hub
+                  </button>
+                  <span className="wd-sidebar-logo__text" style={{ fontSize: 16, letterSpacing: '1px', fontWeight: 900, color: '#fff', marginTop: 4 }}>AERO</span>
+                </>
+              ) : (
+                <button 
+                  onClick={() => setActiveTab('hub')}
+                  title="Terug naar Zenith Hub"
+                  style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    color: 'var(--color-primary)', 
+                    fontSize: '14px', 
+                    cursor: 'pointer', 
+                    width: '100%',
+                    textAlign: 'center',
+                    fontWeight: 900 
+                  }}
+                >
+                  Z
+                </button>
+              )}
+            </div>
 
           <nav className="wd-nav">
             {navItems.map(item => (
@@ -338,39 +376,11 @@ function App() {
 
           {/* User & Sync Info at Bottom */}
           {!sidebarCollapsed && (
-            <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 'auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#94a3b8' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#cbd5e1', display: 'inline-block' }} />
+            <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.03)', marginTop: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#64748b' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--color-primary)', display: 'inline-block' }} />
                 <span>Cloud Sync Actief</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #cbd5e1, #39ff14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#09090b' }}>
-                  {(fitnessProfile.name ?? 'A')[0].toUpperCase()}
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#f8fafc' }}>{fitnessProfile.name ?? 'Atleet'}</span>
-              </div>
-              <button
-                onClick={() => supabase.auth.signOut()}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: '6px',
-                  color: '#ff7675',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  padding: '6px',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  width: '100%',
-                  fontFamily: 'inherit',
-                  marginTop: '4px',
-                  transition: 'background 0.15s'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'}
-              >
-                Uitloggen
-              </button>
             </div>
           )}
         </aside>
@@ -424,6 +434,7 @@ function App() {
                   if (appKey === 'cyclo') setActiveTab('dashboard');
                   else if (appKey === 'cyclopilot') setActiveTab('cyclopilot');
                 }}
+                onLogout={() => supabase.auth.signOut()}
               />
             )}
             
