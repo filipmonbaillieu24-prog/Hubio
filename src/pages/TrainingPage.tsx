@@ -73,7 +73,7 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({
   ] as const;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', padding: '16px 24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', padding: '24px 32px', boxSizing: 'border-box' }}>
       {/* Sub-Tab Navigation */}
       <div style={{
         display: 'flex', gap: 8, background: 'rgba(255,255,255,0.02)', padding: 4, borderRadius: 8,

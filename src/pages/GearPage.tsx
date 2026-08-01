@@ -211,12 +211,8 @@ export const GearPage: React.FC<GearPageProps> = () => {
     <div className="gp-main-content">
       <div className="gp-container">
         
-        {/* Header en acties */}
-        <div className="gp-header">
-          <div>
-            <h2 className="gp-title">🚴 Mijn Gear & Materiaal</h2>
-            <p className="gp-subtitle">Beheer je fietsen, onderdelen en houd de slijtage van je materiaal nauwkeurig bij.</p>
-          </div>
+        {/* Action Bar */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
           <button className="gp-add-bike-btn" onClick={() => setShowAddGear(!showAddGear)}>
             <Plus size={14} style={{ marginRight: 6 }} /> Fiets toevoegen
           </button>

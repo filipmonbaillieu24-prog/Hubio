@@ -309,11 +309,10 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
       <div className="wd-calendar-hero">
         <div className="wd-calendar-hero__header">
           <div>
-            <span className="wd-calendar-hero__tag">
-              <TrendingUp size={13} style={{ color: '#cbd5e1', marginRight: 4 }} />
+            <span className="wd-calendar-hero__tag" style={{ fontSize: 13, fontWeight: 700 }}>
+              <TrendingUp size={14} style={{ color: '#cbd5e1', marginRight: 6, verticalAlign: 'middle' }} />
               Periodisering & PMC Voorspelling
             </span>
-            <h2 className="wd-calendar-hero__title">Trainingskalender</h2>
           </div>
 
           <div className="wd-calendar-hero__kpis">

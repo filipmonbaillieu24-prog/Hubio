@@ -33,7 +33,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   ] as const;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', padding: '16px 24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', padding: '24px 32px', boxSizing: 'border-box' }}>
       {/* Sub-Tab Navigation */}
       <div style={{
         display: 'flex', gap: 8, background: 'rgba(255,255,255,0.02)', padding: 4, borderRadius: 8,
@@ -59,13 +59,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       {/* Main Content Area */}
       <div style={{ flex: 1, minHeight: 0 }}>
         {activeSubTab === 'gear' && (
-          <GearPage profile={profile} />
+          <div className="wd-main-single">
+            <div className="wd-coach-header" style={{ marginBottom: 16 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: '0 0 4px' }}>Gear & Materiaal</h2>
+              <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Beheer uw fietsen, onderdelen en houd de slijtage van uw materiaal nauwkeurig bij.</p>
+            </div>
+            <GearPage profile={profile} />
+          </div>
         )}
 
         {activeSubTab === 'zones' && (
           <div className="wd-main-single">
             <div className="wd-coach-header" style={{ marginBottom: 16 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: '0 0 4px' }}>👤 Profiel & Zones</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: '0 0 4px' }}>Profiel & Zones</h2>
               <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Beheer je fysiologische grenzen, trainingszones en persoonsgegevens.</p>
             </div>
             <ProfilePanel
@@ -82,7 +88,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {activeSubTab === 'connections' && (
           <div className="wd-main-single">
             <div className="wd-coach-header" style={{ marginBottom: 16 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: '0 0 4px' }}>🔌 Koppelingen & Integraties</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: '0 0 4px' }}>Koppelingen & Integraties</h2>
               <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Configureer bestandslocaties en automatische clouddiensten.</p>
             </div>
             <ProfilePanel
@@ -99,7 +105,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {activeSubTab === 'ai' && (
           <div className="wd-main-single">
             <div className="wd-coach-header" style={{ marginBottom: 16 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: '0 0 4px' }}>🧠 AI Assistent Instellingen</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: '0 0 4px' }}>AI Assistent Instellingen</h2>
               <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Configureer je lokale of externe AI-coach.</p>
             </div>
             <AISettingsPanel />

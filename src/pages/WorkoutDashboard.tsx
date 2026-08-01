@@ -711,7 +711,7 @@ const WorkoutDashboard: React.FC<Props> = ({
 
       case 'prs': {
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', padding: '16px 24px', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', boxSizing: 'border-box' }}>
             <div style={{
               display: 'flex', gap: 8, background: 'rgba(255,255,255,0.02)', padding: 4, borderRadius: 8,
               border: '1px solid rgba(255,255,255,0.04)', width: 'fit-content', margin: 0
@@ -830,7 +830,7 @@ const WorkoutDashboard: React.FC<Props> = ({
       )}
 
       {/* Dynamic page content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto', paddingBottom: 24 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto', padding: '24px 32px', boxSizing: 'border-box' }}>
         {renderMain()}
       </div>
 
