@@ -310,7 +310,7 @@ function App() {
         {/* Collapsible Left Sidebar */}
         {activeTab !== 'hub' && activeTab !== 'cyclopilot' && (
           <aside className="wd-sidebar" data-collapsed={sidebarCollapsed}>
-            <div className="wd-sidebar-logo" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: 12, marginBottom: 12 }}>
+            <div className="wd-sidebar-logo" style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '20px 18px 16px', marginBottom: 10 }}>
               {!sidebarCollapsed ? (
                 <>
                   <button 
@@ -376,7 +376,7 @@ function App() {
 
           {/* User & Sync Info at Bottom */}
           {!sidebarCollapsed && (
-            <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.03)', marginTop: 'auto' }}>
+            <div style={{ padding: '16px 18px', borderTop: '1px solid rgba(255,255,255,0.04)', marginTop: 'auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#64748b' }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--color-primary)', display: 'inline-block' }} />
                 <span>Cloud Sync Actief</span>
