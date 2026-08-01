@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { Bike, Mail, Lock, User, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, AlertCircle, ArrowRight } from 'lucide-react';
 import '../workout.css';
 
 export const LoginPage: React.FC = () => {
@@ -83,27 +83,17 @@ export const LoginPage: React.FC = () => {
       }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(0, 229, 255, 0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '1px solid rgba(0, 229, 255, 0.25)',
-            boxShadow: '0 0 20px rgba(0, 229, 255, 0.15)'
-          }}>
-            <Bike size={24} color="#00e5ff" strokeWidth={2} />
-          </div>
           <h1 style={{
-            fontSize: '24px',
-            fontWeight: 800,
+            fontSize: '28px',
+            fontWeight: 900,
             margin: '8px 0 0 0',
-            letterSpacing: '-0.5px',
-            textAlign: 'center'
+            letterSpacing: '1px',
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #fff 0%, #a5b4fc 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
           }}>
-            CYCLO<strong style={{ color: '#00e5ff' }}>STUDIO</strong>
+            ZENITH
           </h1>
           <p style={{
             fontSize: '12px',
@@ -112,7 +102,7 @@ export const LoginPage: React.FC = () => {
             textAlign: 'center',
             fontWeight: 500
           }}>
-            {isSignUp ? 'Maak een account aan om te beginnen' : 'Log in op je fysiologische cockpit'}
+            {isSignUp ? 'Maak een Zenith-account aan om te beginnen' : 'Log in op uw Zenith-dashboard'}
           </p>
         </div>
 
@@ -192,7 +182,7 @@ export const LoginPage: React.FC = () => {
               <input
                 type="email"
                 required
-                placeholder="atleet@cyclo.com"
+                placeholder="atleet@zenith.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 style={{
