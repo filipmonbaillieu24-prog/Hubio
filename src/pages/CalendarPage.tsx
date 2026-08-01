@@ -383,11 +383,23 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
               <div className="wd-cal-day-events">
                 {/* Voltooide Ritten */}
                 {dayRides.map(r => (
-                  <div key={r.id} className="wd-cal-badge wd-cal-badge--completed" title={`Voltooid: ${r.name} (${Math.round(r.distance)}km)`}>
-
-                    <CheckCircle2 size={10} style={{ flexShrink: 0, color: '#39ff14' }} />
-                    <span className="wd-cal-badge__title">{r.name}</span>
-                    <span className="wd-cal-badge__tss">{Math.round(r.tss ?? r.hrTSS ?? 0)}TSS</span>
+                  <div
+                    key={r.id}
+                    className="wd-cal-badge wd-cal-badge--completed"
+                    title={`Voltooid: ${r.name}\nAfstand: ${r.distance.toFixed(1)} km\nTijd: ${Math.round(r.duration / 60)} min\nHoogte: ${r.elevGain} m\nGem: ${r.avgSpeed.toFixed(1)} km/h\nBelasting: ${Math.round(r.tss ?? r.hrTSS ?? 0)} TSS`}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '2px', padding: '6px 8px' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle2 size={10} style={{ flexShrink: 0, color: '#39ff14' }} />
+                      <span className="wd-cal-badge__title" style={{ fontSize: '10px', fontWeight: 700 }}>{r.name}</span>
+                      <span className="wd-cal-badge__tss" style={{ fontSize: '9px', fontWeight: 800 }}>{Math.round(r.tss ?? r.hrTSS ?? 0)}T</span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', opacity: 0.8, color: '#39ff14', fontWeight: 600 }}>
+                      <span>{r.distance.toFixed(0)} km</span>
+                      <span>{Math.round(r.duration / 60)} min</span>
+                      <span>{r.avgPower ? `${r.avgPower}W` : `${r.avgSpeed.toFixed(0)}km/h`}</span>
+                    </div>
                   </div>
                 ))}
 
@@ -399,11 +411,19 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides }) => {
                     draggable
                     onDragStart={(e) => handleDragStart(e, p.id)}
                     onClick={() => handleOpenEditModal(p)}
-                    title={`Gepland: ${p.title} (${p.durationMinutes}m, ${p.plannedTSS} TSS). Klik om te bewerken, sleep om te verplaatsen.`}
+                    title={`Gepland: ${p.title}\nDuur: ${p.durationMinutes} min\nBelasting: ${p.plannedTSS} TSS\nNotities: ${p.notes || 'geen'}\nKlik om te bewerken, sleep om te verplaatsen.`}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '2px', padding: '6px 8px' }}
                   >
-                    <span className="wd-cal-badge__dot" />
-                    <span className="wd-cal-badge__title">{p.title}</span>
-                    <span className="wd-cal-badge__tss">{p.plannedTSS}TSS</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="wd-cal-badge__dot" style={{ background: 'currentColor' }} />
+                      <span className="wd-cal-badge__title" style={{ fontSize: '10px', fontWeight: 700 }}>{p.title}</span>
+                      <span className="wd-cal-badge__tss" style={{ fontSize: '9px', fontWeight: 800 }}>{p.plannedTSS}T</span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', opacity: 0.8, fontWeight: 600 }}>
+                      <span>{p.durationMinutes} min</span>
+                      <span style={{ textTransform: 'capitalize' }}>{p.type}</span>
+                    </div>
                   </div>
                 ))}
               </div>

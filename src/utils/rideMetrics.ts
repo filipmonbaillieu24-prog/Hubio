@@ -517,6 +517,35 @@ export function estimatePowerForPoints(
   }
 }
 
+function isGenericFilename(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower.startsWith('geoid') ||
+    lower.startsWith('activity') ||
+    lower.startsWith('fit_') ||
+    lower.startsWith('gpx_') ||
+    /^\d+$/.test(name) ||
+    /^\d{4}-\d{2}-\d{2}/.test(name) ||
+    (name.length > 25 && (name.includes('_') || name.includes('-')))
+  );
+}
+
+function getAutoRideName(dateMs: number, discipline: string, distanceKm: number): string {
+  const date = new Date(dateMs);
+  const hour = date.getHours();
+  let tod = "Nacht";
+  if (hour >= 5 && hour < 12) tod = "Ochtend";
+  else if (hour >= 12 && hour < 17) tod = "Middag";
+  else if (hour >= 17 && hour < 22) tod = "Avond";
+
+  let disc = "rit";
+  if (discipline === 'road') disc = "Wegrit";
+  else if (discipline === 'gravel') disc = "Gravelrit";
+  else if (discipline === 'mtb') disc = "MTB-rit";
+
+  return `${tod} ${disc} (${distanceKm.toFixed(1)} km)`;
+}
+
 export function computeRide(
   id: string,
   name: string,
@@ -791,8 +820,14 @@ export function computeRide(
     }
   }
 
+  const discipline = classifyDiscipline(avgSpeed, elevGain, distance);
+  let finalName = name;
+  if (isGenericFilename(name)) {
+    finalName = getAutoRideName(startTime, discipline, distance);
+  }
+
   const summary: RideSummary = {
-    id, name,
+    id, name: finalName,
     date:     startTime,
     distance: parseFloat(distance.toFixed(2)),
     duration: Math.round(duration),
@@ -808,7 +843,7 @@ export function computeRide(
     weight: opts.weight,
     hasPower, hasHR, hasGPS,
     isEstimatedPower,
-    discipline: classifyDiscipline(avgSpeed, elevGain, distance),
+    discipline,
   };
 
   return { ...summary, points, bestEfforts, bestSpeedEfforts };
