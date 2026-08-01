@@ -145,7 +145,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 {[...profile.weightHistory].sort((a,b) => b.date.localeCompare(a.date)).map((entry, idx) => (
                   <div key={idx} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:11, padding:'3px 4px', borderBottom:'1px solid rgba(255,255,255,0.03)' }}>
                     <span style={{ color:'#888' }}>{entry.date}</span>
-                    <strong style={{ color:'#a5b4fc' }}>{entry.weight} kg</strong>
+                    <strong style={{ color:'#cbd5e1' }}>{entry.weight} kg</strong>
                     <button 
                       style={{ background:'none', border:'none', color:'#ff7675', cursor:'pointer', padding:'0 4px', fontSize:12 }}
                       title="Verwijder meting"
@@ -177,9 +177,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               />
               <button 
                 style={{ 
-                  background:'rgba(165, 180, 252,0.12)', 
-                  border:'1px solid rgba(165, 180, 252,0.25)', 
-                  color:'#a5b4fc', 
+                  background:'rgba(203, 213, 225,0.12)', 
+                  border:'1px solid rgba(203, 213, 225,0.25)', 
+                  color:'#cbd5e1', 
                   fontSize:10, 
                   fontWeight:600, 
                   borderRadius:4, 
@@ -247,7 +247,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       {/* Trainingszones Calculator */}
       <div className="wd-profile-section wd-profile-section--wide" style={{ marginTop: 14 }}>
         <div className="wd-profile-section__title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Zap size={13} style={{ color: '#a5b4fc' }} />
+          <Zap size={13} style={{ color: '#cbd5e1' }} />
           Jouw Gepersonaliseerde Trainingszones
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginTop: 10 }}>
@@ -290,7 +290,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       {subSection !== 'zones' && (
         <div className="wd-profile-section wd-profile-section--wide">
           <div className="wd-profile-section__title" style={{ display:'flex', alignItems:'center', gap:6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc"
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1"
               strokeWidth="2" style={{ display:'inline', flexShrink:0 }}>
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
@@ -320,10 +320,10 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
           {/* Mapstructuur preview */}
           {gdrivePath.trim() && (
-            <div style={{ fontSize:11, marginBottom:10, lineHeight:2, background:'rgba(165, 180, 252,0.04)',
-              border:'1px solid rgba(165, 180, 252,0.1)', borderRadius:8, padding:'8px 12px' }}>
+            <div style={{ fontSize:11, marginBottom:10, lineHeight:2, background:'rgba(203, 213, 225,0.04)',
+              border:'1px solid rgba(203, 213, 225,0.1)', borderRadius:8, padding:'8px 12px' }}>
               <div style={{ color:'#666' }}>&#128193; {gdrivePath.replace(/[/\\]+$/, '')}</div>
-              <div style={{ paddingLeft:16, color:'#a5b4fc' }}>&#128193; {GDRIVE_ROUTES_FOLDER}</div>
+              <div style={{ paddingLeft:16, color:'#cbd5e1' }}>&#128193; {GDRIVE_ROUTES_FOLDER}</div>
               <div style={{ paddingLeft:16, color:'#39ff14' }}>&#128193; {GDRIVE_RIDES_FOLDER}</div>
             </div>
           )}
@@ -334,11 +334,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               <input type="checkbox" checked={gdriveRoutesAuto}
                 disabled={!gdrivePath.trim()}
                 onChange={e => handleGdriveRoutesAuto(e.target.checked)}
-                style={{ accentColor:'#a5b4fc', width:14, height:14 }} />
+                style={{ accentColor:'#cbd5e1', width:14, height:14 }} />
               <span>
-                <strong style={{ color: gdriveRoutesAuto && gdrivePath ? '#a5b4fc' : undefined }}>Routes</strong>
+                <strong style={{ color: gdriveRoutesAuto && gdrivePath ? '#cbd5e1' : undefined }}>Routes</strong>
                 {' '}— auto-export gegenereerde routes naar
-                <code style={{ fontSize:10, marginLeft:4, color:'#a5b4fc' }}>{GDRIVE_ROUTES_FOLDER}/</code>
+                <code style={{ fontSize:10, marginLeft:4, color:'#cbd5e1' }}>{GDRIVE_ROUTES_FOLDER}/</code>
               </span>
             </label>
             <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:12, color: gdrivePath ? '#aaa' : '#555' }}>

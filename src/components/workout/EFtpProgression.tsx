@@ -34,7 +34,7 @@ export const EFtpProgression: React.FC<EFtpProgressionProps> = ({ rides, weight 
       <div className="wd-section-card">
         <div className="wd-section-card__head">
           <span className="wd-section-card__title">
-            <Award size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, color: '#a5b4fc' }} />
+            <Award size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, color: '#cbd5e1' }} />
             eFTP & Vermogensprogressie
           </span>
         </div>
@@ -54,7 +54,7 @@ export const EFtpProgression: React.FC<EFtpProgressionProps> = ({ rides, weight 
     <div className="wd-section-card">
       <div className="wd-section-card__head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span className="wd-section-card__title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Award size={13} style={{ color: '#a5b4fc' }} />
+          <Award size={13} style={{ color: '#cbd5e1' }} />
           eFTP Progressie
         </span>
         
@@ -63,9 +63,9 @@ export const EFtpProgression: React.FC<EFtpProgressionProps> = ({ rides, weight 
           <button 
             onClick={() => setViewMode('watts')}
             style={{
-              background: viewMode === 'watts' ? 'rgba(165, 180, 252, 0.12)' : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${viewMode === 'watts' ? 'rgba(165, 180, 252, 0.25)' : 'rgba(255,255,255,0.08)'}`,
-              color: viewMode === 'watts' ? '#a5b4fc' : '#94a3b8',
+              background: viewMode === 'watts' ? 'rgba(203, 213, 225, 0.12)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${viewMode === 'watts' ? 'rgba(203, 213, 225, 0.25)' : 'rgba(255,255,255,0.08)'}`,
+              color: viewMode === 'watts' ? '#cbd5e1' : '#94a3b8',
               fontSize: '9px',
               fontWeight: 700,
               padding: '3px 8px',
@@ -79,9 +79,9 @@ export const EFtpProgression: React.FC<EFtpProgressionProps> = ({ rides, weight 
           <button 
             onClick={() => setViewMode('wkg')}
             style={{
-              background: viewMode === 'wkg' ? 'rgba(165, 180, 252, 0.12)' : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${viewMode === 'wkg' ? 'rgba(165, 180, 252, 0.25)' : 'rgba(255,255,255,0.08)'}`,
-              color: viewMode === 'wkg' ? '#a5b4fc' : '#94a3b8',
+              background: viewMode === 'wkg' ? 'rgba(203, 213, 225, 0.12)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${viewMode === 'wkg' ? 'rgba(203, 213, 225, 0.25)' : 'rgba(255,255,255,0.08)'}`,
+              color: viewMode === 'wkg' ? '#cbd5e1' : '#94a3b8',
               fontSize: '9px',
               fontWeight: 700,
               padding: '3px 8px',
@@ -122,8 +122,8 @@ export const EFtpProgression: React.FC<EFtpProgressionProps> = ({ rides, weight 
           <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
             <defs>
               <linearGradient id="eftpGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#a5b4fc" stopOpacity={0.18}/>
-                <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.01}/>
+                <stop offset="5%" stopColor="#cbd5e1" stopOpacity={0.18}/>
+                <stop offset="95%" stopColor="#cbd5e1" stopOpacity={0.01}/>
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
@@ -140,11 +140,11 @@ export const EFtpProgression: React.FC<EFtpProgressionProps> = ({ rides, weight 
             <Area 
               type="monotone" 
               dataKey={viewMode === 'watts' ? 'watts' : 'wkg'} 
-              stroke="#a5b4fc" 
+              stroke="#cbd5e1" 
               strokeWidth={2} 
               fillOpacity={1} 
               fill="url(#eftpGrad)" 
-              dot={{ fill: '#a5b4fc', r: 3 }}
+              dot={{ fill: '#cbd5e1', r: 3 }}
             />
           </AreaChart>
         </ResponsiveContainer>

@@ -49,9 +49,9 @@ export const DashboardStatsHeader: React.FC<DashboardStatsHeaderProps> = ({
               key={opt.value}
               onClick={() => setTimeRange(opt.value)}
               style={{
-                background: timeRange === opt.value ? 'rgba(165, 180, 252, 0.12)' : 'transparent',
+                background: timeRange === opt.value ? 'rgba(203, 213, 225, 0.12)' : 'transparent',
                 border: 'none',
-                color: timeRange === opt.value ? '#a5b4fc' : '#94a3b8',
+                color: timeRange === opt.value ? '#cbd5e1' : '#94a3b8',
                 fontSize: '10px',
                 fontWeight: 600,
                 padding: '4px 10px',
@@ -80,7 +80,7 @@ export const DashboardStatsHeader: React.FC<DashboardStatsHeaderProps> = ({
                   cy="18"
                   r="15"
                   fill="none"
-                  stroke="#a5b4fc"
+                  stroke="#cbd5e1"
                   strokeWidth="3"
                   strokeDasharray="94.2"
                   strokeDashoffset={94.2 - Math.min(100, latestPMC.ctl) * 0.942}
@@ -88,7 +88,7 @@ export const DashboardStatsHeader: React.FC<DashboardStatsHeaderProps> = ({
                   transform="rotate(-90 18 18)"
                 />
               </svg>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 700, color: '#a5b4fc' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 700, color: '#cbd5e1' }}>
                 {Math.round(latestPMC.ctl)}
               </div>
             </div>

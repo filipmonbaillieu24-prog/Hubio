@@ -85,8 +85,8 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({
             onClick={() => setActiveSubTab(item.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-              background: activeSubTab === item.key ? 'rgba(165, 180, 252, 0.1)' : 'transparent',
-              color: activeSubTab === item.key ? '#a5b4fc' : '#94a3b8',
+              background: activeSubTab === item.key ? 'rgba(203, 213, 225, 0.1)' : 'transparent',
+              color: activeSubTab === item.key ? '#cbd5e1' : '#94a3b8',
               transition: 'all 0.15s', fontFamily: 'inherit'
             }}
           >

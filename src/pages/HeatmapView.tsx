@@ -34,10 +34,10 @@ function fmtDate(ms: number) {
 
 // Colour based on ride index (recent = bright cyan, older = dim)
 function trackColor(idx: number, total: number, hovered: boolean): string {
-  if (hovered) return '#a5b4fc';
+  if (hovered) return '#cbd5e1';
   const age = idx / Math.max(total - 1, 1); // 0 = newest, 1 = oldest
   const opacity = Math.max(0.25, 1 - age * 0.65);
-  return `rgba(165, 180, 252,${opacity.toFixed(2)})`;
+  return `rgba(203, 213, 225,${opacity.toFixed(2)})`;
 }
 
 const HeatmapView: React.FC = () => {
@@ -122,7 +122,7 @@ const HeatmapView: React.FC = () => {
       <div className="wd-heatmap-footer">
         {hovered ? (
           <>
-            <strong style={{ color: 'var(--color-primary,#a5b4fc)' }}>{hovered.name}</strong>
+            <strong style={{ color: 'var(--color-primary,#cbd5e1)' }}>{hovered.name}</strong>
             <span style={{ color: '#3a3a4a' }}>·</span>
             <span>{fmtDate(hovered.date)}</span>
           </>

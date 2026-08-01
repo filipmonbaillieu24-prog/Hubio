@@ -161,7 +161,7 @@ Houd hier rekening mee in je adviezen. Geef korte, concrete, direct toepasbare c
       {/* Header */}
       <div className="wd-chat-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Brain size={20} style={{ color: '#a5b4fc', filter: 'drop-shadow(0 0 4px rgba(165, 180, 252, 0.4))' }} />
+          <Brain size={20} style={{ color: '#cbd5e1', filter: 'drop-shadow(0 0 4px rgba(203, 213, 225, 0.4))' }} />
           <div>
             <h4 style={{ margin: 0, fontSize: 12, fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
               Interactief Coach Gesprek
@@ -195,15 +195,15 @@ Houd hier rekening mee in je adviezen. Geef korte, concrete, direct toepasbare c
                   width: 26,
                   height: 26,
                   borderRadius: '50%',
-                  background: isUser ? 'rgba(108, 92, 231, 0.2)' : 'rgba(165, 180, 252, 0.1)',
-                  border: `1px solid ${isUser ? 'rgba(108, 92, 231, 0.4)' : 'rgba(165, 180, 252, 0.3)'}`,
+                  background: isUser ? 'rgba(108, 92, 231, 0.2)' : 'rgba(203, 213, 225, 0.1)',
+                  border: `1px solid ${isUser ? 'rgba(108, 92, 231, 0.4)' : 'rgba(203, 213, 225, 0.3)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: 11,
-                  color: isUser ? '#a29bfe' : '#a5b4fc',
+                  color: isUser ? '#a29bfe' : '#cbd5e1',
                   flexShrink: 0,
-                  boxShadow: `0 2px 6px ${isUser ? 'rgba(108, 92, 231, 0.1)' : 'rgba(165, 180, 252, 0.1)'}`,
+                  boxShadow: `0 2px 6px ${isUser ? 'rgba(108, 92, 231, 0.1)' : 'rgba(203, 213, 225, 0.1)'}`,
                 }}
               >
                 {isUser ? <User size={12} /> : <Brain size={12} />}
@@ -226,20 +226,20 @@ Houd hier rekening mee in je adviezen. Geef korte, concrete, direct toepasbare c
                 width: 26,
                 height: 26,
                 borderRadius: '50%',
-                background: 'rgba(165, 180, 252, 0.05)',
-                border: '1px solid rgba(165, 180, 252, 0.15)',
+                background: 'rgba(203, 213, 225, 0.05)',
+                border: '1px solid rgba(203, 213, 225, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#a5b4fc',
+                color: '#cbd5e1',
               }}
             >
               <Brain size={12} />
             </div>
             <div style={{ display: 'flex', gap: 4, padding: '10px 14px', background: 'rgba(255,255,255,0.015)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.03)' }}>
-              <span className="typing-dot" style={{ width: 4, height: 4, background: '#a5b4fc', borderRadius: '50%' }} />
-              <span className="typing-dot" style={{ width: 4, height: 4, background: '#a5b4fc', borderRadius: '50%', animationDelay: '0.2s' }} />
-              <span className="typing-dot" style={{ width: 4, height: 4, background: '#a5b4fc', borderRadius: '50%', animationDelay: '0.4s' }} />
+              <span className="typing-dot" style={{ width: 4, height: 4, background: '#cbd5e1', borderRadius: '50%' }} />
+              <span className="typing-dot" style={{ width: 4, height: 4, background: '#cbd5e1', borderRadius: '50%', animationDelay: '0.2s' }} />
+              <span className="typing-dot" style={{ width: 4, height: 4, background: '#cbd5e1', borderRadius: '50%', animationDelay: '0.4s' }} />
             </div>
           </div>
         )}

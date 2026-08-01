@@ -314,7 +314,7 @@ const WorkoutDashboard: React.FC<Props> = ({
   const renderMain = () => {
     if (rides.length === 0 && !loading) return (
       <div className="wd-empty-state">
-        <div className="wd-empty-icon"><Bike size={52} color="#a5b4fc" strokeWidth={1.5} /></div>
+        <div className="wd-empty-icon"><Bike size={52} color="#cbd5e1" strokeWidth={1.5} /></div>
         <h2>Nog geen ritten</h2>
         <p style={{ marginBottom: 16 }}>Sleep FIT, GPX of TCX bestanden in het venster<br />of selecteer ze hieronder.</p>
         <div style={{ width: '100%', maxWidth: '280px', margin: '0 auto', textAlign: 'left' }}>
@@ -376,8 +376,8 @@ const WorkoutDashboard: React.FC<Props> = ({
             {/* AI Coach & Insights Panel */}
             <div className="wd-dashboard-row wd-dashboard-row--full" style={{ marginBottom: 16 }}>
               <div style={{
-                background: 'linear-gradient(135deg, rgba(165, 180, 252, 0.04), rgba(108, 92, 231, 0.02))',
-                border: '1px solid rgba(165, 180, 252,0.08)',
+                background: 'linear-gradient(135deg, rgba(203, 213, 225, 0.04), rgba(108, 92, 231, 0.02))',
+                border: '1px solid rgba(203, 213, 225,0.08)',
                 borderRadius: '16px',
                 padding: '16px 20px',
                 display: 'flex',
@@ -386,7 +386,7 @@ const WorkoutDashboard: React.FC<Props> = ({
               }}>
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '10px' }}>
-                  <Brain size={18} color="#a5b4fc" />
+                  <Brain size={18} color="#cbd5e1" />
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Offline AI Analysestudio</span>
                 </div>
 
@@ -504,7 +504,7 @@ const WorkoutDashboard: React.FC<Props> = ({
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
                       <div style={{ fontSize: 8, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Afstand</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#a5b4fc' }}>{latestRide.distance.toFixed(1)} km</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#cbd5e1' }}>{latestRide.distance.toFixed(1)} km</div>
                     </div>
                     <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
                       <div style={{ fontSize: 8, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Gem. Vermogen</div>
@@ -604,15 +604,15 @@ const WorkoutDashboard: React.FC<Props> = ({
                       <AreaChart data={efData} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
                         <defs>
                           <linearGradient id="colorEf" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#a5b4fc" stopOpacity={0.25}/>
-                            <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.0}/>
+                            <stop offset="5%" stopColor="#cbd5e1" stopOpacity={0.25}/>
+                            <stop offset="95%" stopColor="#cbd5e1" stopOpacity={0.0}/>
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                         <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#64748b' }} />
                         <YAxis tick={{ fontSize: 8, fill: '#64748b' }} domain={['auto', 'auto']} />
                         <Tooltip contentStyle={{ background: '#111318', border: 'none', borderRadius: 8, fontSize: 10 }} />
-                        <Area type="monotone" dataKey="ef" stroke="#a5b4fc" strokeWidth={2} fillOpacity={1} fill="url(#colorEf)" />
+                        <Area type="monotone" dataKey="ef" stroke="#cbd5e1" strokeWidth={2} fillOpacity={1} fill="url(#colorEf)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   )}
@@ -640,9 +640,9 @@ const WorkoutDashboard: React.FC<Props> = ({
                         contentStyle={{ background: '#111318', border: 'none', borderRadius: 8, fontSize: 10 }}
                         formatter={(v: any) => [`${Math.round(v)} km`, 'Afstand']}
                       />
-                      <Bar dataKey="distance" fill="rgba(165, 180, 252, 0.4)">
+                      <Bar dataKey="distance" fill="rgba(203, 213, 225, 0.4)">
                         {monthData.map((_entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={index === monthData.length - 1 ? '#a5b4fc' : 'rgba(165, 180, 252, 0.4)'} />
+                          <Cell key={`cell-${index}`} fill={index === monthData.length - 1 ? '#cbd5e1' : 'rgba(203, 213, 225, 0.4)'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -699,7 +699,7 @@ const WorkoutDashboard: React.FC<Props> = ({
                         formatter={(v: any, name: any) => [`${v} km`, name === 'thisYear' ? String(new Date().getFullYear()) : String(new Date().getFullYear() - 1)]}
                       />
                       <Bar dataKey="lastYear"  fill="rgba(255,255,255,0.12)" radius={[2,2,0,0]} />
-                      <Bar dataKey="thisYear"  fill="rgba(165, 180, 252,0.65)"   radius={[2,2,0,0]} />
+                      <Bar dataKey="thisYear"  fill="rgba(203, 213, 225,0.65)"   radius={[2,2,0,0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -720,8 +720,8 @@ const WorkoutDashboard: React.FC<Props> = ({
                 onClick={() => setActivePrSubTab('records')}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-                  background: activePrSubTab === 'records' ? 'rgba(165, 180, 252, 0.1)' : 'transparent',
-                  color: activePrSubTab === 'records' ? '#a5b4fc' : '#94a3b8',
+                  background: activePrSubTab === 'records' ? 'rgba(203, 213, 225, 0.1)' : 'transparent',
+                  color: activePrSubTab === 'records' ? '#cbd5e1' : '#94a3b8',
                   transition: 'all 0.15s', fontFamily: 'inherit'
                 }}
               >
@@ -731,8 +731,8 @@ const WorkoutDashboard: React.FC<Props> = ({
                 onClick={() => setActivePrSubTab('passport')}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700,
-                  background: activePrSubTab === 'passport' ? 'rgba(165, 180, 252, 0.1)' : 'transparent',
-                  color: activePrSubTab === 'passport' ? '#a5b4fc' : '#94a3b8',
+                  background: activePrSubTab === 'passport' ? 'rgba(203, 213, 225, 0.1)' : 'transparent',
+                  color: activePrSubTab === 'passport' ? '#cbd5e1' : '#94a3b8',
                   transition: 'all 0.15s', fontFamily: 'inherit'
                 }}
               >
@@ -814,8 +814,8 @@ const WorkoutDashboard: React.FC<Props> = ({
         <div style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(165, 180, 252, 0.08)',
-          border: '2px dashed #a5b4fc',
+          background: 'rgba(203, 213, 225, 0.08)',
+          border: '2px dashed #cbd5e1',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -823,7 +823,7 @@ const WorkoutDashboard: React.FC<Props> = ({
           backdropFilter: 'blur(8px)',
           borderRadius: 16
         }}>
-          <span style={{ fontSize: 14, fontWeight: 800, color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
             Sleep bestanden hierheen om te importeren (FIT / GPX)
           </span>
         </div>
@@ -849,8 +849,8 @@ const WorkoutDashboard: React.FC<Props> = ({
         }}>
           <div style={{
             background: 'rgba(23, 23, 27, 0.9)',
-            border: '1px solid rgba(165, 180, 252, 0.15)',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 15px rgba(165, 180, 252, 0.05)',
+            border: '1px solid rgba(203, 213, 225, 0.15)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 15px rgba(203, 213, 225, 0.05)',
             borderRadius: '20px',
             width: '100%',
             maxWidth: '460px',
@@ -864,15 +864,15 @@ const WorkoutDashboard: React.FC<Props> = ({
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{
-                background: 'rgba(165, 180, 252, 0.1)',
+                background: 'rgba(203, 213, 225, 0.1)',
                 padding: '8px',
                 borderRadius: '12px',
-                border: '1px solid rgba(165, 180, 252, 0.2)',
+                border: '1px solid rgba(203, 213, 225, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <Brain size={24} color="#a5b4fc" />
+                <Brain size={24} color="#cbd5e1" />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#f1f5f9' }}>
@@ -906,7 +906,7 @@ const WorkoutDashboard: React.FC<Props> = ({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: 12, color: '#64748b', textDecoration: 'line-through' }}>{activeProposal.ftp.current} W</span>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: '#a5b4fc' }}>{activeProposal.ftp.proposed} W</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#cbd5e1' }}>{activeProposal.ftp.proposed} W</span>
                     <span style={{
                       background: 'rgba(34, 197, 94, 0.1)',
                       color: '#4ade80',
@@ -937,7 +937,7 @@ const WorkoutDashboard: React.FC<Props> = ({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: 12, color: '#64748b', textDecoration: 'line-through' }}>{activeProposal.lthr.current} bpm</span>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: '#a5b4fc' }}>{activeProposal.lthr.proposed} bpm</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#cbd5e1' }}>{activeProposal.lthr.proposed} bpm</span>
                     <span style={{
                       background: activeProposal.lthr.proposed > activeProposal.lthr.current ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                       color: activeProposal.lthr.proposed > activeProposal.lthr.current ? '#4ade80' : '#f87171',
@@ -968,7 +968,7 @@ const WorkoutDashboard: React.FC<Props> = ({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: 12, color: '#64748b', textDecoration: 'line-through' }}>{activeProposal.maxHR.current} bpm</span>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: '#a5b4fc' }}>{activeProposal.maxHR.proposed} bpm</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#cbd5e1' }}>{activeProposal.maxHR.proposed} bpm</span>
                     <span style={{
                       background: 'rgba(34, 197, 94, 0.1)',
                       color: '#4ade80',
@@ -998,7 +998,7 @@ const WorkoutDashboard: React.FC<Props> = ({
                 }}
                 style={{
                   flex: 1,
-                  background: 'linear-gradient(135deg, #a5b4fc, #6c5ce7)',
+                  background: 'linear-gradient(135deg, #cbd5e1, #6c5ce7)',
                   border: 'none',
                   borderRadius: '10px',
                   color: '#fff',
@@ -1008,7 +1008,7 @@ const WorkoutDashboard: React.FC<Props> = ({
                   cursor: 'pointer',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  boxShadow: '0 0 12px rgba(165, 180, 252, 0.15)'
+                  boxShadow: '0 0 12px rgba(203, 213, 225, 0.15)'
                 }}
               >
                 Accepteren & zones updaten
@@ -1050,8 +1050,8 @@ const WorkoutDashboard: React.FC<Props> = ({
           <div style={{
             width: '40px',
             height: '40px',
-            border: '3px solid rgba(165, 180, 252, 0.1)',
-            borderTop: '3px solid #a5b4fc',
+            border: '3px solid rgba(203, 213, 225, 0.1)',
+            borderTop: '3px solid #cbd5e1',
             borderRadius: '50%',
             animation: 'spin 1s linear infinite'
           }} />

@@ -71,9 +71,9 @@ export const RideListSection: React.FC<RideListSectionProps> = ({
               <button key={k}
                 className={`wd-sort-btn ${sortKey === k ? 'wd-sort-btn--active' : ''}`}
                 style={{
-                  background: sortKey === k ? 'rgba(165, 180, 252, 0.12)' : 'transparent',
+                  background: sortKey === k ? 'rgba(203, 213, 225, 0.12)' : 'transparent',
                   border: 'none',
-                  color: sortKey === k ? '#a5b4fc' : '#94a3b8',
+                  color: sortKey === k ? '#cbd5e1' : '#94a3b8',
                   padding: '4px 8px',
                   borderRadius: 6,
                   cursor: 'pointer',
@@ -169,11 +169,11 @@ export const RideListSection: React.FC<RideListSectionProps> = ({
                       style={{ 
                         borderBottom: '1px solid rgba(255,255,255,0.02)',
                         cursor: 'pointer',
-                        background: selectedRideId === ride.id ? 'rgba(165, 180, 252, 0.04)' : 'transparent',
+                        background: selectedRideId === ride.id ? 'rgba(203, 213, 225, 0.04)' : 'transparent',
                         transition: 'background 0.2s'
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}
-                      onMouseLeave={e => e.currentTarget.style.background = selectedRideId === ride.id ? 'rgba(165, 180, 252, 0.04)' : 'transparent'}
+                      onMouseLeave={e => e.currentTarget.style.background = selectedRideId === ride.id ? 'rgba(203, 213, 225, 0.04)' : 'transparent'}
                       onClick={() => onSelectRide(ride.id)}
                     >
                       <td style={{ padding: '10px 14px', fontWeight: 600 }}>{dateStr}</td>
@@ -229,10 +229,10 @@ export const RideListSection: React.FC<RideListSectionProps> = ({
                           <button
                             onClick={() => onCompareRide?.(ride.id)}
                             style={{
-                              background: compareRideId === ride.id ? 'rgba(165, 180, 252, 0.12)' : 'rgba(255,255,255,0.02)',
+                              background: compareRideId === ride.id ? 'rgba(203, 213, 225, 0.12)' : 'rgba(255,255,255,0.02)',
                               border: '1px solid rgba(255,255,255,0.05)',
                               borderRadius: 6,
-                              color: compareRideId === ride.id ? '#a5b4fc' : '#cbd5e1',
+                              color: compareRideId === ride.id ? '#cbd5e1' : '#cbd5e1',
                               fontSize: 10,
                               fontWeight: 600,
                               padding: '4px 8px',

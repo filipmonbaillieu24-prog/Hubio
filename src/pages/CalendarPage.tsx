@@ -310,7 +310,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
         <div className="wd-calendar-hero__header">
           <div>
             <span className="wd-calendar-hero__tag">
-              <TrendingUp size={13} style={{ color: '#a5b4fc', marginRight: 4 }} />
+              <TrendingUp size={13} style={{ color: '#cbd5e1', marginRight: 4 }} />
               Periodisering & PMC Voorspelling
             </span>
             <h2 className="wd-calendar-hero__title">Trainingskalender</h2>
@@ -319,7 +319,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
           <div className="wd-calendar-hero__kpis">
             <div className="wd-calendar-kpi">
               <span className="wd-calendar-kpi__label">Fitheid (CTL +35d)</span>
-              <strong className="wd-calendar-kpi__val" style={{ color: '#a5b4fc' }}>
+              <strong className="wd-calendar-kpi__val" style={{ color: '#cbd5e1' }}>
                 {Math.round(latestSimPoint.ctl)}
               </strong>
             </div>
@@ -348,9 +348,9 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
               <Tooltip
                 contentStyle={{ background: '#09090b', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11, color: '#fff' }}
               />
-              <ReferenceLine x={new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} stroke="#a5b4fc" strokeDasharray="3 3" label={{ value: 'Vandaag', fill: '#a5b4fc', fontSize: 10 }} />
+              <ReferenceLine x={new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} stroke="#cbd5e1" strokeDasharray="3 3" label={{ value: 'Vandaag', fill: '#cbd5e1', fontSize: 10 }} />
               <Bar dataKey="tss" fill="rgba(255,255,255,0.08)" radius={[2, 2, 0, 0]} name="Dagelijkse TSS" />
-              <Line type="monotone" dataKey="ctl" stroke="#a5b4fc" strokeWidth={2} dot={false} name="Fitheid (CTL)" />
+              <Line type="monotone" dataKey="ctl" stroke="#cbd5e1" strokeWidth={2} dot={false} name="Fitheid (CTL)" />
               <Line type="monotone" dataKey="atl" stroke="#ff7675" strokeWidth={1.5} dot={false} name="Vermoeidheid (ATL)" />
               <Line type="monotone" dataKey="tsb" stroke="#fdcb6e" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Vorm (TSB)" />
             </ComposedChart>

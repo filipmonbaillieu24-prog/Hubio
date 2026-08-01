@@ -107,8 +107,8 @@ export const WeekOverview: React.FC<Props> = ({ rides }) => {
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, rgba(165, 180, 252,0.04) 0%, rgba(255,255,255,0.01) 100%)',
-      border: '1px solid rgba(165, 180, 252,0.14)',
+      background: 'linear-gradient(135deg, rgba(203, 213, 225,0.04) 0%, rgba(255,255,255,0.01) 100%)',
+      border: '1px solid rgba(203, 213, 225,0.14)',
       borderRadius: 12,
       padding: '14px 16px',
       display: 'flex',
@@ -118,7 +118,7 @@ export const WeekOverview: React.FC<Props> = ({ rides }) => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
             📅 Deze Week
           </div>
           <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>vs vorige week</div>
@@ -140,9 +140,9 @@ export const WeekOverview: React.FC<Props> = ({ rides }) => {
               width: '100%',
               height: d.heightPct > 0 ? `${d.heightPct}%` : 3,
               background: d.isToday
-                ? '#a5b4fc'
+                ? '#cbd5e1'
                 : d.hasRide
-                  ? 'rgba(165, 180, 252,0.35)'
+                  ? 'rgba(203, 213, 225,0.35)'
                   : 'rgba(255,255,255,0.04)',
               borderRadius: 3,
               transition: 'height 0.3s ease',
@@ -157,7 +157,7 @@ export const WeekOverview: React.FC<Props> = ({ rides }) => {
             flex: 1,
             textAlign: 'center',
             fontSize: 9,
-            color: d.isToday ? '#a5b4fc' : '#475569',
+            color: d.isToday ? '#cbd5e1' : '#475569',
             fontWeight: d.isToday ? 800 : 500,
           }}>
             {d.day}

@@ -119,7 +119,7 @@ export function generateCoachAdvice(
       const ftpGrow = ((ftpNow - ftpOld) / ftpOld) * 100;
       if (ftpGrow > 3) {
         advice.push({
-          category: 'progressie', priority: 3, icon: '⚡', color: 'var(--color-primary,#a5b4fc)',
+          category: 'progressie', priority: 3, icon: '⚡', color: 'var(--color-primary,#cbd5e1)',
           title: 'Vermogensprestatie verbetert',
           body:  `Je eFTP steeg ${ftpGrow.toFixed(1)}% (${ftpOld.toFixed(0)}W → ${ftpNow}W). Je wordt aantoonbaar sterker!`,
         });
@@ -173,7 +173,7 @@ export function generateCoachAdvice(
       });
     } else {
       advice.push({
-        category: 'progressie', priority: 3, icon: '🏆', color: 'var(--color-primary,#a5b4fc)',
+        category: 'progressie', priority: 3, icon: '🏆', color: 'var(--color-primary,#cbd5e1)',
         title: `Sterk niveau: ${wpkg.toFixed(2)} W/kg`,
         body:  'Je zit in de "Trained" categorie. Overweeg periodisering (blokken van 3 weken opbouw + 1 week herstel) voor verdere groei.',
       });
@@ -239,7 +239,7 @@ export function generateCoachAdvice(
     });
   } else if (goal === 'speed') {
     advice.push({
-      category: 'doel', priority: 2, icon: '⚡', color: '#a5b4fc',
+      category: 'doel', priority: 2, icon: '⚡', color: '#cbd5e1',
       title: 'Focus: Snelheid & Sprintvermogen',
       body: 'Je richt je op explosiviteit en snelheid. Voeg deze week korte, maximale sprints toe aan je ritten met volledige rust tussendoor om je anaerobe capaciteit (W\') te boosten.',
       action: 'Plan een sprinttraining: 5x15s maximaal met 4 min rust'
@@ -298,7 +298,7 @@ export function generateCoachAdvice(
       });
     } else if (ctl > 70) {
       advice.push({
-        category: 'progressie', priority: 3, icon: '🔥', color: '#a5b4fc',
+        category: 'progressie', priority: 3, icon: '🔥', color: '#cbd5e1',
         title: `Indrukwekkende fitheid (CTL: ${Math.round(ctl)})`,
         body: `CTL ${Math.round(ctl)} plaatst je in de getrainde tot elite categorie. Overweeg een gestructureerd periodiseringsblok (3 weken opbouw + 1 week herstel) voor verdere groei.`,
       });

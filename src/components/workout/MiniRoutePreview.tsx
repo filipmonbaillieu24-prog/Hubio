@@ -37,7 +37,7 @@ export const MiniRoutePreview: React.FC<MiniRoutePreviewProps> = ({ points }) =>
         />
         <defs>
           <linearGradient id="fallbackGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#a5b4fc" />
+            <stop offset="0%" stopColor="#cbd5e1" />
             <stop offset="100%" stopColor="#6c5ce7" />
           </linearGradient>
         </defs>
@@ -76,14 +76,14 @@ export const MiniRoutePreview: React.FC<MiniRoutePreviewProps> = ({ points }) =>
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ filter: 'drop-shadow(0 0 6px rgba(165, 180, 252, 0.45))' }}
+        style={{ filter: 'drop-shadow(0 0 6px rgba(203, 213, 225, 0.45))' }}
       />
       <circle cx={scaleX(lngs[0])} cy={scaleY(lats[0])} r="4" fill="#00b894" stroke="#fff" strokeWidth="1.5" />
       <circle cx={scaleX(lngs[lngs.length - 1])} cy={scaleY(lats[lats.length - 1])} r="4" fill="#d63031" stroke="#fff" strokeWidth="1.5" />
 
       <defs>
         <linearGradient id="routeGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#a5b4fc" />
+          <stop offset="0%" stopColor="#cbd5e1" />
           <stop offset="50%" stopColor="#00b894" />
           <stop offset="100%" stopColor="#a29bfe" />
         </linearGradient>

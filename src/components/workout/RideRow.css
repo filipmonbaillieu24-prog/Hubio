@@ -24,10 +24,10 @@
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
 }
 .wd-ride-row--selected {
-  background: linear-gradient(135deg, rgba(165, 180, 252,0.08) 0%, rgba(165, 180, 252,0.01) 100%) !important;
-  border-color: rgba(165, 180, 252,0.25) !important;
-  border-left-color: var(--color-primary, #a5b4fc) !important;
-  box-shadow: 0 4px 24px rgba(165, 180, 252,0.15) !important;
+  background: linear-gradient(135deg, rgba(203, 213, 225,0.08) 0%, rgba(203, 213, 225,0.01) 100%) !important;
+  border-color: rgba(203, 213, 225,0.25) !important;
+  border-left-color: var(--color-primary, #cbd5e1) !important;
+  box-shadow: 0 4px 24px rgba(203, 213, 225,0.15) !important;
   transform: translateY(-1px);
 }
 .wd-ride-row--comparing {

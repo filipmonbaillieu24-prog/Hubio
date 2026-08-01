@@ -117,7 +117,7 @@ export const PeriodizationTab: React.FC<PeriodizationTabProps> = ({
             <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 10, color: '#475569' }}>Week TSS voortgang:</span>
               <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2 }}>
-                <div style={{ height: '100%', width: `${Math.min(100, (weekTSSactual / weekTSSgoal) * 100).toFixed(0)}%`, background: `linear-gradient(90deg, ${phase.color}, #a5b4fc)`, borderRadius: 2, transition: 'width 0.5s' }} />
+                <div style={{ height: '100%', width: `${Math.min(100, (weekTSSactual / weekTSSgoal) * 100).toFixed(0)}%`, background: `linear-gradient(90deg, ${phase.color}, #cbd5e1)`, borderRadius: 2, transition: 'width 0.5s' }} />
               </div>
               <span style={{ fontSize: 10, fontWeight: 700, color: phase.color, whiteSpace: 'nowrap' }}>{Math.round(weekTSSactual)} / {weekTSSgoal} TSS</span>
             </div>

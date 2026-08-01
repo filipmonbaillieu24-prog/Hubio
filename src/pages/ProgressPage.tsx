@@ -237,8 +237,8 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
           {([30, 90, 365, 'all'] as const).map(r => (
             <button key={String(r)} onClick={() => setTimeRange(r)} style={{
               padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 700,
-              background: timeRange === r ? 'rgba(165, 180, 252,0.12)' : 'rgba(255,255,255,0.04)',
-              color: timeRange === r ? '#a5b4fc' : '#64748b', fontFamily: 'inherit',
+              background: timeRange === r ? 'rgba(203, 213, 225,0.12)' : 'rgba(255,255,255,0.04)',
+              color: timeRange === r ? '#cbd5e1' : '#64748b', fontFamily: 'inherit',
             }}>
               {r === 'all' ? 'Alles' : `${r}d`}
             </button>
@@ -252,15 +252,15 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
 
           {/* VO2max */}
-          <div style={{ ...cardBase, background: 'linear-gradient(135deg,rgba(165, 180, 252,0.05),rgba(108,92,231,0.02))', border: '1px solid rgba(165, 180, 252,0.12)' }}>
+          <div style={{ ...cardBase, background: 'linear-gradient(135deg,rgba(203, 213, 225,0.05),rgba(108,92,231,0.02))', border: '1px solid rgba(203, 213, 225,0.12)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Brain size={14} color="#a5b4fc" />
+                <Brain size={14} color="#cbd5e1" />
                 <span style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>AI VO2max</span>
               </div>
-              <span style={{ fontSize: 9, background: 'rgba(165, 180, 252,0.08)', color: '#a5b4fc', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>SUBMAXIMAAL</span>
+              <span style={{ fontSize: 9, background: 'rgba(203, 213, 225,0.08)', color: '#cbd5e1', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>SUBMAXIMAAL</span>
             </div>
-            <div style={{ fontSize: 34, fontWeight: 300, color: '#a5b4fc', lineHeight: 1 }}>
+            <div style={{ fontSize: 34, fontWeight: 300, color: '#cbd5e1', lineHeight: 1 }}>
               {aiVO2max} <span style={{ fontSize: 12, color: '#64748b' }}>ml/kg/min</span>
             </div>
             <p style={{ fontSize: 10, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
@@ -296,7 +296,7 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
           </div>
 
           {/* Trainersprofiel */}
-          <div style={{ ...cardBase, background: 'linear-gradient(135deg,rgba(0,184,148,0.05),rgba(165, 180, 252,0.01))', border: '1px solid rgba(0,184,148,0.12)' }}>
+          <div style={{ ...cardBase, background: 'linear-gradient(135deg,rgba(0,184,148,0.05),rgba(203, 213, 225,0.01))', border: '1px solid rgba(0,184,148,0.12)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <TrendingUp size={14} color="#00b894" />
               <span style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>AI Trainersprofiel</span>
@@ -366,11 +366,11 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
           <div className="wd-section-card animate-slide-up">
             <div className="wd-section-card__head">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Brain size={14} color="#a5b4fc" />
+                <Brain size={14} color="#cbd5e1" />
                 <span className="wd-section-card__title">AI eFTP Prognose — Volgende 8 Weken</span>
               </div>
               <span style={{ fontSize: 10, color: '#94a3b8' }}>
-                Doel: <strong style={{ color: '#a5b4fc' }}>{aiFTPForecast.targetFTP}W</strong>{' '}
+                Doel: <strong style={{ color: '#cbd5e1' }}>{aiFTPForecast.targetFTP}W</strong>{' '}
                 ({aiFTPForecast.diff >= 0 ? '+' : ''}{aiFTPForecast.diff}W - {aiFTPForecast.consistency} trainingen/week)
               </span>
             </div>
@@ -382,7 +382,7 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
                 <Tooltip contentStyle={{ background: '#12121e', border: 'none', borderRadius: 8, fontSize: 10 }}
                   formatter={(v: any, n: any) => [`${v}W`, n === 'eFTP' ? 'Gerealiseerd' : 'Voorspeld']} />
                 <Line type="monotone" dataKey="eFTP" stroke="#6c5ce7" strokeWidth={2} dot={{ fill: '#6c5ce7', r: 2 }} connectNulls />
-                <Line type="monotone" dataKey="voorspelling" stroke="#a5b4fc" strokeWidth={2} strokeDasharray="4 4" dot={{ fill: '#a5b4fc', r: 2 }} />
+                <Line type="monotone" dataKey="voorspelling" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="4 4" dot={{ fill: '#cbd5e1', r: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -443,13 +443,13 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
         {/* KPI kaarten */}
         {progressMetrics && (
           <div className="wd-dashboard-grid animate-slide-up" style={{ animationDelay: '0.05s' }}>
-            <div className="wd-kpi" style={{ borderLeftColor: '#a5b4fc' }}>
+            <div className="wd-kpi" style={{ borderLeftColor: '#cbd5e1' }}>
               <div className="wd-kpi__header">
                 <span className="wd-kpi__lbl">Hartslag Herstel (HRR)</span>
-                <Heart size={13} style={{ color: '#a5b4fc' }} />
+                <Heart size={13} style={{ color: '#cbd5e1' }} />
               </div>
               <span className="wd-kpi__val">{progressMetrics.avgRecentHRR ?? '--'} bpm</span>
-              <span className="wd-kpi__trend" style={{ color: progressMetrics.hrrChange >= 0 ? '#a5b4fc' : '#ff7675' }}>
+              <span className="wd-kpi__trend" style={{ color: progressMetrics.hrrChange >= 0 ? '#cbd5e1' : '#ff7675' }}>
                 {progressMetrics.hrrChange >= 0 ? 'Stijging' : 'Daling'} {Math.abs(progressMetrics.hrrChange)} bpm
               </span>
             </div>
@@ -467,7 +467,7 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
                 <Activity size={13} style={{ color: '#00b894' }} />
               </div>
               <span className="wd-kpi__val">{progressMetrics.avgRecentCC ? progressMetrics.avgRecentCC.toFixed(3) : '--'} b/m</span>
-              <span className="wd-kpi__trend" style={{ color: progressMetrics.ccChangePct <= 0 ? '#a5b4fc' : '#ff7675' }}>
+              <span className="wd-kpi__trend" style={{ color: progressMetrics.ccChangePct <= 0 ? '#cbd5e1' : '#ff7675' }}>
                 {progressMetrics.ccChangePct <= 0 ? 'Daling' : 'Stijging'} {Math.abs(progressMetrics.ccChangePct)}%
               </span>
             </div>
@@ -487,7 +487,7 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
                     <PolarGrid stroke="rgba(255,255,255,0.05)" />
                     <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 9 }} />
                     <PolarRadiusAxis tick={{ fill: '#64748b', fontSize: 8 }} angle={30} domain={[0, 100]} />
-                    <Radar name="Profiel" dataKey="A" stroke="#a5b4fc" fill="#a5b4fc" fillOpacity={0.15} />
+                    <Radar name="Profiel" dataKey="A" stroke="#cbd5e1" fill="#cbd5e1" fillOpacity={0.15} />
                   </RadarChart>
                 </ResponsiveContainer>
               ) : (
@@ -518,7 +518,7 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontSize: 10, color: '#64748b' }}>{pr.date}</span>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#a5b4fc' }}>{pr.val} W</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1' }}>{pr.val} W</span>
                         </div>
                       </div>
                     ))}
@@ -538,7 +538,7 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
             <div style={{ display: 'flex', flexDirection: 'column', height: 200, justifyContent: 'center' }}>
               {cadenceData ? (
                 <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: 44, fontWeight: 300, color: '#a5b4fc' }}>
+                  <div style={{ fontSize: 44, fontWeight: 300, color: '#cbd5e1' }}>
                     {cadenceData} <span style={{ fontSize: 18 }}>RPM</span>
                   </div>
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>Optimale cadans sweetspot</div>

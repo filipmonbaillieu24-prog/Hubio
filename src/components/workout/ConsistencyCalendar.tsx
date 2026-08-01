@@ -39,7 +39,7 @@ export const ConsistencyCalendar: React.FC<ConsistencyCalendarProps> = ({ rides 
     <div className="wd-section-card">
       <div className="wd-section-card__head">
         <span className="wd-section-card__title">
-          <Activity size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, color: '#a5b4fc' }} />
+          <Activity size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, color: '#cbd5e1' }} />
           Consistentie
         </span>
         <span className="wd-section-card__sub">{activeDays} dagen · {totalKm.toFixed(0)} km</span>

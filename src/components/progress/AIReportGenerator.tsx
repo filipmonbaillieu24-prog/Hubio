@@ -113,7 +113,7 @@ export const AIReportGenerator: React.FC<AIReportGeneratorProps> = ({
 
             let verdict = 'Stabiele fysieke conditie en onderhoud';
             let verdictEmoji = '📈';
-            let verdictColor = '#a5b4fc';
+            let verdictColor = '#cbd5e1';
 
             if (ftpDiff > 5) {
               verdict = 'Significante toename in drempelvermogen';
@@ -214,7 +214,7 @@ ${reportData.actieplanBullets.map((b: string) => '- ' + b.replace(/\*\*/g, '')).
       <div className="progress-ai-report-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="progress-ai-report-icon-badge">
-            <Sparkles size={18} color="#a5b4fc" />
+            <Sparkles size={18} color="#cbd5e1" />
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>AI Voortgangsrapport Generator</h3>

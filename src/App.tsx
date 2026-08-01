@@ -282,7 +282,7 @@ function App() {
   if (sessionLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', width: '100vw', background: '#09090b' }}>
-        <div style={{ width: '40px', height: '40px', border: '3px solid rgba(165, 180, 252, 0.1)', borderTop: '3px solid #a5b4fc', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        <div style={{ width: '40px', height: '40px', border: '3px solid rgba(203, 213, 225, 0.1)', borderTop: '3px solid #cbd5e1', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
       </div>
     );
   }
@@ -312,7 +312,7 @@ function App() {
         {activeTab !== 'hub' && activeTab !== 'cyclopilot' && (
           <aside className="wd-sidebar" data-collapsed={sidebarCollapsed}>
           <div className="wd-sidebar-logo">
-            <Bike size={20} strokeWidth={2} color="#a5b4fc" />
+            <Bike size={20} strokeWidth={2} color="#cbd5e1" />
             {!sidebarCollapsed && <span className="wd-sidebar-logo__text">ZENITH<strong>STUDIO</strong></span>}
           </div>
 
@@ -340,11 +340,11 @@ function App() {
           {!sidebarCollapsed && (
             <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 'auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#94a3b8' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a5b4fc', display: 'inline-block' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#cbd5e1', display: 'inline-block' }} />
                 <span>Cloud Sync Actief</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #a5b4fc, #39ff14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#09090b' }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #cbd5e1, #39ff14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#09090b' }}>
                   {(fitnessProfile.name ?? 'A')[0].toUpperCase()}
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#f8fafc' }}>{fitnessProfile.name ?? 'Atleet'}</span>

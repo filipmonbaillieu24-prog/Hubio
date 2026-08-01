@@ -267,7 +267,7 @@ export const GearPage: React.FC<GearPageProps> = () => {
               <div className="gp-card-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div className="gp-bike-icon-box">
-                    <Bike size={22} style={{ color: '#a5b4fc' }} />
+                    <Bike size={22} style={{ color: '#cbd5e1' }} />
                   </div>
                   <div>
                     <h3 className="gp-bike-name">{g.name}</h3>
@@ -281,7 +281,7 @@ export const GearPage: React.FC<GearPageProps> = () => {
                   {g.components.some(c => c.installedAt > 0) && (
                     <button
                       className="gp-comp-reset-btn"
-                      style={{ background: 'rgba(165, 180, 252,0.07)', borderColor: 'rgba(165, 180, 252,0.25)', color: '#a5b4fc', fontSize: 10 }}
+                      style={{ background: 'rgba(203, 213, 225,0.07)', borderColor: 'rgba(203, 213, 225,0.25)', color: '#cbd5e1', fontSize: 10 }}
                       onClick={() => handleSyncAllComponents(g.id)}
                       title="Synchroniseer alle onderdelen met alle ritten van deze fiets"
                     >
@@ -341,7 +341,7 @@ export const GearPage: React.FC<GearPageProps> = () => {
                                 <button
                                   type="button"
                                   className="gp-comp-reset-btn"
-                                  style={{ background: 'rgba(165, 180, 252,0.06)', borderColor: 'rgba(165, 180, 252,0.2)', color: '#a5b4fc' }}
+                                  style={{ background: 'rgba(203, 213, 225,0.06)', borderColor: 'rgba(203, 213, 225,0.2)', color: '#cbd5e1' }}
                                   onClick={() => handleSyncComponentToAllRides(g.id, c.id)}
                                   title="Synchroniseer met alle ritten (reset installatiedatum naar begin)"
                                 >
@@ -375,7 +375,7 @@ export const GearPage: React.FC<GearPageProps> = () => {
                             className="gp-progress-fill"
                             style={{
                               width: `${pct}%`,
-                              background: isLimit ? 'linear-gradient(90deg, #ff7675, #d63031)' : 'linear-gradient(90deg, #a5b4fc, #00b894)'
+                              background: isLimit ? 'linear-gradient(90deg, #ff7675, #d63031)' : 'linear-gradient(90deg, #cbd5e1, #00b894)'
                             }}
                           />
                         </div>

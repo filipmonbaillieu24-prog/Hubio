@@ -70,7 +70,7 @@ export const CompareOverlay: React.FC<CompareOverlayProps> = ({ rideA, rideB }) 
       <div className="cmp-panel__head">
         <span className="cmp-panel__title">⇄ Vergelijking</span>
         <div className="cmp-legend">
-          <span className="cmp-legend__dot" style={{background:'#a5b4fc'}} /> {dateA}
+          <span className="cmp-legend__dot" style={{background:'#cbd5e1'}} /> {dateA}
           <span className="cmp-legend__dot" style={{background:'#39ff14'}} /> {dateB}
         </div>
       </div>
@@ -95,7 +95,7 @@ export const CompareOverlay: React.FC<CompareOverlayProps> = ({ rideA, rideB }) 
               <YAxis tick={{fontSize:9,fill:'#94a3b8'}} unit="W" width={40} />
               <Tooltip contentStyle={{background:'#0d0d1a',border:'none',borderRadius:8,fontSize:11}}
                 formatter={(v: any, name: any) => [`${v}W`, name === 'ritA' ? dateA : dateB]} />
-              <Line type="monotone" dataKey="ritA" stroke="#a5b4fc" strokeWidth={1.5} dot={false} connectNulls />
+              <Line type="monotone" dataKey="ritA" stroke="#cbd5e1" strokeWidth={1.5} dot={false} connectNulls />
               <Line type="monotone" dataKey="ritB" stroke="#39ff14" strokeWidth={1.5} dot={false} strokeDasharray="4 2" connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
@@ -113,7 +113,7 @@ export const CompareOverlay: React.FC<CompareOverlayProps> = ({ rideA, rideB }) 
               <YAxis tick={{fontSize:9,fill:'#94a3b8'}} unit="bpm" width={42} />
               <Tooltip contentStyle={{background:'#0d0d1a',border:'none',borderRadius:8,fontSize:11}}
                 formatter={(v: any, name: any) => [`${v} bpm`, name === 'ritA' ? dateA : dateB]} />
-              <Line type="monotone" dataKey="ritA" stroke="#a5b4fc" strokeWidth={1.5} dot={false} connectNulls />
+              <Line type="monotone" dataKey="ritA" stroke="#cbd5e1" strokeWidth={1.5} dot={false} connectNulls />
               <Line type="monotone" dataKey="ritB" stroke="#39ff14" strokeWidth={1.5} dot={false} strokeDasharray="4 2" connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
@@ -131,7 +131,7 @@ export const CompareOverlay: React.FC<CompareOverlayProps> = ({ rideA, rideB }) 
               <YAxis tick={{fontSize:9,fill:'#94a3b8'}} unit="km/h" width={42} />
               <Tooltip contentStyle={{background:'#0d0d1a',border:'none',borderRadius:8,fontSize:11}}
                 formatter={(v: any, name: any) => [`${v} km/h`, name === 'ritA' ? dateA : dateB]} />
-              <Line type="monotone" dataKey="ritA" stroke="#a5b4fc" strokeWidth={1.5} dot={false} connectNulls />
+              <Line type="monotone" dataKey="ritA" stroke="#cbd5e1" strokeWidth={1.5} dot={false} connectNulls />
               <Line type="monotone" dataKey="ritB" stroke="#39ff14" strokeWidth={1.5} dot={false} strokeDasharray="4 2" connectNulls />
             </ComposedChart>
           </ResponsiveContainer>

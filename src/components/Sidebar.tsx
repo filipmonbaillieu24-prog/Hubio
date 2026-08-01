@@ -51,7 +51,7 @@ interface SidebarProps {
 
 const climbLabels: Record<ClimbCategory, { label: string; color: string }> = {
   flat:         { label: 'Vlak',          color: '#39ff14' },
-  rolling:      { label: 'Licht heuvelachtig', color: '#a5b4fc' },
+  rolling:      { label: 'Licht heuvelachtig', color: '#cbd5e1' },
   hilly:        { label: 'Heuvelachtig',   color: '#ff9f43' },
   mountainous:  { label: 'Bergachtig',     color: '#ff3366' },
 };
@@ -485,7 +485,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           windAngleRad
                         );
                         return (
-                          <span style={{ color: '#a5b4fc', display: 'inline-flex', alignItems: 'center', gap: 3 }} title="AI Geschatte Ritduur (incl. wind-effect)">
+                          <span style={{ color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: 3 }} title="AI Geschatte Ritduur (incl. wind-effect)">
                             🤖 {formatDuration(aiDur)}
                           </span>
                         );
@@ -541,7 +541,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      color: '#a5b4fc',
+                      color: '#cbd5e1',
                       fontSize: 12,
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -566,7 +566,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Vochtbehoefte:</span>
-                        <strong style={{ color: '#a5b4fc' }}>{(fuelPlan.totalFluid / 1000).toFixed(1)}L ({fuelPlan.fluidPerHour}ml/u)</strong>
+                        <strong style={{ color: '#cbd5e1' }}>{(fuelPlan.totalFluid / 1000).toFixed(1)}L ({fuelPlan.fluidPerHour}ml/u)</strong>
                       </div>
                       {fuelPlan.totalSodium > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>

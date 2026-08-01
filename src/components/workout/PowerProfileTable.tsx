@@ -12,7 +12,7 @@ const COGGAN_TABLE = [
   { category: 'World Class Pro', color: '#6c5ce7', m1: 11.5, m5: 8.1,  m20: 6.4,  m60: 6.2  },
   { category: 'Pro / Cat 1',     color: '#a29bfe', m1: 9.5,  m5: 7.0,  m20: 5.6,  m60: 5.4  },
   { category: 'Cat 2',           color: '#00b894', m1: 8.0,  m5: 6.1,  m20: 4.8,  m60: 4.6  },
-  { category: 'Cat 3',           color: '#a5b4fc', m1: 7.0,  m5: 5.2,  m20: 4.0,  m60: 3.9  },
+  { category: 'Cat 3',           color: '#cbd5e1', m1: 7.0,  m5: 5.2,  m20: 4.0,  m60: 3.9  },
   { category: 'Cat 4',           color: '#fdcb6e', m1: 6.0,  m5: 4.4,  m20: 3.2,  m60: 3.1  },
   { category: 'Cat 5 / Recreant',color: '#ff7675', m1: 5.0,  m5: 3.6,  m20: 2.5,  m60: 2.4  },
   { category: 'Ongetraind',      color: '#475569', m1: 3.5,  m5: 2.5,  m20: 1.75, m60: 1.65 },
