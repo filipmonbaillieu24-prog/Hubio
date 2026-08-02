@@ -206,7 +206,7 @@ export const CoachPanel: React.FC<CoachPanelProps> = ({
       type: generatedWorkout.type,
       blocks: (generatedWorkout.steps ?? []).map((s: any) => ({
         name: s.name,
-        duration: Math.round(s.duration_seconds / 60),
+        duration: s.duration_seconds,
         powerPct: s.powerPct ?? 0.85,
         zone: s.zone ?? 2,
         color: s.color ?? '#cbd5e1'
