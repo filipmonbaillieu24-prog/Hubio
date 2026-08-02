@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import './CalendarPage.css';
 import { RideSummaryWithBests, FitnessProfile } from '../types/workout';
 import { computeSimulatedPMC, PlannedWorkoutItem, interpretTSB } from '../utils/pmc';
-import { savePlannedWorkout, getAllPlannedWorkouts, deletePlannedWorkout } from '../utils/db';
+import { savePlannedWorkout, getAllPlannedWorkouts, deletePlannedWorkout, getRoute } from '../utils/db';
+import { buildGPX, saveExportFile } from '../utils/export';
 
 function toLocalYYYYMMDD(date: Date): string {
   const y = date.getFullYear();
@@ -18,6 +19,7 @@ import {
   TrendingUp,
   CheckCircle2,
   Trash2,
+  Download
 } from 'lucide-react';
 
 import {
@@ -73,6 +75,36 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
   const [formDuration, setFormDuration] = useState(60);
   const [formTSS, setFormTSS] = useState(65);
   const [formNotes, setFormNotes] = useState('');
+
+  const [downloadingGpx, setDownloadingGpx] = useState(false);
+  const [gpxError, setGpxError] = useState<string | null>(null);
+
+  const handleDownloadRouteGPX = async () => {
+    if (!editingWorkout || !editingWorkout.routeId) return;
+    setDownloadingGpx(true);
+    setGpxError(null);
+    try {
+      const route = await getRoute(editingWorkout.routeId);
+      if (!route) {
+        setGpxError("Route niet gevonden in database.");
+        return;
+      }
+      
+      const speedTarget = route.duration > 0 ? (route.distance / route.duration) : 7.0; 
+      const gpxContent = buildGPX(route.points, route.name, speedTarget);
+      
+      const fileName = `${route.name.replace(/[^a-zA-Z0-9]/g, '_')}_training.gpx`;
+      const res = await saveExportFile(gpxContent, fileName, 'application/gpx+xml');
+      if (!res.ok) {
+        setGpxError(res.error || "Fout bij opslaan van bestand.");
+      }
+    } catch (err) {
+      console.error(err);
+      setGpxError("Kon route niet ophalen of exporteren.");
+    } finally {
+      setDownloadingGpx(false);
+    }
+  };
 
   // ── 3. Drag and Drop state ──────────────────────────────────────────────────
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
@@ -551,6 +583,44 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ rides, onSelectRide 
                   onChange={e => setFormNotes(e.target.value)}
                 />
               </div>
+
+              {editingWorkout?.routeId && (
+                <div className="wd-form-group" style={{ marginTop: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    Gekoppelde Route
+                  </label>
+                  <button
+                    onClick={handleDownloadRouteGPX}
+                    disabled={downloadingGpx}
+                    style={{
+                      background: 'rgba(203, 213, 225, 0.06)',
+                      border: '1px solid rgba(203, 213, 225, 0.15)',
+                      borderRadius: 8,
+                      color: '#cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: '10px 14px',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      transition: 'all 0.2s',
+                      width: '100%',
+                      marginTop: 4
+                    }}
+                  >
+                    <Download size={14} /> 
+                    {downloadingGpx ? 'GPX ophalen...' : 'Gegenereerde GPX Route Downloaden'}
+                  </button>
+                  {gpxError && (
+                    <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 600, marginTop: 4 }}>
+                      {gpxError}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="wd-modal-footer">
