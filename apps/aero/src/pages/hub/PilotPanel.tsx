@@ -28,7 +28,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
   const isDev = import.meta.env.DEV;
   const downloadUrl = (useLocalDevLink && localIp)
     ? `http://${localIp}:1420/app-debug.apk` 
-    : 'https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk';
+    : `https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk?t=${Date.now()}`;
 
   return (
     <div className="zh-hub-container">
