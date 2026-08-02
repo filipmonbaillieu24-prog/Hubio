@@ -19,32 +19,17 @@ class WorkoutRepository {
     fun getTodaysWorkouts(): Flow<List<PlannedWorkout>> = flow {
         while (true) {
             try {
-                val todayStr = getTodayDateString()
-                val response = client.postgrest["planned_workouts"].select {
-                    filter {
-                        eq("date", todayStr)
-                        eq("completed_at", "null")
-                    }
-                }
+                val response = client.postgrest["planned_workouts"].select()
                 val list = response.decodeList<PlannedWorkout>()
+                    .filter { it.completedAt == null }
+                    .sortedByDescending { it.date }
+                    .take(20)
                 emit(list)
             } catch (e: Exception) {
-                // If it fails or returns empty, try fetching without the null filter or handle error
-                try {
-                    val todayStr = getTodayDateString()
-                    val response = client.postgrest["planned_workouts"].select {
-                        filter {
-                            eq("date", todayStr)
-                        }
-                    }
-                    val list = response.decodeList<PlannedWorkout>().filter { it.completedAt == null }
-                    emit(list)
-                } catch (ex: Exception) {
-                    ex.printStackTrace()
-                    emit(emptyList())
-                }
+                e.printStackTrace()
+                emit(emptyList())
             }
-            delay(60_000) // Poll every 60 seconds
+            delay(10_000) // Poll every 10 seconds for real-time responsiveness
         }
     }
 

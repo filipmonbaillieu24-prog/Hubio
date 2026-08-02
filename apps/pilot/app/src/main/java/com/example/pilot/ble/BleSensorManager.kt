@@ -53,8 +53,7 @@ class BleSensorManager(private val context: Context) {
     private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
     init {
-        // Start simulation immediately so there is always feedback
-        startSimulation()
+        // Wait for real BLE sensor connections
     }
 
     fun startScanning() {
