@@ -1,0 +1,577 @@
+/* Zenith Kratos - Strength & Conditioning Stylesheet */
+
+:root {
+  --bg-color: #09090b;
+  --surface-color: rgba(28, 28, 35, 0.45);
+  --surface-solid: #1c1c23;
+  --border-color: rgba(255, 255, 255, 0.05);
+  --border-solid: #27272a;
+  --text-primary: #cbd5e1;
+  --text-secondary: #94a3b8;
+  --text-dark: #475569;
+  --accent-neon: #39ff14;
+  --accent-green: #4ade80;
+  --accent-purple: #6c5ce7;
+  --error-color: #ef4444;
+  --font-header: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Background Glow Effects */
+.kratos-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-color);
+  z-index: -2;
+  overflow: hidden;
+}
+
+.kratos-glow-radial {
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(57, 255, 20, 0.04) 0%, transparent 70%);
+  filter: blur(40px);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.kratos-glow-purple {
+  position: absolute;
+  bottom: -10%;
+  left: -10%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, rgba(108, 92, 231, 0.03) 0%, transparent 70%);
+  filter: blur(45px);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Main Layout */
+.kratos-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+/* Header Styling */
+.kratos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 28px;
+  background: rgba(9, 9, 11, 0.6);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.kratos-logo-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kratos-logo {
+  font-family: var(--font-header);
+  font-size: 20px;
+  font-weight: 950;
+  letter-spacing: 1.5px;
+  color: #fff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kratos-logo span {
+  color: var(--accent-neon);
+}
+
+.kratos-subtitle {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Navigation Links */
+.kratos-nav {
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.kratos-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 750;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kratos-nav-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.kratos-nav-btn.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.kratos-nav-btn.active svg {
+  color: var(--accent-neon);
+}
+
+/* Content Area */
+.kratos-content {
+  flex: 1;
+  padding: 24px 28px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Dashboard PMC Stats Widget */
+.kratos-pmc-card {
+  background: var(--surface-color);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  margin-bottom: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr;
+  gap: 24px;
+  align-items: center;
+}
+
+.kratos-pmc-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kratos-pmc-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+.kratos-pmc-value {
+  font-family: var(--font-header);
+  font-size: 28px;
+  font-weight: 900;
+  color: #fff;
+}
+
+.kratos-pmc-ai-box {
+  background: rgba(57, 255, 20, 0.03);
+  border: 1px dashed rgba(57, 255, 20, 0.15);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.kratos-pmc-ai-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(57, 255, 20, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-neon);
+  flex-shrink: 0;
+}
+
+.kratos-pmc-ai-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Reusable Glass Cards */
+.kratos-card {
+  background: var(--surface-color);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  margin-bottom: 24px;
+}
+
+.kratos-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.kratos-card-title {
+  font-family: var(--font-header);
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Forms & Inputs */
+.kratos-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.kratos-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+.kratos-input {
+  background: rgba(9, 9, 11, 0.6);
+  border: 1px solid var(--border-solid);
+  border-radius: 10px;
+  color: #fff;
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.kratos-input:focus {
+  border-color: var(--accent-neon);
+  box-shadow: 0 0 10px rgba(57, 255, 20, 0.08);
+}
+
+.kratos-select {
+  background: rgba(9, 9, 11, 0.6);
+  border: 1px solid var(--border-solid);
+  border-radius: 10px;
+  color: #fff;
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.kratos-select:focus {
+  border-color: var(--accent-neon);
+}
+
+.kratos-select option {
+  background: #1c1c23;
+  color: #fff;
+}
+
+/* Buttons */
+.kratos-btn {
+  background: var(--accent-purple);
+  border: none;
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 850;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 14px rgba(108, 92, 231, 0.2);
+}
+
+.kratos-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(108, 92, 231, 0.35);
+  background: #7d6dfa;
+}
+
+.kratos-btn-neon {
+  background: linear-gradient(135deg, var(--accent-green) 0%, var(--accent-neon) 100%);
+  color: #09090b;
+  font-weight: 900;
+  box-shadow: 0 4px 14px rgba(57, 255, 20, 0.15);
+}
+
+.kratos-btn-neon:hover {
+  box-shadow: 0 6px 20px rgba(57, 255, 20, 0.3);
+  filter: brightness(1.1);
+}
+
+.kratos-btn-danger {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ff7675;
+  box-shadow: none;
+}
+
+.kratos-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fff;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.kratos-btn-secondary {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.kratos-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* Animations */
+@keyframes slide-down {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* Tables */
+.kratos-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.kratos-table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  font-weight: 800;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-solid);
+}
+
+.kratos-table td {
+  font-size: 13px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.kratos-table tr:hover td {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+/* Custom Checkbox/Switch */
+.kratos-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+}
+
+.kratos-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.kratos-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-solid);
+  transition: .2s;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.kratos-slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--text-secondary);
+  transition: .2s;
+  border-radius: 50%;
+}
+
+input:checked + .kratos-slider {
+  background-color: rgba(57, 255, 20, 0.15);
+  border-color: var(--accent-neon);
+}
+
+input:checked + .kratos-slider:before {
+  transform: translateX(18px);
+  background-color: var(--accent-neon);
+}
+
+/* Dashboard layouts styling */
+.kratos-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 24px;
+}
+
+.kratos-sparkline-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.kratos-sparkline-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kratos-sparkline-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.kratos-sparkline-value {
+  font-family: var(--font-header);
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.kratos-sparkline-unit {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.kratos-tab-container {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-solid);
+  margin-bottom: 20px;
+}
+
+.kratos-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-header);
+  font-size: 14px;
+  font-weight: 850;
+  padding: 10px 4px;
+  cursor: pointer;
+  position: relative;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kratos-tab.active {
+  color: #fff;
+}
+
+.kratos-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--accent-neon);
+  box-shadow: 0 0 10px var(--accent-neon);
+}
