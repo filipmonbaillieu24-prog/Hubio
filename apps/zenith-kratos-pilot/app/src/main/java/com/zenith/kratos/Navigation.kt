@@ -35,14 +35,29 @@ fun MainNavigation() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 1. Initialize Room & Repo
-    val database = remember { AppDatabase.getDatabase(context) }
-    val repository = remember {
-        WorkoutRepository(
-            database.exerciseDao(),
-            database.templateDao(),
-            database.workoutDao()
-        )
+    // 1. Initialize Room & Repo (with self-healing fallback)
+    var databaseInitializationError by remember { mutableStateOf<String?>(null) }
+    val database = remember {
+        try {
+            AppDatabase.getDatabase(context)
+        } catch (e: Exception) {
+            try {
+                context.deleteDatabase("kratos_database")
+                AppDatabase.getDatabase(context)
+            } catch (e2: Exception) {
+                databaseInitializationError = "Database Fout: ${e2.localizedMessage ?: "Kan lokaal bestand niet laden"}"
+                null
+            }
+        }
+    }
+    val repository = remember(database) {
+        if (database != null) {
+            WorkoutRepository(
+                database.exerciseDao(),
+                database.templateDao(),
+                database.workoutDao()
+            )
+        } else null
     }
 
     // 2. Authentication status flow
@@ -74,8 +89,8 @@ fun MainNavigation() {
                 currentScreen = KratosScreen.TODAY
                 // Pre-sync exercises and templates in background, plus check for updates
                 scope.launch {
-                    repository.fetchAndCacheExercises()
-                    repository.fetchAndCacheTemplates()
+                    repository?.fetchAndCacheExercises()
+                    repository?.fetchAndCacheTemplates()
                     try {
                         val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
                         val currentVersionCode = if (android.os.Build.VERSION.SDK_INT >= 28) {
@@ -96,6 +111,37 @@ fun MainNavigation() {
                 currentScreen = KratosScreen.LOGIN
             }
         }
+    }
+
+    if (databaseInitializationError != null || repository == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF09090B))
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                androidx.compose.material3.Text("Oeps! Kratos kon niet opstarten.", color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 18.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.material3.Text(databaseInitializationError ?: "Onbekende database fout", color = Color(0xFFEF4444), fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(24.dp))
+                androidx.compose.material3.Button(
+                    onClick = {
+                        try {
+                            context.deleteDatabase("kratos_database")
+                            databaseInitializationError = "Database gereset. Herstart de app om door te gaan."
+                        } catch (e: Exception) {
+                            databaseInitializationError = "Reset mislukt: ${e.message}"
+                        }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    androidx.compose.material3.Text("Wissen & Reset Database", color = Color.White)
+                }
+            }
+        }
+        return
     }
 
     when (currentScreen) {
