@@ -2,6 +2,8 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  id("org.jetbrains.kotlin.android")
+  id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -11,8 +13,8 @@ android {
         applicationId = "com.zenith.kratos"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     buildTypes {
@@ -87,5 +89,5 @@ dependencies {
   // Room Database
   implementation(libs.room.runtime)
   implementation(libs.room.ktx)
-  annotationProcessor(libs.room.compiler)
+  add("kapt", libs.room.compiler)
 }
