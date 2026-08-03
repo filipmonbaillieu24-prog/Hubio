@@ -9,8 +9,8 @@
   --text-primary: #cbd5e1;
   --text-secondary: #94a3b8;
   --text-dark: #475569;
-  --accent-neon: #39ff14;
-  --accent-green: #4ade80;
+  --accent-neon: #cbd5e1;
+  --accent-green: #94a3b8;
   --accent-purple: #6c5ce7;
   --error-color: #ef4444;
   --font-header: 'Outfit', sans-serif;
@@ -46,7 +46,7 @@ body {
   right: -10%;
   width: 50vw;
   height: 50vw;
-  background: radial-gradient(circle, rgba(57, 255, 20, 0.04) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(203, 213, 225, 0.04) 0%, transparent 70%);
   filter: blur(40px);
   z-index: -1;
   pointer-events: none;
@@ -208,8 +208,8 @@ body {
 }
 
 .kratos-pmc-ai-box {
-  background: rgba(57, 255, 20, 0.03);
-  border: 1px dashed rgba(57, 255, 20, 0.15);
+  background: rgba(203, 213, 225, 0.03);
+  border: 1px dashed rgba(203, 213, 225, 0.15);
   border-radius: 12px;
   padding: 12px 16px;
   display: flex;
@@ -221,7 +221,7 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(57, 255, 20, 0.08);
+  background: rgba(203, 213, 225, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -296,7 +296,7 @@ body {
 
 .kratos-input:focus {
   border-color: var(--accent-neon);
-  box-shadow: 0 0 10px rgba(57, 255, 20, 0.08);
+  box-shadow: 0 0 10px rgba(203, 213, 225, 0.08);
 }
 
 .kratos-select {
@@ -352,11 +352,11 @@ body {
   background: linear-gradient(135deg, var(--accent-green) 0%, var(--accent-neon) 100%);
   color: #09090b;
   font-weight: 900;
-  box-shadow: 0 4px 14px rgba(57, 255, 20, 0.15);
+  box-shadow: 0 4px 14px rgba(203, 213, 225, 0.15);
 }
 
 .kratos-btn-neon:hover {
-  box-shadow: 0 6px 20px rgba(57, 255, 20, 0.3);
+  box-shadow: 0 6px 20px rgba(203, 213, 225, 0.3);
   filter: brightness(1.1);
 }
 
@@ -482,7 +482,7 @@ body {
 }
 
 input:checked + .kratos-slider {
-  background-color: rgba(57, 255, 20, 0.15);
+  background-color: rgba(203, 213, 225, 0.15);
   border-color: var(--accent-neon);
 }
 
@@ -574,4 +574,25 @@ input:checked + .kratos-slider:before {
   height: 2px;
   background: var(--accent-neon);
   box-shadow: 0 0 10px var(--accent-neon);
+}
+
+.zh-back-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s;
+}
+
+.zh-back-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }

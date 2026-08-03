@@ -15,7 +15,8 @@ import {
   TrendingUp, 
   Info,
   Calendar,
-  Smartphone
+  Smartphone,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -136,6 +137,14 @@ export default function App() {
   // UI state - Dashboard
   const [dashboardMetric, setDashboardMetric] = useState<'volume' | 'sets'>('volume');
   const [selectedExercise1RM, setSelectedExercise1RM] = useState<string>('');
+  const handleReturnToHub = () => {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'close-app' }, '*');
+    } else {
+      const isDev = import.meta.env.DEV;
+      window.location.href = isDev ? 'http://localhost:1420' : window.location.origin;
+    }
+  };
 
   // 1. Hash-based login handler & regular check
   useEffect(() => {
@@ -630,7 +639,7 @@ export default function App() {
   if (!session) {
     return (
       <div className="kratos-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', padding: 24, textAlign: 'center' }}>
-        <Dumbbell size={48} style={{ color: '#39ff14', marginBottom: 20 }} />
+        <Dumbbell size={48} style={{ color: '#cbd5e1', marginBottom: 20 }} />
         <h1 style={{ fontFamily: 'Outfit', fontWeight: 900, color: '#fff', margin: '0 0 10px' }}>ZENITH KRATOS</h1>
         <p style={{ color: '#94a3b8', fontSize: 13, maxWidth: 360, margin: '0 0 24px', lineHeight: 1.6 }}>
           Log in via het hoofdscherm van Zenith Hub om toegang te krijgen tot de Kratos Strength & Conditioning extensie.
@@ -648,11 +657,16 @@ export default function App() {
 
       {/* Header */}
       <header className="kratos-header animate-slide-down">
-        <div className="kratos-logo-group">
-          <h1 className="kratos-logo">
-            <Dumbbell size={20} style={{ color: '#39ff14' }} /> KRATOS<span>.</span>
-          </h1>
-          <p className="kratos-subtitle">Strength & Conditioning</p>
+        <div className="kratos-logo-group" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={handleReturnToHub} className="zh-back-btn" style={{ marginRight: '8px' }}>
+            <ArrowLeft size={14} /> Hub
+          </button>
+          <div>
+            <h1 className="kratos-logo">
+              <Dumbbell size={20} style={{ color: '#cbd5e1' }} /> KRATOS<span>.</span>
+            </h1>
+            <p className="kratos-subtitle">Strength & Conditioning</p>
+          </div>
         </div>
 
         <nav className="kratos-nav">
@@ -707,7 +721,7 @@ export default function App() {
               </div>
               <div className="kratos-pmc-metric">
                 <span className="kratos-pmc-label">Vorm (TSB)</span>
-                <span className="kratos-pmc-value" style={{ color: currentPMC.tsb >= 0 ? '#39ff14' : '#eccc68' }}>
+                <span className="kratos-pmc-value" style={{ color: currentPMC.tsb >= 0 ? '#cbd5e1' : '#eccc68' }}>
                   {currentPMC.tsb >= 0 ? `+${currentPMC.tsb}` : currentPMC.tsb}
                 </span>
               </div>
@@ -733,7 +747,7 @@ export default function App() {
               <div className="kratos-card">
                 <div className="kratos-card-header">
                   <h3 className="kratos-card-title">
-                    <TrendingUp size={16} style={{ color: '#39ff14' }} /> Wekelijkse Volume Analyse
+                    <TrendingUp size={16} style={{ color: '#cbd5e1' }} /> Wekelijkse Volume Analyse
                   </h3>
                   <div className="kratos-nav" style={{ padding: 2 }}>
                     <button 
@@ -782,7 +796,7 @@ export default function App() {
               {/* Right Column: 1RM Progress */}
               <div className="kratos-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <h3 className="kratos-card-title" style={{ marginBottom: 12 }}>
-                  <Heart size={15} style={{ color: '#39ff14' }} /> 1RM Trends (Epley)
+                  <Heart size={15} style={{ color: '#cbd5e1' }} /> 1RM Trends (Epley)
                 </h3>
 
                 {/* Sparklines */}
@@ -800,7 +814,7 @@ export default function App() {
                         <div style={{ width: '100%', height: 40 }}>
                           <ResponsiveContainer>
                             <LineChart data={sparkData}>
-                              <Line type="monotone" dataKey="estimated1RM" stroke="#39ff14" strokeWidth={1.5} dot={false} />
+                              <Line type="monotone" dataKey="estimated1RM" stroke="#cbd5e1" strokeWidth={1.5} dot={false} />
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
@@ -1278,7 +1292,7 @@ export default function App() {
             <div className="kratos-card" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 32, padding: 32 }}>
               <div>
                 <h3 className="kratos-card-title" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 24, marginBottom: 12 }}>
-                  <Smartphone style={{ color: '#39ff14' }} /> Kratos Pilot App
+                  <Smartphone style={{ color: '#cbd5e1' }} /> Kratos Pilot App
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: '1.6', marginBottom: 20 }}>
                   Kratos Pilot is de mobiele companion app voor krachttraining. Log uw sets, reps en RIR 
@@ -1288,15 +1302,15 @@ export default function App() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(57, 255, 20, 0.1)', color: '#39ff14', fontSize: 11, fontWeight: 700 }}>1</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(203, 213, 225, 0.1)', color: '#cbd5e1', fontSize: 11, fontWeight: 700 }}>1</span>
                     <span><strong>Autoregulatie:</strong> Live aanpassing van uw target reps & gewichten op basis van RIR.</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(57, 255, 20, 0.1)', color: '#39ff14', fontSize: 11, fontWeight: 700 }}>2</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(203, 213, 225, 0.1)', color: '#cbd5e1', fontSize: 11, fontWeight: 700 }}>2</span>
                     <span><strong>Cardio Stress Factor:</strong> Rest timer schaling berekend uit uw meest recente ritten.</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(57, 255, 20, 0.1)', color: '#39ff14', fontSize: 11, fontWeight: 700 }}>3</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(203, 213, 225, 0.1)', color: '#cbd5e1', fontSize: 11, fontWeight: 700 }}>3</span>
                     <span><strong>PR-Celebrations:</strong> Epley 1RM schatting PR-meldingen om records te vieren.</span>
                   </div>
                 </div>
