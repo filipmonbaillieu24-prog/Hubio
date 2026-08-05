@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { predictProgressiveOverload, kratosAutoregModel } from '../../../shared/ml/SharedModels';
 import { supabase } from './utils/supabaseClient';
 import { 
   Dumbbell, 
@@ -40,6 +41,7 @@ interface Exercise {
   notes?: string;
   increment_weight: number;
   increment_per_side: boolean;
+  is_bodyweight: boolean;
   default_rir: number;
   weight_unit: 'kg' | 'lbs';
   deleted: boolean;
@@ -96,6 +98,7 @@ interface PMCPoint {
   ctl: number;
   atl: number;
   tsb: number;
+  sleepDeficit?: number;
 }
 
 export default function App() {
@@ -110,10 +113,29 @@ export default function App() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [latestBodyweight, setLatestBodyweight] = useState<number>(80.0);
+
+  // Workout edit form states
+  const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
+  const [isWorkoutModalOpen, setIsWorkoutModalOpen] = useState(false);
+  const [workoutForm, setWorkoutForm] = useState<{
+    name: string;
+    completed_at: string;
+    started_at: string;
+    sets: WorkoutExerciseLog[];
+  }>({
+    name: '',
+    completed_at: '',
+    started_at: '',
+    sets: []
+  });
 
   // PMC & AI calculations
   const [currentPMC, setCurrentPMC] = useState<{ ctl: number; atl: number; tsb: number }>({ ctl: 0, atl: 0, tsb: 0 });
   const [aiStressConfig, setAiStressConfig] = useState<{ zScore: number; factor: number; avgAtl: number; stdDevAtl: number }>({ zScore: 0, factor: 1.0, avgAtl: 0, stdDevAtl: 10.0 });
+  const [_profile, setProfile] = useState<any>(null);
+  const [todaySleepQuality, setTodaySleepQuality] = useState<number | null>(null);
+  const [todaySteps, setTodaySteps] = useState<number | null>(null);
 
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [isExerciseModalOpen, setIsExerciseModalOpen] = useState(false);
@@ -123,6 +145,7 @@ export default function App() {
     notes: '',
     increment_weight: 2.5,
     increment_per_side: false,
+    is_bodyweight: false,
     default_rir: 2,
     weight_unit: 'kg'
   });
@@ -183,6 +206,100 @@ export default function App() {
   }, []);
 
   // 2. Load data from Supabase
+  const calculateWorkoutTSS = (workout: any, listEx: Exercise[], historyWorkouts: Workout[]) => {
+    if (!workout.sets || !Array.isArray(workout.sets)) return 0;
+    const localMap = new Map(listEx.map(e => [e.id, e]));
+    let totalTSS = 0;
+    
+    for (const exLog of workout.sets) {
+      const exerciseId = exLog.exercise_id;
+      const ex = localMap.get(exerciseId);
+      if (!ex) continue;
+      
+      let e1RM = ex.is_bodyweight ? 80.0 : 60.0;
+      let maxAchieved = 0;
+      
+      for (const w of historyWorkouts) {
+        if (!w.sets || w.id === workout.id) continue;
+        const matchingEx = w.sets.find((s: any) => s.exercise_id === exerciseId);
+        if (matchingEx && matchingEx.sets) {
+          for (const s of matchingEx.sets) {
+            if (s.weight > 0 && s.reps > 0) {
+              const est = s.weight * (1.0 + s.reps / 30.0);
+              if (est > maxAchieved) maxAchieved = est;
+            }
+          }
+        }
+      }
+      
+      if (maxAchieved > 0) {
+        e1RM = maxAchieved;
+      }
+      
+      for (const s of exLog.sets) {
+        if (s.type === 'warmup') continue;
+        let load = Number(s.weight || 0);
+        if (ex.is_bodyweight) {
+          load += latestBodyweight > 0 ? latestBodyweight : 75.0;
+        }
+        if (load === 0 || s.reps === 0) continue;
+        
+        const reps = Number(s.reps);
+        const rir = Math.max(0, Math.min(10, Number(s.rir ?? 2)));
+        const intensity = load / e1RM;
+        const setStress = intensity * reps * (1.0 - 0.05 * rir) * 0.5;
+        totalTSS += setStress;
+      }
+    }
+    
+    return Math.round(totalTSS * 10) / 10;
+  };
+
+  const retrainAutoregModel = async (uid: string, historyWorkouts: any[]) => {
+    try {
+      const trainingPairs: { x: number[]; y: number }[] = [];
+      const sorted = [...historyWorkouts].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
+
+      for (const w of sorted) {
+        if (!w.sets || !Array.isArray(w.sets)) continue;
+        for (const exLog of w.sets) {
+          if (!exLog.sets || exLog.sets.length < 2) continue;
+          for (let i = 1; i < exLog.sets.length; i++) {
+            const prev = exLog.sets[i - 1];
+            const curr = exLog.sets[i];
+            if (prev.type === 'warmup' || curr.type === 'warmup') continue;
+            if (!prev.weight || !prev.reps || !curr.weight || !curr.reps) continue;
+
+            const currE1RM = curr.weight * (1.0 + (curr.reps + (curr.rir ?? 2)) / 30.0);
+            const x = [
+              Math.min(1.0, (i - 1) / 5.0),
+              Math.min(1.5, prev.weight / 200.0),
+              Math.min(1.5, prev.reps / 20.0),
+              Math.min(1.0, (prev.rir ?? 2) / 10.0),
+              Math.min(1.5, (prev.rest_seconds ?? 90) / 300.0)
+            ];
+            const target = Math.max(0.0, Math.min(1.0, currE1RM / 200.0));
+            trainingPairs.push({ x, y: target });
+          }
+        }
+      }
+
+      if (trainingPairs.length === 0) return;
+
+      await kratosAutoregModel.loadFromSupabase(supabase, uid);
+      const lr = 0.05;
+      for (let epoch = 0; epoch < 50; epoch++) {
+        trainingPairs.sort(() => Math.random() - 0.5);
+        for (const pair of trainingPairs) {
+          await kratosAutoregModel.train(supabase, uid, pair.x, [pair.y], lr);
+        }
+      }
+      console.log("Kratos Autoreg model retrained with", trainingPairs.length, "samples.");
+    } catch (err) {
+      console.error("Retrain error:", err);
+    }
+  };
+
   const fetchData = async () => {
     if (!session?.user?.id) return;
     const uid = session.user.id;
@@ -208,7 +325,52 @@ export default function App() {
       .select('*')
       .eq('user_id', uid)
       .order('completed_at', { ascending: false });
-    if (woData) setWorkouts(woData);
+    let localWorkouts: Workout[] = [];
+    if (woData) {
+      setWorkouts(woData);
+      localWorkouts = woData;
+    }
+
+    // Load latest body weight
+    const { data: weightData } = await supabase
+      .from('vigor_weight')
+      .select('weight')
+      .eq('user_id', uid)
+      .order('logged_at', { ascending: false })
+      .limit(1);
+    if (weightData && weightData.length > 0) {
+      setLatestBodyweight(Number(weightData[0].weight));
+    }
+
+    // Load athlete profile
+    const { data: profData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .maybeSingle();
+    if (profData) setProfile(profData);
+
+    // Load today's sleep quality from vigor_sleep
+    const { data: sleepData } = await supabase
+      .from('vigor_sleep')
+      .select('*')
+      .eq('user_id', uid)
+      .order('logged_at', { ascending: false })
+      .limit(1);
+    if (sleepData && sleepData.length > 0) {
+      setTodaySleepQuality(Number(sleepData[0].quality_score ?? sleepData[0].quality ?? 0));
+    }
+
+    // Load today's steps from vigor_steps
+    const { data: stepsData } = await supabase
+      .from('vigor_steps')
+      .select('*')
+      .eq('user_id', uid)
+      .order('logged_at', { ascending: false })
+      .limit(1);
+    if (stepsData && stepsData.length > 0) {
+      setTodaySteps(Number(stepsData[0].steps));
+    }
 
     // Load rides for PMC
     const { data: rideData } = await supabase
@@ -216,8 +378,31 @@ export default function App() {
       .select('date, metadata')
       .eq('user_id', uid)
       .order('date', { ascending: true });
+
+    // Load all sleep logs for last 90 days
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: sleepDataAll } = await supabase
+      .from('vigor_sleep')
+      .select('logged_at, duration_minutes, quality_score')
+      .eq('user_id', uid)
+      .gte('logged_at', ninetyDaysAgo)
+      .order('logged_at', { ascending: true });
+
+    // Load vigor_profile
+    const { data: vigorProfile } = await supabase
+      .from('vigor_profile')
+      .select('target_sleep_hours')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    const targetSleep = Number(vigorProfile?.target_sleep_hours ?? 8.0);
+
     if (rideData) {
-      computeCardioStress(rideData);
+      computeCombinedStress(rideData, localWorkouts, exData || [], sleepDataAll || [], targetSleep);
+    }
+
+    if (localWorkouts.length > 0) {
+      retrainAutoregModel(uid, localWorkouts);
     }
   };
 
@@ -227,11 +412,17 @@ export default function App() {
     }
   }, [session]);
 
-  // 3. AI Cardio Stress calculations (ATL Z-score)
-  const computeCardioStress = (rideData: any[]) => {
-    if (rideData.length === 0) return;
+  // 3. AI Cardio Stress calculations (ATL Z-score & Sleep Deficit & Strength TSS)
+  const computeCombinedStress = (
+    rideData: any[],
+    woData: Workout[],
+    exData: Exercise[],
+    sleepData: any[],
+    targetSleep: number
+  ) => {
+    if (rideData.length === 0 && woData.length === 0) return;
 
-    // Parse TSS
+    // Parse Cycling TSS
     const parsedRides = rideData.map(r => {
       let meta = r.metadata;
       if (typeof meta === 'string') {
@@ -243,15 +434,39 @@ export default function App() {
       };
     });
 
-    // Group by Day
+    // Group TSS by Day
     const tssPerDay = new Map<string, number>();
     for (const r of parsedRides) {
       const key = new Date(r.date).toISOString().split('T')[0];
       tssPerDay.set(key, (tssPerDay.get(key) ?? 0) + r.tss);
     }
 
-    // Determine range: first ride to today
-    const firstDate = new Date(Math.min(...parsedRides.map(r => r.date)));
+    // Include Strength Training TSS
+    for (const w of woData) {
+      if (!w.completed_at) continue;
+      const key = new Date(w.completed_at).toISOString().split('T')[0];
+      const strengthTSS = calculateWorkoutTSS(w, exData, woData);
+      tssPerDay.set(key, (tssPerDay.get(key) ?? 0) + strengthTSS);
+    }
+
+    // Group Sleep logs by Day
+    const sleepPerDay = new Map<string, { duration: number; quality: number }>();
+    for (const s of sleepData) {
+      const key = new Date(s.logged_at).toISOString().split('T')[0];
+      sleepPerDay.set(key, {
+        duration: Number(s.duration_minutes || 0) / 60.0,
+        quality: Number(s.quality_score ?? 0)
+      });
+    }
+
+    // Determine range: first activity to today
+    const dates = [
+      ...parsedRides.map(r => r.date),
+      ...woData.map(w => new Date(w.completed_at).getTime())
+    ].filter(Boolean);
+    if (dates.length === 0) return;
+
+    const firstDate = new Date(Math.min(...dates));
     const today = new Date();
     firstDate.setHours(0,0,0,0);
     today.setHours(0,0,0,0);
@@ -270,16 +485,23 @@ export default function App() {
       ctl = ctl + K_CTL * (tss - ctl);
       atl = atl + K_ATL * (tss - atl);
 
+      // Sleep deficit calculation
+      const sleep = sleepPerDay.get(key);
+      let sleepDeficit = 0;
+      if (sleep) {
+        sleepDeficit = Math.max(0, targetSleep - sleep.duration);
+      }
+
       points.push({
         date: cur.getTime(),
         ctl,
         atl,
-        tsb: ctl - atl
+        tsb: ctl - atl,
+        sleepDeficit
       });
 
       cur.setDate(cur.getDate() + 1);
     }
-
 
     // Latest PMC values
     if (points.length > 0) {
@@ -298,9 +520,16 @@ export default function App() {
         const atls = recentPoints.map(p => p.atl);
         const avg = atls.reduce((sum, val) => sum + val, 0) / atls.length;
         const variance = atls.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / atls.length;
-        const stdDev = Math.max(Math.sqrt(variance), 10.0); // Floor of 10.0 to prevent division by zero
+        const stdDev = Math.max(Math.sqrt(variance), 10.0);
 
-        const zScore = (latest.atl - avg) / stdDev;
+        // Calculate Z-Score based on fatigue
+        let zScore = (latest.atl - avg) / stdDev;
+
+        // Factor in Sleep Deficit linearly (+0.5 per hour of deficit)
+        if (latest.sleepDeficit && latest.sleepDeficit > 0) {
+          zScore += 0.5 * latest.sleepDeficit;
+        }
+
         const factor = zScore > 1.0 ? 1.0 + 0.15 * zScore : 1.0;
 
         setAiStressConfig({
@@ -329,6 +558,7 @@ export default function App() {
       notes: exerciseForm.notes,
       increment_weight: Number(exerciseForm.increment_weight || 2.5),
       increment_per_side: !!exerciseForm.increment_per_side,
+      is_bodyweight: !!exerciseForm.is_bodyweight,
       default_rir: Number(exerciseForm.default_rir || 2),
       weight_unit: exerciseForm.weight_unit || 'kg',
       user_id: session.user.id
@@ -373,6 +603,115 @@ export default function App() {
       .eq('id', id);
 
     if (!error) fetchData();
+  };
+
+  const handleDeleteWorkout = async (id: string) => {
+    if (!window.confirm("Weet je zeker dat je deze training wilt verwijderen uit het logboek?")) return;
+    const { error } = await supabase
+      .from('kratos_workouts')
+      .delete()
+      .eq('id', id);
+
+    if (!error) {
+      fetchData();
+    } else {
+      alert("Fout bij verwijderen: " + error.message);
+    }
+  };
+
+  const handleEditWorkoutClick = (w: Workout) => {
+    setEditingWorkout(w);
+    setWorkoutForm({
+      name: w.name,
+      completed_at: new Date(new Date(w.completed_at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+      started_at: new Date(new Date(w.started_at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+      sets: JSON.parse(JSON.stringify(w.sets))
+    });
+    setIsWorkoutModalOpen(true);
+  };
+
+  const handleSaveWorkout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWorkout) return;
+
+    let newVolume = 0;
+    workoutForm.sets.forEach(exLog => {
+      const ex = exercises.find(e => e.id === exLog.exercise_id);
+      const isBodyweight = ex ? !!ex.is_bodyweight : false;
+      
+      exLog.sets.forEach(s => {
+        if (s.type === 'working') {
+          const weight = Number(s.weight || 0);
+          const reps = Number(s.reps || 0);
+          const effectiveWeight = isBodyweight ? (latestBodyweight + weight) : weight;
+          newVolume += effectiveWeight * reps;
+        }
+      });
+    });
+
+    const payload = {
+      name: workoutForm.name,
+      started_at: new Date(workoutForm.started_at).toISOString(),
+      completed_at: new Date(workoutForm.completed_at).toISOString(),
+      sets: workoutForm.sets,
+      volume: newVolume
+    };
+
+    const { error } = await supabase
+      .from('kratos_workouts')
+      .update(payload)
+      .eq('id', editingWorkout.id);
+
+    if (!error) {
+      setIsWorkoutModalOpen(false);
+      setEditingWorkout(null);
+      fetchData();
+    } else {
+      alert("Fout bij opslaan: " + error.message);
+    }
+  };
+
+  const handleAddExerciseToLog = (exerciseId: string) => {
+    if (!exerciseId) return;
+    if (workoutForm.sets.some(s => s.exercise_id === exerciseId)) {
+      alert("Deze oefening zit al in deze training!");
+      return;
+    }
+    const newExLog: WorkoutExerciseLog = {
+      exercise_id: exerciseId,
+      sets: [
+        { type: 'working', weight: 0, reps: 0, rir: 2 }
+      ]
+    };
+    setWorkoutForm({
+      ...workoutForm,
+      sets: [...workoutForm.sets, newExLog]
+    });
+  };
+
+  const handleRemoveExerciseFromLog = (exIdx: number) => {
+    if (!window.confirm("Weet je zeker dat je deze oefening wilt verwijderen uit de training?")) return;
+    const updated = [...workoutForm.sets];
+    updated.splice(exIdx, 1);
+    setWorkoutForm({ ...workoutForm, sets: updated });
+  };
+
+  const handleAddSetToLog = (exIdx: number) => {
+    const updated = [...workoutForm.sets];
+    const lastSet = updated[exIdx].sets[updated[exIdx].sets.length - 1];
+    updated[exIdx].sets.push({
+      type: lastSet ? lastSet.type : 'working',
+      weight: lastSet ? lastSet.weight : 0,
+      reps: lastSet ? lastSet.reps : 0,
+      rir: lastSet ? lastSet.rir : 2
+    });
+    setWorkoutForm({ ...workoutForm, sets: updated });
+  };
+
+  const handleRemoveSetFromLog = (exIdx: number, sIdx: number) => {
+    const updated = [...workoutForm.sets];
+    updated[exIdx].sets.splice(sIdx, 1);
+    setWorkoutForm({ ...workoutForm, sets: updated });
   };
 
   // 5. Routine Builder Actions
@@ -509,6 +848,17 @@ export default function App() {
           baseRest += 30;
         }
       }
+    }
+
+    // 3. Dynamic wearable & cardio stress scale overrides
+    if (todaySleepQuality && todaySleepQuality < 75) {
+      baseRest += 20; // Poor sleep -> extra recovery rest
+    }
+    if (todaySteps && todaySteps > 12000) {
+      baseRest += 15; // High daily steps -> extra recovery rest
+    }
+    if (currentPMC && currentPMC.tsb < -10) {
+      baseRest += 20; // High cardio fatigue (negative TSB) -> extra recovery rest
     }
 
     return `${baseRest}s`;
@@ -648,6 +998,8 @@ export default function App() {
     );
   }
 
+  const userName = session?.user?.user_metadata?.name || session?.user?.user_metadata?.fitness_profile?.name || 'Atleet';
+
   return (
     <div className="kratos-container">
       <div className="kratos-background">
@@ -656,16 +1008,14 @@ export default function App() {
       </div>
 
       {/* Header */}
-      <header className="kratos-header animate-slide-down">
-        <div className="kratos-logo-group" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={handleReturnToHub} className="zh-back-btn" style={{ marginRight: '8px' }}>
+      <header className="kratos-header animate-slide-down" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '20px', marginBottom: '24px', background: 'transparent' }}>
+        <div className="kratos-brand" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={handleReturnToHub} className="zh-back-btn">
             <ArrowLeft size={14} /> Hub
           </button>
           <div>
-            <h1 className="kratos-logo">
-              <Dumbbell size={20} style={{ color: '#cbd5e1' }} /> KRATOS<span>.</span>
-            </h1>
-            <p className="kratos-subtitle">Strength & Conditioning</p>
+            <h1 className="zh-hub-title" style={{ fontSize: 22 }}>ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 18 }}>KRATOS</span></h1>
+            <p className="zh-hub-subtitle">Strength & Conditioning voor {userName}</p>
           </div>
         </div>
 
@@ -705,6 +1055,32 @@ export default function App() {
 
       {/* Content */}
       <main className="kratos-content animate-fade-in">
+        {/* Dynamic Wearable & Cardio Fatigue Warning Banner */}
+        {((todaySleepQuality && todaySleepQuality < 75) || (todaySteps && todaySteps > 12000) || (currentPMC && currentPMC.tsb < -10)) && (
+          <div style={{
+            background: 'rgba(236, 203, 104, 0.1)',
+            border: '1px solid rgba(236, 203, 104, 0.25)',
+            borderRadius: 12,
+            padding: '12px 16px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12
+          }} className="animate-slide-up">
+            <Info size={18} style={{ color: '#eccc68', flexShrink: 0 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: '#eccc68', letterSpacing: '0.5px' }}>
+                Fysiologische Vermoeidheid Gedetecteerd (Cross-talk)
+              </span>
+              <span style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.4 }}>
+                {todaySleepQuality && todaySleepQuality < 75 ? `Slechte slaapkwaliteit (${todaySleepQuality}%). ` : ''}
+                {todaySteps && todaySteps > 12000 ? `Hoge stappenactiviteit (${todaySteps.toLocaleString()} stappen). ` : ''}
+                {currentPMC && currentPMC.tsb < -10 ? `Negatieve cardio-vorm (TSB: ${currentPMC.tsb}). ` : ''}
+                Rusttimers worden automatisch verlengd en de intensiteit is conservatief aangepast om overbelasting te voorkomen.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ----------------- DASHBOARD TAB ----------------- */}
         {activeTab === 'dashboard' && (
@@ -778,15 +1154,15 @@ export default function App() {
                         labelStyle={{ color: '#fff', fontWeight: 700 }}
                       />
                       <Legend wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
-                      <Bar dataKey="Chest" stackId="a" fill="#6c5ce7" />
-                      <Bar dataKey="Lats" stackId="a" fill="#00b894" />
-                      <Bar dataKey="Upper Back" stackId="a" fill="#0984e3" />
-                      <Bar dataKey="Quads" stackId="a" fill="#e17055" />
-                      <Bar dataKey="Hamstrings" stackId="a" fill="#fdcb6e" />
-                      <Bar dataKey="Shoulders" stackId="a" fill="#ffeaa7" />
-                      <Bar dataKey="Biceps" stackId="a" fill="#d63031" />
-                      <Bar dataKey="Triceps" stackId="a" fill="#e84393" />
-                      <Bar dataKey="Calves" stackId="a" fill="#a29bfe" />
+                      <Bar dataKey="Chest" stackId="a" fill="#cbd5e1" />
+                      <Bar dataKey="Lats" stackId="a" fill="#94a3b8" />
+                      <Bar dataKey="Upper Back" stackId="a" fill="#475569" />
+                      <Bar dataKey="Quads" stackId="a" fill="#3f3f46" />
+                      <Bar dataKey="Hamstrings" stackId="a" fill="#71717a" />
+                      <Bar dataKey="Shoulders" stackId="a" fill="#a1a1aa" />
+                      <Bar dataKey="Biceps" stackId="a" fill="#d4d4d8" />
+                      <Bar dataKey="Triceps" stackId="a" fill="#e4e4e7" />
+                      <Bar dataKey="Calves" stackId="a" fill="#f4f4f5" />
                       <Bar dataKey="Abs" stackId="a" fill="#00cec9" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -847,7 +1223,7 @@ export default function App() {
                           <XAxis dataKey="dateStr" stroke="#64748b" style={{ fontSize: 8 }} />
                           <YAxis stroke="#64748b" style={{ fontSize: 8 }} />
                           <Tooltip contentStyle={{ background: '#1c1c23', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, fontSize: 10 }} />
-                          <Line type="monotone" dataKey="estimated1RM" stroke="#6c5ce7" strokeWidth={2} activeDot={{ r: 4 }} />
+                          <Line type="monotone" dataKey="estimated1RM" stroke="#cbd5e1" strokeWidth={2} activeDot={{ r: 4 }} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -1134,28 +1510,37 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {exercises.map(ex => (
-                        <tr key={ex.id}>
-                          <td style={{ fontWeight: 700, color: '#fff' }}>{ex.name}</td>
-                          <td>
-                            <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.03)', padding: '2px 8px', borderRadius: 4 }}>{ex.category}</span>
-                          </td>
-                          <td>+{ex.increment_weight} {ex.increment_per_side ? '(per kant)' : '(totaal)'}</td>
-                          <td style={{ textTransform: 'uppercase', fontWeight: 700 }}>{ex.weight_unit}</td>
-                          <td>RIR {ex.default_rir}</td>
-                          <td style={{ color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {ex.notes || '-'}
-                          </td>
-                          <td style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <button className="kratos-btn kratos-btn-secondary" style={{ padding: '6px 12px', fontSize: 10 }} onClick={() => handleEditExerciseClick(ex)}>
-                              <Edit3 size={11} /> Bewerken
-                            </button>
-                            <button className="kratos-btn kratos-btn-danger" style={{ padding: '6px 12px', fontSize: 10 }} onClick={() => handleDeleteExercise(ex.id)}>
-                              <Trash2 size={11} /> Verwijder
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                       {exercises.map(ex => {
+                        const aiIncrement = predictProgressiveOverload(
+                          1800,
+                          ex.increment_weight,
+                          todaySleepQuality || 80,
+                          currentPMC?.tsb || 0,
+                          ex.default_rir
+                        );
+                        return (
+                          <tr key={ex.id}>
+                            <td style={{ fontWeight: 700, color: '#fff' }}>{ex.name}</td>
+                            <td>
+                              <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.03)', padding: '2px 8px', borderRadius: 4 }}>{ex.category}</span>
+                            </td>
+                            <td>+{ex.increment_weight} {ex.increment_per_side ? '(per kant)' : '(totaal)'} <span style={{ color: 'var(--accent-neon)', fontSize: 11, marginLeft: 4 }}>[AI: +{aiIncrement}kg]</span></td>
+                            <td style={{ textTransform: 'uppercase', fontWeight: 700 }}>{ex.weight_unit}</td>
+                            <td>RIR {ex.default_rir}</td>
+                            <td style={{ color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {ex.notes || '-'}
+                            </td>
+                            <td style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button className="kratos-btn kratos-btn-secondary" style={{ padding: '6px 12px', fontSize: 10 }} onClick={() => handleEditExerciseClick(ex)}>
+                                <Edit3 size={11} /> Bewerken
+                              </button>
+                              <button className="kratos-btn kratos-btn-danger" style={{ padding: '6px 12px', fontSize: 10 }} onClick={() => handleDeleteExercise(ex.id)}>
+                                <Trash2 size={11} /> Verwijder
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -1233,17 +1618,31 @@ export default function App() {
                         onChange={(e) => setExerciseForm({ ...exerciseForm, increment_weight: Number(e.target.value) })}
                         placeholder="Bijv. 2.5 of 1.0"
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                        <input 
-                          type="checkbox" 
-                          id="increment_per_side"
-                          checked={!!exerciseForm.increment_per_side}
-                          onChange={(e) => setExerciseForm({ ...exerciseForm, increment_per_side: e.target.checked })}
-                          style={{ accentColor: 'var(--accent-neon)' }}
-                        />
-                        <label htmlFor="increment_per_side" style={{ fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                          Stappen zijn per kant
-                        </label>
+                      <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input 
+                            type="checkbox" 
+                            id="increment_per_side"
+                            checked={!!exerciseForm.increment_per_side}
+                            onChange={(e) => setExerciseForm({ ...exerciseForm, increment_per_side: e.target.checked })}
+                            style={{ accentColor: 'var(--accent-neon)' }}
+                          />
+                          <label htmlFor="increment_per_side" style={{ fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                            Stappen per kant
+                          </label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input 
+                            type="checkbox" 
+                            id="is_bodyweight"
+                            checked={!!exerciseForm.is_bodyweight}
+                            onChange={(e) => setExerciseForm({ ...exerciseForm, is_bodyweight: e.target.checked })}
+                            style={{ accentColor: 'var(--accent-neon)' }}
+                          />
+                          <label htmlFor="is_bodyweight" style={{ fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                            Lichaamsgewicht
+                          </label>
+                        </div>
                       </div>
                     </div>
 
@@ -1317,12 +1716,12 @@ export default function App() {
 
                 <div style={{ display: 'flex', gap: 12 }}>
                   <a 
-                    href="https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos-pilot-debug.apk"
+                    href="https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos.apk"
                     className="kratos-btn kratos-btn-neon"
                     style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px' }}
                     download
                   >
-                    <Smartphone size={14} /> Download Kratos Pilot APK
+                    <Smartphone size={14} /> Download Kratos APK
                   </a>
                 </div>
               </div>
@@ -1330,8 +1729,8 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: 32 }}>
                 <div style={{ background: '#fff', padding: 16, borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', marginBottom: 16 }}>
                   <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=09090b&data=${encodeURIComponent("https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos-pilot-debug.apk")}`} 
-                    alt="Kratos Pilot Download QR Code"
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=09090b&data=${encodeURIComponent("https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos.apk")}`} 
+                    alt="Kratos Download QR Code"
                     style={{ width: 160, height: 160, display: 'block' }}
                   />
                 </div>
@@ -1366,6 +1765,10 @@ export default function App() {
                               <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} /> {new Date(w.completed_at).toLocaleDateString('nl-NL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                               <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-secondary)' }} />
                               <span>Duur: {durationMins} min</span>
+                              <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-secondary)' }} />
+                              <button onClick={() => handleEditWorkoutClick(w)} style={{ background: 'none', border: 'none', color: 'var(--accent-neon)', cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 'bold' }}>Wijzig</button>
+                              <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-secondary)' }} />
+                              <button onClick={() => handleDeleteWorkout(w.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 'bold' }}>Verwijder</button>
                             </div>
                           </div>
 
@@ -1417,6 +1820,212 @@ export default function App() {
         )}
 
       </main>
+
+      {isWorkoutModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(9, 9, 11, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: 20
+        }}>
+          <div style={{
+            background: '#1c1c23',
+            border: '1px solid var(--border-color)',
+            borderRadius: 16,
+            width: '100%',
+            maxWidth: 600,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottom: '1px solid var(--border-color)' }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff' }}>Training Log Bewerken</h3>
+              <button 
+                onClick={() => setIsWorkoutModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18 }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveWorkout} style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="kratos-input-group">
+                <label className="kratos-label">Workout Naam</label>
+                <input 
+                  type="text" 
+                  className="kratos-input" 
+                  required 
+                  value={workoutForm.name} 
+                  onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div className="kratos-input-group" style={{ flex: 1 }}>
+                  <label className="kratos-label">Start Datum/Tijd</label>
+                  <input 
+                    type="datetime-local" 
+                    className="kratos-input" 
+                    required 
+                    value={workoutForm.started_at} 
+                    onChange={(e) => setWorkoutForm({ ...workoutForm, started_at: e.target.value })}
+                  />
+                </div>
+                <div className="kratos-input-group" style={{ flex: 1 }}>
+                  <label className="kratos-label">Eind Datum/Tijd</label>
+                  <input 
+                    type="datetime-local" 
+                    className="kratos-input" 
+                    required 
+                    value={workoutForm.completed_at} 
+                    onChange={(e) => setWorkoutForm({ ...workoutForm, completed_at: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+                <h4 style={{ margin: '0 0 12px', fontSize: 13, textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 800 }}>Oefeningen & Sets</h4>
+                
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {workoutForm.sets.map((exLog, exIdx) => {
+                    const ex = exerciseMap.get(exLog.exercise_id);
+                    if (!ex) return null;
+
+                    return (
+                      <div key={exIdx} style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <strong style={{ fontSize: 12, color: '#fff' }}>{ex.name}</strong>
+                          <button 
+                            type="button" 
+                            onClick={() => handleRemoveExerciseFromLog(exIdx)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 10, fontWeight: 'bold', padding: 0 }}
+                          >
+                            Verwijder Oefening
+                          </button>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {exLog.sets.map((s, sIdx) => (
+                            <div key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11 }}>
+                              <span style={{ color: 'var(--text-secondary)', width: 60 }}>
+                                Set {sIdx + 1} ({s.type === 'warmup' ? 'W' : 'Werk'}):
+                              </span>
+                              
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <input 
+                                  type="number" 
+                                  step="any"
+                                  style={{ width: 65, background: 'rgba(9,9,11,0.5)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', color: '#fff', fontSize: 11 }}
+                                  value={s.weight}
+                                  onChange={(e) => {
+                                    const updatedSets = [...workoutForm.sets];
+                                    updatedSets[exIdx].sets[sIdx].weight = Number(e.target.value);
+                                    setWorkoutForm({ ...workoutForm, sets: updatedSets });
+                                  }}
+                                />
+                                <span style={{ color: 'var(--text-secondary)' }}>{ex.weight_unit}</span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <input 
+                                  type="number" 
+                                  style={{ width: 50, background: 'rgba(9,9,11,0.5)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', color: '#fff', fontSize: 11 }}
+                                  value={s.reps}
+                                  onChange={(e) => {
+                                    const updatedSets = [...workoutForm.sets];
+                                    updatedSets[exIdx].sets[sIdx].reps = Number(e.target.value);
+                                    setWorkoutForm({ ...workoutForm, sets: updatedSets });
+                                  }}
+                                  required
+                                />
+                                <span style={{ color: 'var(--text-secondary)' }}>reps</span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>RIR:</span>
+                                <input 
+                                  type="number" 
+                                  style={{ width: 45, background: 'rgba(9,9,11,0.5)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', color: '#fff', fontSize: 11 }}
+                                  value={s.rir}
+                                  onChange={(e) => {
+                                    const updatedSets = [...workoutForm.sets];
+                                    updatedSets[exIdx].sets[sIdx].rir = Number(e.target.value);
+                                    setWorkoutForm({ ...workoutForm, sets: updatedSets });
+                                  }}
+                                  required
+                                />
+                              </div>
+
+                              <button 
+                                type="button"
+                                onClick={() => handleRemoveSetFromLog(exIdx, sIdx)}
+                                disabled={exLog.sets.length <= 1}
+                                style={{ background: 'none', border: 'none', color: exLog.sets.length <= 1 ? 'rgba(255,255,255,0.05)' : '#ef4444', cursor: exLog.sets.length <= 1 ? 'not-allowed' : 'pointer', fontSize: 13, padding: '0 4px', fontWeight: 'bold' }}
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button 
+                          type="button" 
+                          onClick={() => handleAddSetToLog(exIdx)}
+                          className="kratos-btn kratos-btn-secondary"
+                          style={{ marginTop: 8, padding: '4px 10px', fontSize: 10, alignSelf: 'flex-start' }}
+                        >
+                          + Set toevoegen
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Dropdown to add new exercise */}
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 16 }}>
+                  <label className="kratos-label" style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 800 }}>Oefening Toevoegen</label>
+                  <select 
+                    className="kratos-input" 
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleAddExerciseToLog(e.target.value);
+                        e.target.value = ""; // Reset selection
+                      }
+                    }}
+                  >
+                    <option value="" disabled>Selecteer een oefening om toe te voegen...</option>
+                    {exercises
+                      .filter(ex => !ex.deleted)
+                      .map(ex => (
+                        <option key={ex.id} value={ex.id}>{ex.name}</option>
+                      ))
+                    }
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 12, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+                <button type="submit" className="kratos-btn kratos-btn-neon" style={{ flex: 1 }}>
+                  Wijzigingen Opslaan
+                </button>
+                <button type="button" className="kratos-btn kratos-btn-secondary" onClick={() => setIsWorkoutModalOpen(false)}>
+                  Annuleren
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
