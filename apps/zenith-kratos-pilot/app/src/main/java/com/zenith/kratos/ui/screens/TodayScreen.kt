@@ -44,6 +44,11 @@ fun TodayScreen(
     var cardioFactor by remember { mutableStateOf(1.0) }
     var unsyncedCount by remember { mutableStateOf(0) }
 
+    // Bottom Sheet Preview States
+    var selectedTemplateForPreview by remember { mutableStateOf<LocalTemplate?>(null) }
+    var showPreviewSheet by remember { mutableStateOf(false) }
+    var previewExercises by remember { mutableStateOf<List<ActiveExerciseState>>(emptyList()) }
+
     // Update unsynced count
     LaunchedEffect(Unit) {
         val uns = db.workoutDao().getUnsyncedWorkouts()
@@ -84,7 +89,18 @@ fun TodayScreen(
                 }
 
                 Button(
-                    onClick = onLogout,
+                    onClick = {
+                        scope.launch {
+                            try {
+                                db.exerciseDao().deleteAll()
+                                db.templateDao().deleteAll()
+                                db.workoutDao().deleteAll()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                            onLogout()
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0x1AFF7675)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
@@ -143,50 +159,6 @@ fun TodayScreen(
                 }
             }
 
-            // PMC stress widget
-            Card(
-                colors = CardDefaults.cardColors(containerColor = ZenithSurface),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color(0x1A39FF14), RoundedCornerShape(18.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "ℹ",
-                            color = ZenithAccentNeon,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Cardio Herstel Status",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (cardioFactor > 1.0) {
-                                "Hoge vermoeidheid gedetecteerd. Rusttimers met ${Math.round((cardioFactor - 1) * 100)}% verlengd."
-                            } else {
-                                "Herstelstatus optimaal. Standaard rusttijden actief."
-                            },
-                            color = ZenithSecondary,
-                            fontSize = 11.sp,
-                            lineHeight = 14.sp
-                        )
-                    }
-                }
-            }
 
             // List of Templates
             Text(
@@ -203,13 +175,47 @@ fun TodayScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Geen routines gevonden.\nMaak eerst templates aan in Kratos Desktop.",
-                        color = ZenithSecondary,
-                        fontSize = 12.sp,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        lineHeight = 16.sp
-                    )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = ZenithSurface),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth(0.9f).border(1.dp, Color(0x16FFFFFF), RoundedCornerShape(16.dp))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Welkom bij Kratos! 💪",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Text(
+                                text = "Er zijn nog geen routines gesynchroniseerd. Maak eerst routines/templates aan op Kratos Desktop via de computer.",
+                                color = ZenithSecondary,
+                                fontSize = 12.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                lineHeight = 16.sp,
+                                modifier = Modifier.padding(bottom = 20.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    isSyncing = true
+                                    scope.launch {
+                                        repository.fetchAndCacheExercises()
+                                        repository.fetchAndCacheTemplates()
+                                        isSyncing = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ZenithAccentNeon),
+                                enabled = !isSyncing,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (isSyncing) "Synchroniseren..." else "Sync Nu", color = Color(0xFF09090B), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
@@ -239,14 +245,19 @@ fun TodayScreen(
                                             incrementWeight = ex.incrementWeight,
                                             incrementPerSide = ex.incrementPerSide,
                                             notes = ex.notes,
-                                            sets = te.sets.map { ts ->
-                                                ActiveSetState(
-                                                    type = ts.type,
-                                                    targetWeight = 0.0, // will fetch last weight or start 0
-                                                    targetReps = ts.minReps, // default to lower range
-                                                    targetRir = ts.targetRir
+                                            isBodyweight = ex.isBodyweight,
+                                            sets = androidx.compose.runtime.mutableStateListOf<ActiveSetState>().apply {
+                                                addAll(
+                                                    te.sets.map { ts ->
+                                                        ActiveSetState(
+                                                            type = ts.type,
+                                                            targetWeight = 0.0,
+                                                            targetReps = ts.minReps,
+                                                            targetRir = ts.targetRir
+                                                        )
+                                                    }
                                                 )
-                                            }.toMutableList()
+                                            }
                                         )
                                     } else null
                                 }
@@ -255,15 +266,11 @@ fun TodayScreen(
                                 scope.launch {
                                     val prevWorkout = repository.getPreviousWorkoutForTemplate(localTemp.id)
                                     if (prevWorkout != null) {
-                                        // For each active exercise, lookup if it was performed in prevWorkout
                                         for (ae in active) {
                                             val log = prevWorkout.sets.find { it.exerciseId == ae.exerciseId }
                                             if (log != null && log.sets.isNotEmpty()) {
-                                                // Success calculation for progressive overload:
-                                                // Did all working sets hit the max_reps with RIR >= target?
                                                 val workingSets = log.sets.filter { it.type == "working" }
                                                 val allSuccess = workingSets.isNotEmpty() && workingSets.all { s ->
-                                                    // Retrieve template target reps & RIR
                                                     val tempEx = tempExercises.find { it.exerciseId == ae.exerciseId }
                                                     val maxReps = tempEx?.sets?.filter { it.type == "working" }?.firstOrNull()?.maxReps ?: 10
                                                     val targetRir = tempEx?.sets?.filter { it.type == "working" }?.firstOrNull()?.targetRir ?: 2
@@ -271,9 +278,6 @@ fun TodayScreen(
                                                     s.reps >= maxReps && s.rir >= targetRir
                                                 }
 
-                                                // If successful, double progression rule:
-                                                // If hit max_reps on all sets -> increase weight by incrementWeight, reset reps to minReps
-                                                // Else -> keep weight, increase reps by 1
                                                 for (i in ae.sets.indices) {
                                                     val setType = ae.sets[i].type
                                                     val prevSet = log.sets.getOrNull(i) ?: log.sets.last()
@@ -283,44 +287,44 @@ fun TodayScreen(
 
                                                     if (setType == "working") {
                                                         if (allSuccess) {
-                                                            // weight + increment, reps reset to min
                                                             val step = if (ae.incrementPerSide) 2.0 * ae.incrementWeight else ae.incrementWeight
                                                             val nextW = prevSet.weight + step
-                                                            ae.sets[i] = ae.sets[i].copy(targetWeight = nextW, targetReps = minReps)
+                                                            ae.sets[i].targetWeight = nextW
+                                                            ae.sets[i].targetReps = minReps
                                                         } else {
-                                                            // check if they logged RIR >= target and reps < maxReps
                                                             val targetRir = tempEx?.sets?.getOrNull(i)?.targetRir ?: 2
                                                             val prevSuccessful = prevSet.rir >= targetRir
                                                             if (prevSuccessful && prevSet.reps < maxReps) {
-                                                                // keep weight, reps + 1
-                                                                ae.sets[i] = ae.sets[i].copy(targetWeight = prevSet.weight, targetReps = prevSet.reps + 1)
+                                                                ae.sets[i].targetWeight = prevSet.weight
+                                                                ae.sets[i].targetReps = prevSet.reps + 1
                                                             } else {
-                                                                // keep weight, keep reps
-                                                                ae.sets[i] = ae.sets[i].copy(targetWeight = prevSet.weight, targetReps = prevSet.reps)
+                                                                ae.sets[i].targetWeight = prevSet.weight
+                                                                ae.sets[i].targetReps = prevSet.reps
                                                             }
                                                         }
                                                     } else {
-                                                        // Warmup just uses same weight/reps
-                                                        ae.sets[i] = ae.sets[i].copy(targetWeight = prevSet.weight, targetReps = prevSet.reps)
+                                                        ae.sets[i].targetWeight = prevSet.weight
+                                                        ae.sets[i].targetReps = prevSet.reps
                                                     }
                                                 }
                                             } else {
-                                                // No prev log, default weight to 20kg (empty bar)
                                                 for (i in ae.sets.indices) {
-                                                    ae.sets[i] = ae.sets[i].copy(targetWeight = 20.0)
+                                                    ae.sets[i].targetWeight = 20.0
                                                 }
                                             }
                                         }
                                     } else {
-                                        // Default starting weight
                                         for (ae in active) {
                                             for (i in ae.sets.indices) {
-                                                ae.sets[i] = ae.sets[i].copy(targetWeight = 20.0)
+                                                ae.sets[i].targetWeight = 20.0
                                             }
                                         }
                                     }
 
-                                    onStartWorkout(localTemp.id, localTemp.name, active, cardioFactor)
+                                    // Open Bottom Sheet Preview instead of starting immediately
+                                    previewExercises = active
+                                    selectedTemplateForPreview = localTemp
+                                    showPreviewSheet = true
                                 }
                             }
                         ) {
@@ -346,11 +350,96 @@ fun TodayScreen(
                 }
             }
         }
+
+        // 4. Modal Bottom Sheet for Routine Preview
+        if (showPreviewSheet && selectedTemplateForPreview != null) {
+            ModalBottomSheet(
+                onDismissRequest = { showPreviewSheet = false },
+                containerColor = Color(0xFF1C1C23),
+                contentColor = Color.White,
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 16.dp)
+                ) {
+                    Text(
+                        text = selectedTemplateForPreview!!.name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "OEFENINGEN IN DEZE ROUTINE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = ZenithSecondary,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(previewExercises) { ex ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0x0DFFFFFF), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = ex.name,
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    val weightLabel = if (ex.incrementPerSide) "per kant" else "totaal"
+                                    Text(
+                                        text = "${ex.category} • ($weightLabel)",
+                                        color = ZenithSecondary,
+                                        fontSize = 9.sp
+                                    )
+                                }
+                                Text(
+                                    text = "${ex.sets.size} sets",
+                                    color = ZenithAccentNeon,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = {
+                            showPreviewSheet = false
+                            onStartWorkout(selectedTemplateForPreview!!.id, selectedTemplateForPreview!!.name, previewExercises, cardioFactor)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ZenithAccentNeon),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Start Training", color = Color(0xFF09090B), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
     }
 }
 
 // Simple safeDrawingPadding mock helper since standard WindowInsets might fail on some SDKs
 @Composable
 fun safeDrawingPadding(): Modifier {
-    return Modifier.padding(top = 28.dp, bottom = 12.dp)
+    return Modifier.systemBarsPadding()
 }

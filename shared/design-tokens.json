@@ -1,0 +1,26 @@
+{
+  "colors": {
+    "background": "#09090b",
+    "surface": "#1c1c23",
+    "primary": "#cbd5e1",
+    "secondary": "#94a3b8",
+    "dark": "#475569",
+    "accent": "#4ade80",
+    "accentNeon": "#39ff14",
+    "error": "#ef4444",
+    "border": "#27272a"
+  },
+  "spacing": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px"
+  },
+  "radius": {
+    "sm": "4px",
+    "md": "8px",
+    "lg": "12px",
+    "xl": "16px"
+  }
+}

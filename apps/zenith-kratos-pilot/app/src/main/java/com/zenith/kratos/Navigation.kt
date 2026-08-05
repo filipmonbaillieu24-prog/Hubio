@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.*
+import com.zenith.kratos.ui.theme.*
 
 enum class KratosScreen {
     LOADING,
@@ -55,7 +56,8 @@ fun MainNavigation() {
             WorkoutRepository(
                 database.exerciseDao(),
                 database.templateDao(),
-                database.workoutDao()
+                database.workoutDao(),
+                database.activeWorkoutDao()
             )
         } else null
     }
@@ -72,9 +74,11 @@ fun MainNavigation() {
     var activeTemplateId by remember { mutableStateOf<String?>(null) }
     var activeExercises by remember { mutableStateOf<List<ActiveExerciseState>>(emptyList()) }
     var activeStartTime by remember { mutableStateOf("") }
+    var activeStartTimeMs by remember { mutableStateOf(0L) }
     var activeCompletedTime by remember { mutableStateOf("") }
     var activeVolume by remember { mutableStateOf(0.0) }
     var cardioStressFactor by remember { mutableStateOf(1.0) }
+    var bodyWeight by remember { mutableStateOf(80.0) }
 
     // Update States
     var updateInfo by remember { mutableStateOf<com.zenith.kratos.update.UpdateInfo?>(null) }
@@ -83,12 +87,28 @@ fun MainNavigation() {
 
     // Session loader
     LaunchedEffect(sessionStatus) {
-        delay(800) // loading window visual ease
+        if (currentScreen == KratosScreen.LOADING) {
+            delay(800) // loading window visual ease only on first cold start
+        }
         when (sessionStatus) {
             is SessionStatus.Authenticated -> {
-                currentScreen = KratosScreen.TODAY
-                // Pre-sync exercises and templates in background, plus check for updates
                 scope.launch {
+                    val w = repository?.getLatestBodyweight() ?: 80.0
+                    bodyWeight = w
+
+                    val persisted = repository?.getPersistedActiveWorkout()
+                    if (persisted != null) {
+                        activeTemplateId = persisted.templateId
+                        activeWorkoutName = persisted.name
+                        activeExercises = persisted.exercises
+                        cardioStressFactor = persisted.cardioStressFactor
+                        activeStartTimeMs = persisted.startedAtMs
+                        activeStartTime = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).format(java.util.Date(persisted.startedAtMs))
+                        currentScreen = KratosScreen.TRACKER
+                    } else {
+                        currentScreen = KratosScreen.TODAY
+                    }
+
                     repository?.fetchAndCacheExercises()
                     repository?.fetchAndCacheTemplates()
                     try {
@@ -107,8 +127,11 @@ fun MainNavigation() {
                     }
                 }
             }
-            else -> {
+            is SessionStatus.NotAuthenticated -> {
                 currentScreen = KratosScreen.LOGIN
+            }
+            else -> {
+                // Loading/Refreshing: keep the current active screen
             }
         }
     }
@@ -152,7 +175,7 @@ fun MainNavigation() {
                     .background(Color(0xFF09090B)),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFF39FF14))
+                CircularProgressIndicator(color = ZenithAccentNeon)
             }
         }
         KratosScreen.LOGIN -> {
@@ -166,14 +189,28 @@ fun MainNavigation() {
             TodayScreen(
                 repository = repository,
                 onLogout = {
-                    scope.launch { auth.signOut() }
+                    scope.launch {
+                        repository?.deleteActiveWorkoutState()
+                        auth.signOut()
+                    }
                 },
                 onStartWorkout = { templateId, name, exercises, factor ->
                     activeTemplateId = templateId
                     activeWorkoutName = name
                     activeExercises = exercises
                     cardioStressFactor = factor
-                    activeStartTime = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).format(java.util.Date())
+                    val startTimeMs = System.currentTimeMillis()
+                    activeStartTimeMs = startTimeMs
+                    activeStartTime = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).format(java.util.Date(startTimeMs))
+                    scope.launch {
+                        repository?.saveActiveWorkoutState(
+                            templateId = templateId,
+                            name = name,
+                            startedAtMs = startTimeMs,
+                            cardioStressFactor = factor,
+                            exercises = exercises
+                        )
+                    }
                     currentScreen = KratosScreen.TRACKER
                 }
             )
@@ -183,14 +220,23 @@ fun MainNavigation() {
                 workoutName = activeWorkoutName,
                 exercises = activeExercises,
                 cardioStressFactor = cardioStressFactor,
+                startTimeMs = activeStartTimeMs,
+                templateId = activeTemplateId,
+                bodyWeight = bodyWeight,
                 repository = repository,
                 onCancel = {
+                    scope.launch {
+                        repository?.deleteActiveWorkoutState()
+                    }
                     currentScreen = KratosScreen.TODAY
                 },
                 onComplete = { loggedExercises, totalVolume ->
                     activeCompletedTime = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).format(java.util.Date())
                     activeExercises = loggedExercises
                     activeVolume = totalVolume
+                    scope.launch {
+                        repository?.deleteActiveWorkoutState()
+                    }
                     currentScreen = KratosScreen.COMPLETION
                 }
             )
@@ -227,12 +273,12 @@ fun MainNavigation() {
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.LinearProgressIndicator(
                             progress = downloadProgress!!,
-                            color = Color(0xFF39FF14),
+                            color = ZenithAccentNeon,
                             modifier = Modifier.fillMaxWidth()
                         )
                         androidx.compose.material3.Text(
                             "Downloaden: ${Math.round(downloadProgress!! * 100)}%",
-                            color = Color(0xFF39FF14),
+                            color = ZenithAccentNeon,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 8.dp)
                         )
@@ -264,7 +310,7 @@ fun MainNavigation() {
                             )
                         }
                     },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF39FF14)),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = ZenithAccentNeon),
                     enabled = downloadProgress == null
                 ) {
                     androidx.compose.material3.Text("Download", color = Color(0xFF09090B))

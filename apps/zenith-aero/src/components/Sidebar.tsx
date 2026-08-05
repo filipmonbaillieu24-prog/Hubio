@@ -1,0 +1,605 @@
+import React, { useState } from 'react';
+import {
+  MapPin, Compass, Sliders, Download, Search,
+  ChevronRight, Wind, Mountain, Route, Layers,
+  Star, Trash2, Check, Pencil, X, Coffee, ChevronDown, ChevronUp
+} from 'lucide-react';
+import {
+  RouteProfile, RouteType, DirectionBias,
+  SurfacePreference, WindData, RouteStats, ClimbCategory, RouteOptions,
+  SavedLocation
+} from '../types/route';
+import { searchAddress } from '../utils/routing';
+import { FitnessProfile } from '../types/workout';
+import { calculateFuel } from '../utils/fueling';
+import { predictRouteDuration } from '../utils/localNeuralNet';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SidebarProps {
+  fitnessProfile: FitnessProfile;
+  routes: { stats: RouteStats }[];
+  activeRouteIndex: number;
+  onSelectRoute: (idx: number) => void;
+  routeType: RouteType;
+  setRouteType: (type: RouteType) => void;
+  onGenerate: (params: {
+    type: RouteType;
+    distance: number;
+    direction: DirectionBias;
+    options: RouteOptions;
+  }) => void;
+  onDownloadGPX: () => void;
+  onDownloadTCX: () => void;
+  startPoint: [number, number] | null;
+  endPoint: [number, number] | null;
+  onSetLocation: (lat: number, lng: number, type: 'start' | 'end') => void;
+  isGenerating: boolean;
+  windData: WindData | null;
+  windSlot: string;
+  setWindSlot: (slot: string) => void;
+  isFetchingWind: boolean;
+  maxElevationGain: number;
+  setMaxElevationGain: (v: number) => void;
+  savedLocations: SavedLocation[];
+  onSaveLocation: (name: string, lat: number, lng: number) => void;
+  onDeleteLocation: (id: string) => void;
+  onRenameLocation: (id: string, name: string) => void;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const climbLabels: Record<ClimbCategory, { label: string; color: string }> = {
+  flat:         { label: 'Vlak',          color: '#94a3b8' },
+  rolling:      { label: 'Licht heuvelachtig', color: '#cbd5e1' },
+  hilly:        { label: 'Heuvelachtig',   color: '#ff9f43' },
+  mountainous:  { label: 'Bergachtig',     color: '#ff3366' },
+};
+
+function formatDuration(seconds: number): string {
+  const mins  = Math.round(seconds / 60);
+  const h     = Math.floor(mins / 60);
+  const m     = mins % 60;
+  return h > 0 ? `${h}u ${m}m` : `${m}m`;
+}
+
+function getWindArrow(deg: number): string {
+  const blowTo = (deg + 180) % 360;
+  if (blowTo >= 337.5 || blowTo <  22.5) return '↑';
+  if (blowTo >=  22.5 && blowTo <  67.5) return '↗';
+  if (blowTo >=  67.5 && blowTo < 112.5) return '→';
+  if (blowTo >= 112.5 && blowTo < 157.5) return '↘';
+  if (blowTo >= 157.5 && blowTo < 202.5) return '↓';
+  if (blowTo >= 202.5 && blowTo < 247.5) return '↙';
+  if (blowTo >= 247.5 && blowTo < 292.5) return '←';
+  return '↖';
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  fitnessProfile,
+  routes, activeRouteIndex, onSelectRoute,
+  routeType, setRouteType, onGenerate,
+  onDownloadGPX, onDownloadTCX,
+  startPoint, endPoint, onSetLocation,
+  isGenerating, windData, windSlot, setWindSlot, isFetchingWind,
+  maxElevationGain, setMaxElevationGain,
+  savedLocations, onSaveLocation, onDeleteLocation, onRenameLocation,
+}) => {
+  // Filter state
+  const [distance, setDistance]               = useState<number>(50);
+  const [profile, setProfile]                 = useState<RouteProfile>('road');
+  const [direction, setDirection]             = useState<DirectionBias>('wind');
+  const [surfacePreference, setSurface]       = useState<SurfacePreference>('asphalt');
+  const [preferCycleroutes, setCycleroutes]   = useState<boolean>(false);
+  const [avoidHills, setAvoidHills]           = useState<boolean>(false);
+
+  const [fuelPanelOpen, setFuelPanelOpen] = useState(false);
+
+  // Address search state
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [searchResults, setSearchResults] = useState<{ name: string; lat: number; lng: number }[]>([]);
+  const [isSearching, setIsSearching]     = useState(false);
+
+  // Save location state
+  const [isSaving, setIsSaving]         = useState(false);
+  const [saveNameInput, setSaveNameInput] = useState('');
+  const [editingId, setEditingId]        = useState<string | null>(null);
+  const [editNameInput, setEditNameInput] = useState('');
+
+  const handleConfirmSave = () => {
+    if (!startPoint) return;
+    onSaveLocation(saveNameInput, startPoint[0], startPoint[1]);
+    setIsSaving(false);
+    setSaveNameInput('');
+  };
+
+  const handleConfirmRename = (id: string) => {
+    onRenameLocation(id, editNameInput);
+    setEditingId(null);
+    setEditNameInput('');
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim().length < 3) return;
+    setIsSearching(true);
+    try {
+      setSearchResults(await searchAddress(searchQuery));
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleGenerate = () => {
+    onGenerate({
+      type: routeType,
+      distance,
+      direction,
+      options: { profile, surfacePreference, preferCycleroutes, avoidHills, maxElevationGain },
+    });
+  };
+
+  const activeRoute = routes[activeRouteIndex];
+
+  return (
+    <aside className="sidebar">
+
+
+      <div className="sidebar-content">
+
+        {/* ── 1. Startlocatie ─────────────────────────── */}
+        <section className="sidebar-section">
+          <h2><MapPin className="section-icon" strokeWidth={1.6} /> 1. Startlocatie</h2>
+
+          <form onSubmit={handleSearch} className="search-form">
+            <input
+              type="text" placeholder="Zoek plaats of adres..."
+              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            <button type="submit" className="search-button" disabled={isSearching}>
+              <Search size={16} strokeWidth={1.6} />
+            </button>
+          </form>
+
+          {searchResults.length > 0 && (
+            <ul className="search-results">
+              {searchResults.map((res, idx) => (
+                <li key={idx} onClick={() => { onSetLocation(res.lat, res.lng, 'start'); setSearchResults([]); setSearchQuery(''); }}
+                  className="search-result-item">
+                  <ChevronRight size={14} className="result-arrow" strokeWidth={1.6} />
+                  <span>{res.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="location-status">
+            {startPoint
+              ? <p className="status-configured"><span className="dot dot-green" /> Startpunt geplaatst</p>
+              : <p className="status-pending">Klik op de kaart of zoek een plaats om te starten.</p>
+            }
+            {routeType === 'point-to-point' && (
+              endPoint
+                ? <p className="status-configured"><span className="dot dot-red" /> Eindpunt geplaatst</p>
+                : <p className="status-pending">Klik nogmaals voor het eindpunt.</p>
+            )}
+          </div>
+
+          {/* Save current start point */}
+          {startPoint && (
+            <div className="save-location-bar">
+              {isSaving ? (
+                <div className="save-location-input-row">
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Naam (bv. Thuis, Werk...)"
+                    value={saveNameInput}
+                    onChange={(e) => setSaveNameInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); if (e.key === 'Escape') setIsSaving(false); }}
+                    className="save-name-input"
+                    maxLength={30}
+                  />
+                  <button className="icon-btn icon-btn-confirm" onClick={handleConfirmSave} title="Opslaan">
+                    <Check size={14} />
+                  </button>
+                  <button className="icon-btn icon-btn-cancel" onClick={() => setIsSaving(false)} title="Annuleren">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button className="save-location-btn" onClick={() => setIsSaving(true)}>
+                  <Star size={13} strokeWidth={1.6} />
+                  Startlocatie opslaan
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Saved Locations List */}
+          {savedLocations.length > 0 && (
+            <div className="saved-locations-list">
+              {savedLocations.map((loc) => (
+                <div key={loc.id} className="saved-location-item">
+                  {editingId === loc.id ? (
+                    <div className="save-location-input-row">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editNameInput}
+                        onChange={(e) => setEditNameInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmRename(loc.id); if (e.key === 'Escape') setEditingId(null); }}
+                        className="save-name-input"
+                        maxLength={30}
+                      />
+                      <button className="icon-btn icon-btn-confirm" onClick={() => handleConfirmRename(loc.id)} title="Bevestigen">
+                        <Check size={13} />
+                      </button>
+                      <button className="icon-btn icon-btn-cancel" onClick={() => setEditingId(null)} title="Annuleren">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        className="saved-loc-load"
+                        onClick={() => onSetLocation(loc.lat, loc.lng, 'start')}
+                        title={`Laad: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`}
+                      >
+                        <Star size={12} className="saved-loc-star" />
+                        <span className="saved-loc-name">{loc.name}</span>
+                      </button>
+                      <div className="saved-loc-actions">
+                        <button className="icon-btn" onClick={() => { setEditingId(loc.id); setEditNameInput(loc.name); }} title="Hernoemen">
+                          <Pencil size={12} strokeWidth={1.6} />
+                        </button>
+                        <button className="icon-btn icon-btn-danger" onClick={() => onDeleteLocation(loc.id)} title="Verwijderen">
+                          <Trash2 size={12} strokeWidth={1.6} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── 2. Route & Afstand ──────────────────────── */}
+        <section className="sidebar-section">
+          <h2><Sliders className="section-icon" strokeWidth={1.6} /> 2. Route Type & Afstand</h2>
+
+          <div className="tab-container">
+            <button className={`tab-button ${routeType === 'loop' ? 'active' : ''}`} onClick={() => setRouteType('loop')}>
+              Rondje (Loop)
+            </button>
+            <button className={`tab-button ${routeType === 'point-to-point' ? 'active' : ''}`} onClick={() => setRouteType('point-to-point')}>
+              A naar B
+            </button>
+          </div>
+
+          <div className="form-group">
+            <label>Type Rit</label>
+            <select value={profile} onChange={(e) => setProfile(e.target.value as RouteProfile)} className="select-input">
+              <option value="road">Racefiets (Asfalt)</option>
+              <option value="gravel">Gravelbike (Mix)</option>
+              <option value="trekking">Recreatief (Trekking)</option>
+              <option value="mtb">Mountainbike (Off-road)</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <div className="label-with-value">
+              <label>Afstand</label>
+              <span className="value-display">{distance} km</span>
+            </div>
+            <input type="range" min="10" max="200" step="5" value={distance}
+              onChange={(e) => setDistance(parseInt(e.target.value))} className="range-input" />
+          </div>
+
+          {routeType === 'loop' && (
+            <div className="form-group">
+              <label>Richting / Loop Oriëntatie</label>
+              <select value={direction} onChange={(e) => setDirection(e.target.value as DirectionBias)} className="select-input">
+                <option value="wind">Wind-optimaal (Tegenwind heen)</option>
+                <option value="random">Willekeurig (Random)</option>
+                <option value="N">Noord (N)</option>
+                <option value="E">Oost (O)</option>
+                <option value="S">Zuid (Z)</option>
+                <option value="W">West (W)</option>
+              </select>
+            </div>
+          )}
+        </section>
+
+        {/* ── 3. Route Optimalisatie ───────────────────── */}
+        <section className="sidebar-section">
+          <h2><Layers className="section-icon" strokeWidth={1.6} /> 3. Route Optimalisatie</h2>
+
+          {/* Surface preference */}
+          <div className="form-group">
+            <label>Ondergrond</label>
+            <div className="surface-toggle">
+              {(['asphalt', 'mixed', 'unpaved'] as SurfacePreference[]).map((s) => (
+                <button
+                  key={s}
+                  className={`surface-btn ${surfacePreference === s ? 'active' : ''}`}
+                  onClick={() => setSurface(s)}
+                >
+                  {s === 'asphalt' ? '🛣️ Alleen asfalt' : s === 'mixed' ? '🌿 Mix' : '⛰️ Onverhard OK'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Prefer cycle routes */}
+          <div className="form-group">
+            <div className="toggle-row">
+              <div className="toggle-info">
+                <Route size={15} className="toggle-icon" strokeWidth={1.6} />
+                <div>
+                  <span className="toggle-label">Fietsroutes & knooppunten</span>
+                  <span className="toggle-desc">Volg officiële fietsnetwerken</span>
+                </div>
+              </div>
+              <button
+                className={`toggle-switch ${preferCycleroutes ? 'on' : ''}`}
+                onClick={() => setCycleroutes(!preferCycleroutes)}
+                aria-label="Fietsroutes aan/uit"
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+
+          {/* Avoid hills */}
+          <div className="form-group">
+            <div className="toggle-row">
+              <div className="toggle-info">
+                <Mountain size={15} className="toggle-icon" strokeWidth={1.6} />
+                <div>
+                  <span className="toggle-label">Vermijd steile hellingen</span>
+                  <span className="toggle-desc">Hogere heuvelkostenpenalty</span>
+                </div>
+              </div>
+              <button
+                className={`toggle-switch ${avoidHills ? 'on' : ''}`}
+                onClick={() => setAvoidHills(!avoidHills)}
+                aria-label="Helling vermijden aan/uit"
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+
+          {/* Max elevation gain */}
+          <div className="form-group">
+            <div className="label-with-value">
+              <label>Max. hoogtemeters</label>
+              <span className="value-display">
+                {maxElevationGain === 0 ? 'Geen limiet' : `${maxElevationGain} m`}
+              </span>
+            </div>
+            <input
+              type="range" min="0" max="3000" step="50"
+              value={maxElevationGain}
+              onChange={(e) => setMaxElevationGain(parseInt(e.target.value))}
+              className="range-input"
+            />
+          </div>
+        </section>
+
+        {/* ── 4. Windplanner ──────────────────────────── */}
+        {startPoint && (
+          <section className="sidebar-section animate-fade-in">
+            <h2><Wind className="section-icon" strokeWidth={1.6} /> 4. Windplanner</h2>
+
+            <div className="form-group">
+              <label>Tijdstip van je rit</label>
+              <select value={windSlot} onChange={(e) => setWindSlot(e.target.value)}
+                className="select-input" disabled={isFetchingWind}>
+                <option value="now">Nu (Huidige Wind)</option>
+                <option value="today_afternoon">Vandaag Middag (14:00)</option>
+                <option value="today_evening">Vandaag Avond (19:00)</option>
+                <option value="tomorrow_morning">Morgen Ochtend (09:00)</option>
+                <option value="tomorrow_afternoon">Morgen Middag (14:00)</option>
+                <option value="day_after_tomorrow_morning">Overmorgen Ochtend (09:00)</option>
+                <option value="day_after_tomorrow_afternoon">Overmorgen Middag (14:00)</option>
+              </select>
+            </div>
+
+            {isFetchingWind ? (
+              <p className="wind-loading">Windgegevens laden...</p>
+            ) : windData ? (
+              <div className="wind-report-card">
+                <div className="wind-icon-box">
+                  <Wind size={20} className="wind-glow" strokeWidth={1.6} />
+                  <span className="wind-direction-arrow">{getWindArrow(windData.direction)}</span>
+                </div>
+                <div className="wind-text-box">
+                  <h4>{windData.speed} km/u</h4>
+                  <p>wind uit het {windData.cardinal} ({windData.direction}°)</p>
+                </div>
+              </div>
+            ) : (
+              <p className="wind-error">Kon windgegevens niet laden.</p>
+            )}
+          </section>
+        )}
+
+        {/* Generate Button */}
+        <button
+          onClick={handleGenerate}
+          className="generate-button"
+          disabled={isGenerating || !startPoint || (routeType === 'point-to-point' && !endPoint)}
+        >
+          {isGenerating ? 'Route Genereren...' : 'Genereer Route'}
+        </button>
+
+        {/* ── 5. Route Alternatieven ───────────────────── */}
+        {routes.length > 0 && (
+          <section className="sidebar-section alternatives-section animate-fade-in">
+            <h2><Compass className="section-icon" strokeWidth={1.6} /> 5. Kies Route</h2>
+
+            <div className="alternatives-list">
+              {routes.map((rt, idx) => {
+                const isActive      = idx === activeRouteIndex;
+                const climb         = climbLabels[rt.stats.climbCategory];
+                const overLimit     = maxElevationGain > 0 && rt.stats.elevationGain > maxElevationGain;
+                const hasBacktrack  = rt.stats.hasBacktrack;
+
+                return (
+                  <div key={idx} onClick={() => onSelectRoute(idx)}
+                    className={`alternative-card ${isActive ? 'active' : ''} ${overLimit ? 'over-limit' : ''}`}>
+                    <div className="alt-card-header">
+                      <h3>Route {idx + 1}</h3>
+                      <div className="alt-card-badges">
+                        {overLimit    && <span className="badge badge-warn">↑ Limiet</span>}
+                        {hasBacktrack && <span className="badge badge-backtrack" title="Mogelijk bevat deze route een stuk heen-en-terug">↩ Terugrijden</span>}
+                        <span className="badge" style={{ color: climb.color, borderColor: climb.color }}>
+                          {climb.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="alt-card-stats">
+                      <span>{rt.stats.distance} km</span>
+                      <span>{rt.stats.elevationGain} m ↑</span>
+                      <span>max {rt.stats.maxGradient}%</span>
+                      {(() => {
+                        let windAngleRad: number | undefined = undefined;
+                        if (routeType === 'point-to-point' && startPoint && endPoint && windData) {
+                          const travelAngleRad = Math.atan2(endPoint[0] - startPoint[0], endPoint[1] - startPoint[1]);
+                          const windDirectionRad = (windData.direction * Math.PI) / 180;
+                          windAngleRad = Math.abs(travelAngleRad - (windDirectionRad + Math.PI)) % (2 * Math.PI);
+                        }
+                        const aiDur = predictRouteDuration(
+                          rt.stats.distance,
+                          rt.stats.elevationGain,
+                          fitnessProfile.ftp ?? 220,
+                          fitnessProfile.weight ?? 75,
+                          windData?.speed ?? 0,
+                          windAngleRad
+                        );
+                        return (
+                          <span style={{ color: '#cbd5e1', display: 'inline-flex', alignItems: 'center', gap: 3 }} title="AI Geschatte Ritduur (incl. wind-effect)">
+                            🤖 {formatDuration(aiDur)}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {activeRoute && (
+              <div className="download-container">
+                <button onClick={onDownloadGPX} className="download-button gpx">
+                  <Download size={16} strokeWidth={1.6} /> GPX Downloaden
+                </button>
+                <button onClick={onDownloadTCX} className="download-button tcx">
+                  <Download size={16} strokeWidth={1.6} /> TCX Downloaden
+                </button>
+              </div>
+            )}
+
+            {activeRoute && (() => {
+              let windAngleRad: number | undefined = undefined;
+              if (routeType === 'point-to-point' && startPoint && endPoint && windData) {
+                const travelAngleRad = Math.atan2(endPoint[0] - startPoint[0], endPoint[1] - startPoint[1]);
+                const windDirectionRad = (windData.direction * Math.PI) / 180;
+                windAngleRad = Math.abs(travelAngleRad - (windDirectionRad + Math.PI)) % (2 * Math.PI);
+              }
+              const activeAIDurationSec = predictRouteDuration(
+                activeRoute.stats.distance,
+                activeRoute.stats.elevationGain,
+                fitnessProfile.ftp ?? 220,
+                fitnessProfile.weight ?? 75,
+                windData?.speed ?? 0,
+                windAngleRad
+              );
+              const fuelPlan = calculateFuel(
+                activeAIDurationSec,
+                2, // Zone 2 (Duurrit)
+                fitnessProfile.weight ?? 75,
+                fitnessProfile.ftp ?? 220,
+                20
+              );
+              return (
+                <div className="fuel-plan-panel" style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12 }}>
+                  <button
+                    className="fuel-plan-toggle"
+                    onClick={() => setFuelPanelOpen(!fuelPanelOpen)}
+                    style={{
+                      width: '100%',
+                      background: 'none',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      color: '#cbd5e1',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: '4px 0'
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Coffee size={14} strokeWidth={1.6} /> Brandstof- & Voedingsplan (AI Schatting)
+                    </span>
+                    {fuelPanelOpen ? <ChevronUp size={14} strokeWidth={1.6} /> : <ChevronDown size={14} strokeWidth={1.6} />}
+                  </button>
+                  
+                  {fuelPanelOpen && (
+                    <div className="fuel-plan-details" style={{ marginTop: 8, background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 11, color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Geschat energieverbruik:</span>
+                        <strong style={{ color: '#f8fafc' }}>{fuelPlan.totalCalories} kcal</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Koolhydraatbehoefte:</span>
+                        <strong style={{ color: '#cbd5e1' }}>{fuelPlan.totalCarbs}g ({fuelPlan.carbsPerHour}g/u)</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Vochtbehoefte:</span>
+                        <strong style={{ color: '#cbd5e1' }}>{(fuelPlan.totalFluid / 1000).toFixed(1)}L ({fuelPlan.fluidPerHour}ml/u)</strong>
+                      </div>
+                      {fuelPlan.totalSodium > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Natriumbehoefte:</span>
+                          <strong style={{ color: '#ff9f43' }}>{fuelPlan.totalSodium} mg ({fuelPlan.sodiumPerHour}mg/u)</strong>
+                        </div>
+                      )}
+                      
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', marginTop: 4, paddingTop: 8 }}>
+                        <span style={{ fontWeight: 700, color: '#f8fafc', display: 'block', marginBottom: 6 }}>Inname Boodschappenlijst:</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>🍼 Bidons Sportdrank (500ml):</span>
+                            <strong>{fuelPlan.bottles}x</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>🍫 Energierepen:</span>
+                            <strong>{fuelPlan.bars}x</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>⚡ Energiegels:</span>
+                            <strong>{fuelPlan.gels}x</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </section>
+        )}
+      </div>
+    </aside>
+  );
+};

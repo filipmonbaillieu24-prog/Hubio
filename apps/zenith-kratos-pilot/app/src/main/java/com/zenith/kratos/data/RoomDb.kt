@@ -14,7 +14,8 @@ data class LocalExercise(
     val incrementWeight: Double,
     val incrementPerSide: Boolean,
     val defaultRir: Int,
-    val weightUnit: String
+    val weightUnit: String,
+    val isBodyweight: Boolean = false
 )
 
 @Entity(tableName = "templates")
@@ -81,14 +82,40 @@ interface WorkoutDao {
 
     @Query("UPDATE completed_workouts SET isSynced = 1 WHERE id = :workoutId")
     suspend fun markSynced(workoutId: String)
+
+    @Query("DELETE FROM completed_workouts")
+    suspend fun deleteAll()
+}
+
+@Entity(tableName = "active_workout")
+data class LocalActiveWorkout(
+    @PrimaryKey val id: String = "active_workout",
+    val templateId: String?,
+    val name: String,
+    val startedAtMs: Long,
+    val cardioStressFactor: Double,
+    val exercisesJson: String
+)
+
+@Dao
+interface ActiveWorkoutDao {
+    @Query("SELECT * FROM active_workout WHERE id = 'active_workout' LIMIT 1")
+    suspend fun getActiveWorkout(): LocalActiveWorkout?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveActiveWorkout(active: LocalActiveWorkout)
+
+    @Query("DELETE FROM active_workout WHERE id = 'active_workout'")
+    suspend fun deleteActiveWorkout()
 }
 
 // 3. Database
-@Database(entities = [LocalExercise::class, LocalTemplate::class, LocalWorkout::class], version = 1, exportSchema = false)
+@Database(entities = [LocalExercise::class, LocalTemplate::class, LocalWorkout::class, LocalActiveWorkout::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun templateDao(): TemplateDao
     abstract fun workoutDao(): WorkoutDao
+    abstract fun activeWorkoutDao(): ActiveWorkoutDao
 
     companion object {
         @Volatile

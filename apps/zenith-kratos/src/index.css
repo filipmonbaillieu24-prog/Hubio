@@ -11,7 +11,7 @@
   --text-dark: #475569;
   --accent-neon: #cbd5e1;
   --accent-green: #94a3b8;
-  --accent-purple: #6c5ce7;
+  --accent-purple: #cbd5e1;
   --error-color: #ef4444;
   --font-header: 'Outfit', sans-serif;
   --font-body: 'Inter', sans-serif;
@@ -58,7 +58,7 @@ body {
   left: -10%;
   width: 60vw;
   height: 60vw;
-  background: radial-gradient(circle, rgba(108, 92, 231, 0.03) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(203, 213, 225, 0.04) 0%, transparent 70%);
   filter: blur(45px);
   z-index: -1;
   pointer-events: none;
@@ -123,49 +123,52 @@ body {
   display: flex;
   gap: 8px;
   background: rgba(255, 255, 255, 0.02);
-  padding: 4px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .kratos-nav-btn {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-secondary);
   font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 750;
-  padding: 8px 16px;
-  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 16px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+  text-transform: none;
+  letter-spacing: 0px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .kratos-nav-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .kratos-nav-btn.active {
   color: #fff;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  background: rgba(203, 213, 225, 0.08);
+  border-color: rgba(203, 213, 225, 0.25);
+  box-shadow: none;
 }
 
 .kratos-nav-btn.active svg {
-  color: var(--accent-neon);
+  color: #cbd5e1 !important;
 }
 
 /* Content Area */
 .kratos-content {
   flex: 1;
   padding: 24px 28px;
-  max-width: 1400px;
+  max-width: none;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -325,7 +328,7 @@ body {
 .kratos-btn {
   background: var(--accent-purple);
   border: none;
-  color: #fff;
+  color: #09090b;
   font-family: var(--font-body);
   font-size: 12px;
   font-weight: 850;
@@ -339,13 +342,14 @@ body {
   gap: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  box-shadow: 0 4px 14px rgba(108, 92, 231, 0.2);
+  box-shadow: 0 4px 14px rgba(203, 213, 225, 0.15);
 }
 
 .kratos-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(108, 92, 231, 0.35);
-  background: #7d6dfa;
+  box-shadow: 0 6px 18px rgba(203, 213, 225, 0.3);
+  background: #fff;
+  color: #09090b;
 }
 
 .kratos-btn-neon {
@@ -595,4 +599,23 @@ input:checked + .kratos-slider:before {
 .zh-back-btn:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
+}
+
+/* Zenith Hub Typography & Back Button alignment */
+.zh-hub-title {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.zh-hub-subtitle {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
 }

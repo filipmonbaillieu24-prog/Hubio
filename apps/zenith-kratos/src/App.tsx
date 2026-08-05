@@ -1006,7 +1006,6 @@ export default function App() {
         <div className="kratos-glow-radial" />
         <div className="kratos-glow-purple" />
       </div>
-
       {/* Header */}
       <header className="kratos-header animate-slide-down" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '20px', marginBottom: '24px', background: 'transparent' }}>
         <div className="kratos-brand" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -1018,42 +1017,56 @@ export default function App() {
             <p className="zh-hub-subtitle">Strength & Conditioning voor {userName}</p>
           </div>
         </div>
-
-        <nav className="kratos-nav">
-          <button 
-            className={`kratos-nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            <LayoutDashboard size={13} /> Dashboard
-          </button>
-          <button 
-            className={`kratos-nav-btn ${activeTab === 'routines' ? 'active' : ''}`}
-            onClick={() => setActiveTab('routines')}
-          >
-            <Settings size={13} /> Routines
-          </button>
-          <button 
-            className={`kratos-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`}
-            onClick={() => setActiveTab('exercises')}
-          >
-            <Dumbbell size={13} /> Oefeningen
-          </button>
-          <button 
-            className={`kratos-nav-btn ${activeTab === 'logs' ? 'active' : ''}`}
-            onClick={() => setActiveTab('logs')}
-          >
-            <FileText size={13} /> Logboek
-          </button>
-          <button 
-            className={`kratos-nav-btn ${activeTab === 'download' ? 'active' : ''}`}
-            onClick={() => setActiveTab('download')}
-          >
-            <Smartphone size={13} /> Mobiele App
-          </button>
-        </nav>
       </header>
 
-      {/* Content */}
+      {/* Navigation tabs bar in Vigor-style */}
+      <nav className="kratos-nav" style={{ 
+        display: 'flex', 
+        gap: 8, 
+        background: 'rgba(255,255,255,0.02)', 
+        border: '1px solid rgba(255,255,255,0.05)', 
+        padding: '6px', 
+        borderRadius: '14px', 
+        margin: '0 28px 24px',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)'
+      }}>
+        <button 
+          className={`kratos-nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
+          style={{ flex: 1, justifyContent: 'center' }}
+        >
+          <LayoutDashboard size={13} /> Dashboard
+        </button>
+        <button 
+          className={`kratos-nav-btn ${activeTab === 'routines' ? 'active' : ''}`}
+          onClick={() => setActiveTab('routines')}
+          style={{ flex: 1, justifyContent: 'center' }}
+        >
+          <Settings size={13} /> Routines
+        </button>
+        <button 
+          className={`kratos-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`}
+          onClick={() => setActiveTab('exercises')}
+          style={{ flex: 1, justifyContent: 'center' }}
+        >
+          <Dumbbell size={13} /> Oefeningen
+        </button>
+        <button 
+          className={`kratos-nav-btn ${activeTab === 'logs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('logs')}
+          style={{ flex: 1, justifyContent: 'center' }}
+        >
+          <FileText size={13} /> Logboek
+        </button>
+        <button 
+          className={`kratos-nav-btn ${activeTab === 'download' ? 'active' : ''}`}
+          onClick={() => setActiveTab('download')}
+          style={{ flex: 1, justifyContent: 'center' }}
+        >
+          <Smartphone size={13} /> Mobiele App
+        </button>
+      </nav>      {/* Content */}
       <main className="kratos-content animate-fade-in">
         {/* Dynamic Wearable & Cardio Fatigue Warning Banner */}
         {((todaySleepQuality && todaySleepQuality < 75) || (todaySteps && todaySteps > 12000) || (currentPMC && currentPMC.tsb < -10)) && (

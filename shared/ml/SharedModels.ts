@@ -190,3 +190,56 @@ export async function trainAutoregModel(
   const y = await kratosAutoregModel.train(supabase, userId, x, [target], 0.15);
   return y[0] * 200.0;
 }
+
+// ==========================================================
+// 3. DUAL-SPORT FATIGUE MODEL (CR14)
+// ==========================================================
+
+function generateDualSportFatigueWeights() {
+  // Input (6): [cardioTSB/100, cardioATL/100, gymVolume7d/10000, sleepQuality/100, steps7d/100000, activeCalories/5000]
+  // Hidden: 6, Output: 1 (fatigue score 0..1)
+  const W1: number[][] = Array.from({ length: 6 }, () => new Array(6).fill(0));
+  const B1: number[] = new Array(6).fill(0.05);
+  const W2: number[][] = Array.from({ length: 6 }, () => new Array(1).fill(0));
+  const B2: number[] = [0.15];
+
+  for (let j = 0; j < 6; j++) {
+    W1[0][j] = -0.8;  // High TSB = less fatigued (negative correlation)
+    W1[1][j] = 0.7;   // High cardio ATL = more fatigued
+    W1[2][j] = 0.6;   // High gym volume = more fatigued
+    W1[3][j] = -0.5;  // Good sleep quality = less fatigued
+    W1[4][j] = 0.3;   // Many steps = slight fatigue
+    W1[5][j] = 0.5;   // High active calories = more fatigued
+    W2[j][0] = 0.45;
+  }
+
+  return { W1, B1, W2, B2 };
+}
+
+export const dualSportFatigueModel = new SimpleMLP(
+  6, 6, 1, 'dual_sport_fatigue_weights', generateDualSportFatigueWeights
+);
+
+/**
+ * Predicts a combined dual-sport fatigue score (0..1).
+ * 0 = fully rested, 1 = extremely fatigued.
+ */
+export function predictDualSportFatigue(
+  cardioTSB: number,
+  cardioATL: number,
+  gymVolume7d: number,
+  sleepQuality: number,
+  steps7d: number,
+  activeCalories: number
+): number {
+  const x = [
+    Math.max(0, Math.min(1, (cardioTSB + 50) / 100)),
+    Math.min(1.5, cardioATL / 100),
+    Math.min(1.5, gymVolume7d / 10000),
+    Math.min(1.0, sleepQuality / 100),
+    Math.min(1.0, steps7d / 100000),
+    Math.min(1.5, activeCalories / 5000)
+  ];
+  const y = dualSportFatigueModel.predict(x);
+  return parseFloat(y[0].toFixed(2));
+}

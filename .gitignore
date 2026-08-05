@@ -4,19 +4,23 @@ dist/
 .env
 
 # Workspace ignores
-apps/aero/node_modules/
-apps/aero/dist/
-apps/aero/.env
-apps/aero/src-tauri/target/
+apps/zenith-aero/node_modules/
+apps/zenith-aero/dist/
+apps/zenith-aero/.env
+
+apps/zenith-hub/node_modules/
+apps/zenith-hub/dist/
+apps/zenith-hub/.env
+apps/zenith-hub/src-tauri/target/
 
 # Android build and local files
-apps/pilot/.gradle/
-apps/pilot/build/
-apps/pilot/app/build/
-apps/pilot/local.properties
-apps/pilot/.idea/
-apps/pilot/*.iml
-apps/pilot/app/*.iml
+apps/zenith-pilot/.gradle/
+apps/zenith-pilot/build/
+apps/zenith-pilot/app/build/
+apps/zenith-pilot/local.properties
+apps/zenith-pilot/.idea/
+apps/zenith-pilot/*.iml
+apps/zenith-pilot/app/*.iml
 
 # System/IDE files
 .DS_Store

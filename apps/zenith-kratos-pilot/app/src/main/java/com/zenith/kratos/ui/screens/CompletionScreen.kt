@@ -40,7 +40,7 @@ fun CompletionScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var saveToTemplate by remember { mutableStateOf(false) }
+    var saveToTemplate by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
 
     // Parse duration
@@ -142,28 +142,48 @@ fun CompletionScreen(
                         items(exercises) { ex ->
                             val workingSets = ex.sets.filter { it.isCompleted }
                             if (workingSets.isNotEmpty()) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFF27272E), RoundedCornerShape(8.dp))
+                                        .padding(10.dp)
                                 ) {
                                     Text(
-                                        text = ex.name,
+                                        text = ex.name.replace(" - ", " • ").trim(),
                                         color = Color.White,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.padding(bottom = 8.dp)
                                     )
 
-                                    val summary = workingSets.joinToString(", ") { s ->
-                                        "${s.weightInput}kg x ${s.repsInput}"
+                                    // Display sets as a clean horizontal row of chips
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        workingSets.forEachIndexed { sIdx, s ->
+                                            val label = if (s.type == "warmup") {
+                                                val wPre = ex.sets.take(sIdx).count { it.type == "warmup" }
+                                                "W${wPre + 1}"
+                                            } else {
+                                                val workPre = ex.sets.take(sIdx).count { it.type == "working" }
+                                                "${workPre + 1}"
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Color(0x1AFFFFFF), RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "$label: ${s.weightInput}kg x ${s.repsInput}",
+                                                    color = ZenithSecondary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
                                     }
-                                    Text(
-                                        text = summary,
-                                        color = ZenithSecondary,
-                                        fontSize = 11.sp,
-                                        textAlign = TextAlign.End
-                                    )
                                 }
                             }
                         }
@@ -171,46 +191,6 @@ fun CompletionScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Save to template switch (Round 11)
-            if (templateId != null) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = ZenithSurface),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Sla wijzigingen op in template",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Past de routine-definitie aan met zojuist behaalde reps en gewichten.",
-                                color = ZenithSecondary,
-                                fontSize = 10.sp,
-                                lineHeight = 13.sp
-                            )
-                        }
-                        Switch(
-                            checked = saveToTemplate,
-                            onCheckedChange = { saveToTemplate = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = ZenithAccentNeon,
-                                checkedTrackColor = Color(0x3339FF14)
-                            )
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
 
             // Save button
             Button(

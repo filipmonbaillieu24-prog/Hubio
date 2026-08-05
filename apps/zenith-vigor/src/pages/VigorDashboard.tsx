@@ -1,0 +1,1464 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { supabase } from '../utils/supabaseClient';
+import { 
+  Scale, 
+  Moon, 
+  Footprints, 
+  Settings, 
+  Plus, 
+  ArrowLeft, 
+  Info,
+  Calendar,
+  Sparkles,
+  X,
+  Radio
+} from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  LineChart, 
+  Line, 
+  BarChart, 
+  Bar, 
+  AreaChart,
+  Area,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ReferenceLine 
+} from 'recharts';
+
+import { WeightScaleConnector } from '../components/WeightScaleConnector';
+import { ManualLogModal } from '../components/ManualLogModal';
+import { ProfileSettings } from '../components/ProfileSettings';
+import ColmiRingConnector from '../components/ColmiRingConnector';
+
+interface VigorDashboardProps {
+  session: any;
+}
+
+export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
+  const user = session.user;
+  const [dbProfile, setDbProfile] = useState<any>(null);
+  const userName = dbProfile?.name || user.user_metadata?.name || user.user_metadata?.fitness_profile?.name || 'Atleet';
+
+  // Navigation tab state
+  const [currentTab, setCurrentTab] = useState<'home' | 'weight' | 'sleep' | 'steps'>('home');
+
+  // Pre-received native weight/metrics to solve race conditions
+  const [initialWeight, setInitialWeight] = useState<number | null>(null);
+  const [initialMetrics, setInitialMetrics] = useState<any>(null);
+
+  // Modals state
+  const [showSettings, setShowSettings] = useState(false);
+  const [showManualLog, setShowManualLog] = useState(false);
+  const [showScaleConnect, setShowScaleConnect] = useState(false);
+  const [showRingConnect, setShowRingConnect] = useState(false);
+
+  // Profile data
+  const [profile, setProfile] = useState<any>({
+    height: 180,
+    target_weight: 75.0,
+    target_steps: 10000,
+    target_sleep_hours: 8.0
+  });
+
+  // Health logs
+  const [weights, setWeights] = useState<any[]>([]);
+  const [sleeps, setSleeps] = useState<any[]>([]);
+  const [steps, setSteps] = useState<any[]>([]);
+
+  // Loading
+  const [loading, setLoading] = useState(true);
+
+  // Auto-connect BLE scale state
+  const [autoConnectedDevice, setAutoConnectedDevice] = useState<any>(null);
+  const [backgroundConnecting, setBackgroundConnecting] = useState(false);
+  const [bgStatus, setBgStatus] = useState('Stand-by');
+
+  // Logs management state
+  const [editingLog, setEditingLog] = useState<{ type: 'weight' | 'sleep' | 'steps'; item: any } | null>(null);
+
+  // Edit fields state
+  const [editDate, setEditDate] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [editBodyFat, setEditBodyFat] = useState('');
+  const [editSteps, setEditSteps] = useState('');
+  const [editSleepHours, setEditSleepHours] = useState('');
+  const [editSleepMinutes, setEditSleepMinutes] = useState('');
+  const [editSleepQuality, setEditSleepQuality] = useState('');
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      // Fetch public.profiles (SSOT)
+      const { data: profData, error: profError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profError) throw profError;
+      if (profData) {
+        setDbProfile({
+          height: profData.height_cm,
+          gender: profData.gender,
+          birthDate: profData.birth_date,
+          name: profData.name
+        });
+      }
+
+      const { data, error } = await supabase
+        .from('vigor_profile')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      if (data) setProfile(data);
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    }
+  }, [user.id]);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      // 1. Fetch Weight Logs
+      const { data: weightData, error: wError } = await supabase
+        .from('vigor_weight')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('logged_at', { ascending: true })
+        .limit(30);
+      if (wError) throw wError;
+      setWeights(weightData || []);
+
+      // 2. Fetch Sleep Logs
+      const { data: sleepData, error: sError } = await supabase
+        .from('vigor_sleep')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('logged_at', { ascending: true })
+        .limit(30);
+      if (sError) throw sError;
+      setSleeps(sleepData || []);
+
+      // 3. Fetch Steps Logs
+      const { data: stepData, error: stError } = await supabase
+        .from('vigor_steps')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('logged_at', { ascending: true })
+        .limit(30);
+      if (stError) throw stError;
+      setSteps(stepData || []);
+
+    } catch (err) {
+      console.error('Error fetching logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user.id]);
+
+  // Load profile and logs on start
+  useEffect(() => {
+    fetchProfile();
+    fetchLogs();
+  }, [fetchProfile, fetchLogs]);
+
+  // Background Web BLE scanner for Yolanda/Qingniu scales
+  useEffect(() => {
+    const isNativeMode = window.parent && window.parent !== window;
+    if (isNativeMode) {
+      // Skip Web Bluetooth scan if running in Tauri native app
+      return;
+    }
+
+    const pairedScaleId = localStorage.getItem('vigor_paired_scale_id');
+    if (!pairedScaleId || autoConnectedDevice) return;
+
+    let scanTimeout: any;
+
+    async function tryAutoConnect() {
+      if (!(navigator as any).bluetooth) {
+        console.log("Web Bluetooth not supported on this browser.");
+        return;
+      }
+
+      console.log("Auto-connecting to previously paired scale:", pairedScaleId);
+      setBackgroundConnecting(true);
+      setBgStatus('Zoeken...');
+
+      try {
+        // Yolanda/Qingniu scale advertises custom FFF0 service
+        const device = await (navigator as any).bluetooth.requestDevice({
+          filters: [{ services: ['0000fff0-0000-1000-8000-00805f9b34fb'] }],
+          optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
+        });
+
+        if (device.id === pairedScaleId) {
+          console.log("Device found, connecting...");
+          setBgStatus('Verbinden...');
+          const server = await device.gatt?.connect();
+          
+          if (server) {
+            console.log("GATT Server connected!");
+            setAutoConnectedDevice(device);
+            setBgStatus('Verbonden');
+
+            const service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
+            const characteristic = await service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb');
+            
+            await characteristic.startNotifications();
+            console.log("Notifications started!");
+
+            characteristic.addEventListener('characteristicvaluechanged', (event: any) => {
+              const value = event.target.value;
+              const bytes = new Uint8Array(value.buffer);
+              let foundWeight = null;
+    
+              if (bytes[0] === 0x12 && bytes.length >= 17) {
+                const rawW = (bytes[13] << 8 | bytes[14]);
+                const w1314 = Math.round((rawW / 28.82) * 100) / 100;
+                if (w1314 >= 40 && w1314 <= 150) foundWeight = w1314;
+              } else if (bytes.length >= 17) {
+                const w1516 = (bytes[15] << 8 | bytes[16]) / 100;
+                if (w1516 >= 40 && w1516 <= 150) foundWeight = w1516;
+              }
+    
+              // Heuristic scan for non-0x12 packets
+              if (!foundWeight && bytes[0] !== 0x12) {
+                if (bytes.length >= 6) {
+                  const w34 = (bytes[3] << 8 | bytes[4]) / 100;
+                  if (w34 >= 40 && w34 <= 150) foundWeight = w34;
+                }
+                if (!foundWeight && bytes.length >= 3) {
+                  const w12 = (bytes[1] << 8 | bytes[2]) / 100;
+                  if (w12 >= 40 && w12 <= 150) foundWeight = w12;
+                }
+              }
+
+              if (foundWeight) {
+                console.log("Auto-connect weight received:", foundWeight);
+                setCurrentTab('weight'); // Switch to weight view
+                setShowScaleConnect(true);
+              }
+            });
+
+            device.addEventListener('gattserverdisconnected', () => {
+              console.log("Device disconnected!");
+              setAutoConnectedDevice(null);
+              setBgStatus('Verbinding verbroken');
+              setBackgroundConnecting(false);
+            });
+          }
+        } else {
+          console.log("Found device does not match paired scale ID.");
+          setBackgroundConnecting(false);
+          setBgStatus('Mislukt (Id mismatch)');
+        }
+
+      } catch (err) {
+        console.error("Auto connect failed:", err);
+        setBackgroundConnecting(false);
+        setBgStatus('Niet gevonden');
+      }
+    }
+
+    tryAutoConnect();
+
+    return () => {
+      clearTimeout(scanTimeout);
+    };
+  }, [autoConnectedDevice]);
+
+  // Listen for native Tauri BLE weight events (direct or forwarded via parent window postMessage)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let unlistenMetrics: (() => void) | null = null;
+
+    async function setupTauriListener() {
+      if ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__) {
+        try {
+          const { listen } = await import('@tauri-apps/api/event');
+          unlisten = await listen('native-weight-received', (event: any) => {
+            const payload = event.payload as { weight: number };
+            console.log("Dashboard received native weight from Tauri Rust:", payload.weight);
+            sessionStorage.setItem('vigor_last_weight', payload.weight.toString());
+            setInitialWeight(payload.weight);
+            setCurrentTab('weight'); // Switch to weight tab
+            setShowScaleConnect(true);
+          });
+          unlistenMetrics = await listen('native-metrics-received', (event: any) => {
+            const payload = event.payload as { body_fat: number, water: number, impedance: number };
+            console.log("Dashboard received native metrics from Tauri Rust:", payload);
+            sessionStorage.setItem('vigor_last_metrics', JSON.stringify(payload));
+            setInitialMetrics(payload);
+          });
+          setBgStatus('Native BLE weegschaal actief');
+        } catch (err) {
+          console.error("Failed to setup Tauri native BLE listener:", err);
+        }
+      }
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'native-weight-received') {
+        const weight = event.data.weight;
+        console.log("Dashboard received native weight forwarded from parent Hub:", weight);
+        sessionStorage.setItem('vigor_last_weight', weight.toString());
+        setInitialWeight(weight);
+        setCurrentTab('weight'); // Switch to weight tab
+        setShowScaleConnect(true);
+      } else if (event.data?.type === 'native-metrics-received') {
+        const payload = event.data.payload;
+        console.log("Dashboard received native metrics forwarded from parent Hub:", payload);
+        sessionStorage.setItem('vigor_last_metrics', JSON.stringify(payload));
+        setInitialMetrics(payload);
+      }
+    };
+
+    setupTauriListener();
+    window.addEventListener('message', handleMessage);
+
+    // Notify parent Hub that Vigor is mounted and ready to receive messages
+    console.log("Notifying parent Hub that Vigor dashboard is ready");
+    window.parent.postMessage({ type: 'vigor-dashboard-ready' }, '*');
+
+    return () => {
+      if (unlisten) unlisten();
+      if (unlistenMetrics) unlistenMetrics();
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  const handleEditClick = (type: 'weight' | 'sleep' | 'steps', item: any) => {
+    setEditingLog({ type, item });
+    setEditDate(item.logged_at.split('T')[0]);
+    if (type === 'weight') {
+      setEditWeight(item.weight.toString());
+      setEditBodyFat(item.body_fat ? item.body_fat.toString() : '');
+    } else if (type === 'steps') {
+      setEditSteps(item.step_count.toString());
+    } else if (type === 'sleep') {
+      setEditSleepHours(Math.floor(item.duration_minutes / 60).toString());
+      setEditSleepMinutes((item.duration_minutes % 60).toString());
+      setEditSleepQuality(item.quality_score ? item.quality_score.toString() : '75');
+    }
+  };
+
+  const handleUpdateLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLog) return;
+
+    const { type, item } = editingLog;
+    const table = `vigor_${type}`;
+
+    const payload: any = {
+      logged_at: new Date(editDate).toISOString()
+    };
+
+    if (type === 'weight') {
+      payload.weight = parseFloat(editWeight);
+      payload.body_fat = editBodyFat ? parseFloat(editBodyFat) : null;
+    } else if (type === 'steps') {
+      payload.step_count = parseInt(editSteps);
+    } else if (type === 'sleep') {
+      payload.duration_minutes = parseInt(editSleepHours) * 60 + parseInt(editSleepMinutes);
+      payload.quality_score = parseInt(editSleepQuality);
+    }
+
+    try {
+      const { error } = await supabase
+        .from(table)
+        .update(payload)
+        .eq('id', item.id);
+
+      if (error) throw error;
+      setEditingLog(null);
+      fetchLogs();
+    } catch (err: any) {
+      console.error('Error updating log:', err);
+      alert('Fout bij bijwerken: ' + err.message);
+    }
+  };
+
+  const handleDeleteLog = async (type: 'weight' | 'sleep' | 'steps', id: string) => {
+    const typeNames = { weight: 'gewichtsmeting', sleep: 'slaapmeting', steps: 'stappenmeting' };
+    if (window.confirm(`Weet u zeker dat u deze ${typeNames[type]} wilt verwijderen?`)) {
+      const table = `vigor_${type}`;
+      try {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+        fetchLogs();
+      } catch (err: any) {
+        console.error('Error deleting log:', err);
+        alert('Fout bij verwijderen: ' + err.message);
+      }
+    }
+  };
+
+  // Derived metrics
+  const latestWeight = useMemo(() => {
+    if (weights.length === 0) return null;
+    return weights[weights.length - 1];
+  }, [weights]);
+
+  // Weight Goal and Forecast calculations
+  const goalProgress = useMemo(() => {
+    if (weights.length === 0 || !profile?.target_weight) return null;
+
+    const oldest = weights[0];
+    const newest = weights[weights.length - 1];
+    const oldestWeight = parseFloat(oldest.weight);
+    const newestWeight = parseFloat(newest.weight);
+    const targetWeight = profile.target_weight;
+
+    const remainingWeight = Math.round((targetWeight - newestWeight) * 100) / 100;
+    const isWeightLoss = targetWeight < oldestWeight;
+
+    // Progress percentage
+    // For weight loss: start_weight is oldest. Current is newest. Target is target.
+    // Progress = ((oldest - newest) / (oldest - target)) * 100
+    // If they have reached or exceeded the goal, cap at 100%. If they moved backwards, min is 0.
+    let progressPct = 0;
+    const divisor = oldestWeight - targetWeight;
+    if (divisor !== 0) {
+      progressPct = ((oldestWeight - newestWeight) / divisor) * 100;
+    }
+    progressPct = Math.min(100, Math.max(0, Math.round(progressPct * 10) / 10));
+
+    // Calculate actual historical rate of change
+    const timeDiffMs = new Date(newest.logged_at).getTime() - new Date(oldest.logged_at).getTime();
+    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+    let ratePerWeek = 0;
+    let isFallbackRate = false;
+
+    if (timeDiffMs >= 24 * 60 * 60 * 1000 && weights.length >= 2) {
+      // At least 1 day has passed and we have multiple logs
+      const weeksDiff = timeDiffMs / oneWeekMs;
+      ratePerWeek = (newestWeight - oldestWeight) / weeksDiff;
+    }
+
+    // Fallback if rate is 0 or direction is wrong (e.g. they need to lose weight but are gaining, or vice versa)
+    const isIncorrectDirection = isWeightLoss ? ratePerWeek >= 0 : ratePerWeek <= 0;
+    if (Math.abs(ratePerWeek) < 0.05 || isIncorrectDirection) {
+      isFallbackRate = true;
+      ratePerWeek = isWeightLoss ? -0.5 : 0.25; // standard healthy pace
+    }
+
+    // Estimate weeks needed to reach goal
+    const weeksNeeded = remainingWeight / ratePerWeek;
+    
+    // Target date forecast
+    const forecastDate = new Date(new Date(newest.logged_at).getTime() + weeksNeeded * oneWeekMs);
+    const forecastDateStr = forecastDate.toLocaleDateString('nl-NL', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    return {
+      oldestWeight,
+      currentWeight: newestWeight,
+      targetWeight,
+      remainingWeight: Math.abs(remainingWeight),
+      isWeightLoss,
+      progressPct,
+      ratePerWeek: Math.round(Math.abs(ratePerWeek) * 100) / 100,
+      isFallbackRate,
+      forecastDateStr,
+    };
+  }, [weights, profile]);
+
+  const latestSleep = useMemo(() => {
+    if (sleeps.length === 0) return null;
+    return sleeps[sleeps.length - 1];
+  }, [sleeps]);
+
+  const latestSteps = useMemo(() => {
+    if (steps.length === 0) return null;
+    return steps[steps.length - 1];
+  }, [steps]);
+
+  // Formatted chart data
+  const chartWeightData = useMemo(() => {
+    return weights.map(w => {
+      const gewicht = parseFloat(w.weight);
+      const vet = w.body_fat ? parseFloat(w.body_fat) : null;
+      const vocht = w.water_percent ? parseFloat(w.water_percent) : null;
+      const spier = w.muscle_mass ? parseFloat(w.muscle_mass) : null;
+      let overig = null;
+      if (vet !== null && vocht !== null) {
+        overig = Math.max(0, Math.round((100 - vet - vocht) * 10) / 10);
+      }
+      return {
+        date: new Date(w.logged_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+        gewicht,
+        vet,
+        vocht,
+        spier,
+        overig
+      };
+    });
+  }, [weights]);
+
+  const chartSleepData = useMemo(() => {
+    return sleeps.map(s => ({
+      date: new Date(s.logged_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+      uren: Math.round((s.duration_minutes / 60) * 10) / 10,
+      kwaliteit: s.quality_score || 0,
+    }));
+  }, [sleeps]);
+
+  const chartStepData = useMemo(() => {
+    return steps.map(s => ({
+      date: new Date(s.logged_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+      stappen: s.step_count,
+    }));
+  }, [steps]);
+
+  // Handles adding weights via Neo scale BLE
+  const handleScaleWeightLogged = async (weight: number, bodyFat?: number, water?: number, muscle?: number) => {
+    try {
+      const { error } = await supabase.from('vigor_weight').insert({
+        user_id: user.id,
+        weight,
+        body_fat: bodyFat,
+        water_percent: water,
+        muscle_mass: muscle,
+        logged_at: new Date().toISOString()
+      });
+
+      if (error) throw error;
+      fetchLogs();
+    } catch (err) {
+      console.error('Error logging weight:', err);
+    }
+  };
+
+  // Handles saving manual entries (Steps, Sleep, Weight)
+  const handleManualSave = async (type: 'weight' | 'sleep' | 'steps', payload: any) => {
+    const table = `vigor_${type}`;
+    const { error } = await supabase.from(table).insert({
+      user_id: user.id,
+      ...payload
+    });
+
+    if (error) throw error;
+    fetchLogs();
+  };
+
+  const handleReturnToHub = () => {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'close-app' }, '*');
+    } else {
+      const isDev = import.meta.env.DEV;
+      window.location.href = isDev ? 'http://localhost:1420' : window.location.origin;
+    }
+  };
+
+  // Steps goal progress percentage
+  const stepsProgress = useMemo(() => {
+    if (!latestSteps) return 0;
+    const target = profile.target_steps || 10000;
+    return Math.min(Math.round((latestSteps.step_count / target) * 100), 100);
+  }, [latestSteps, profile.target_steps]);
+
+  // RENDER TABS
+  const renderHomeTab = () => {
+    // Calculate BMI
+    const heightInMeters = (profile.height || 180) / 100;
+    const bmi = latestWeight ? Math.round((latestWeight.weight / (heightInMeters * heightInMeters)) * 10) / 10 : null;
+    let bmiCategory = '';
+    let bmiColor = '';
+    if (bmi) {
+      if (bmi < 18.5) { bmiCategory = 'Ondergewicht'; bmiColor = '#3b82f6'; }
+      else if (bmi < 25.0) { bmiCategory = 'Gezond Gewicht'; bmiColor = '#cbd5e1'; }
+      else if (bmi < 30.0) { bmiCategory = 'Overgewicht'; bmiColor = '#f59e0b'; }
+      else { bmiCategory = 'Obesitas'; bmiColor = '#ef4444'; }
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in">
+        
+        {/* Quick Metrics Grid */}
+        <div className="vigor-grid">
+          {/* Card 1: Weight */}
+          <div className="vigor-card col-4" style={{ cursor: 'pointer' }} onClick={() => setCurrentTab('weight')}>
+            <div className="metric-header">
+              <span className="metric-title">Gewicht</span>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(203, 213, 225, 0.08)', border: '1px solid rgba(203, 213, 225, 0.2)' }}>
+                <Scale size={18} style={{ color: '#cbd5e1' }} />
+              </div>
+            </div>
+            <div className="metric-value-container">
+              <span className="metric-value">{latestWeight ? latestWeight.weight : '--'}</span>
+              <span className="metric-unit">kg</span>
+            </div>
+            {latestWeight && latestWeight.body_fat && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, display: 'flex', gap: 12 }}>
+                <span>Vet: <strong>{latestWeight.body_fat}%</strong></span>
+                {latestWeight.muscle_mass && <span>Spier: <strong>{latestWeight.muscle_mass}%</strong></span>}
+              </div>
+            )}
+            <div className="metric-footer" style={{ marginTop: latestWeight && latestWeight.body_fat ? 0 : 20 }}>
+              <Calendar size={12} />
+              <span>
+                {latestWeight 
+                  ? `Gemeten op ${new Date(latestWeight.logged_at).toLocaleDateString('nl-NL')}`
+                  : 'Nog geen meting'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Steps */}
+          <div className="vigor-card col-4" style={{ cursor: 'pointer' }} onClick={() => setCurrentTab('steps')}>
+            <div className="metric-header">
+              <span className="metric-title">Dagelijkse Stappen</span>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(92, 124, 250, 0.08)', border: '1px solid rgba(92, 124, 250, 0.2)' }}>
+                <Footprints size={18} style={{ color: '#5c7cfa' }} />
+              </div>
+            </div>
+            <div className="metric-value-container">
+              <span className="metric-value">{latestSteps ? latestSteps.step_count.toLocaleString() : '0'}</span>
+              <span className="metric-unit">/ {profile.target_steps?.toLocaleString() || '10.000'}</span>
+            </div>
+            {latestSteps && (
+              <div style={{ margin: '8px 0 12px' }}>
+                <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${stepsProgress}%`, height: '100%', background: '#5c7cfa', borderRadius: 2 }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
+                  <span>Progressie</span>
+                  <span>{stepsProgress}%</span>
+                </div>
+              </div>
+            )}
+            <div className="metric-footer" style={{ marginTop: latestSteps ? 0 : 26 }}>
+              <Sparkles size={12} style={{ color: '#5c7cfa' }} />
+              <span>Doel: {profile.target_steps ? profile.target_steps.toLocaleString() : '10.000'} stappen</span>
+            </div>
+          </div>
+
+          {/* Card 3: Sleep */}
+          <div className="vigor-card col-4" style={{ cursor: 'pointer' }} onClick={() => setCurrentTab('sleep')}>
+            <div className="metric-header">
+              <span className="metric-title">Slaap</span>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                <Moon size={18} style={{ color: '#a855f7' }} />
+              </div>
+            </div>
+            <div className="metric-value-container">
+              <span className="metric-value">
+                {latestSleep ? Math.floor(latestSleep.duration_minutes / 60) : '--'}
+              </span>
+              <span className="metric-unit">u {latestSleep ? latestSleep.duration_minutes % 60 : ''}m</span>
+            </div>
+            {latestSleep && latestSleep.quality_score && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+                Kwaliteit: <strong style={{ color: '#a855f7' }}>{latestSleep.quality_score}/100</strong>
+              </div>
+            )}
+            <div className="metric-footer" style={{ marginTop: latestSleep && latestSleep.quality_score ? 0 : 20 }}>
+              <Moon size={12} style={{ color: '#a855f7' }} />
+              <span>Doel: {profile.target_sleep_hours || 8} uur</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Vitaliteit Doelen & BMI */}
+        <div className="vigor-grid">
+          <div className="vigor-card col-6">
+            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', marginBottom: 16 }}>
+              Body Mass Index (BMI)
+            </h3>
+            {bmi ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: '32px', fontWeight: 900, fontFamily: 'Outfit' }}>{bmi}</span>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: bmiColor, background: bmiColor + '15', padding: '4px 10px', borderRadius: '6px', border: '1px solid ' + bmiColor + '20' }}>
+                    {bmiCategory}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Berekend op basis van je lengte van <strong>{profile.height} cm</strong> en je meest recente gewichtsmeting.
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '12px 0' }}>
+                Voer een gewichtsmeting en lengte in om uw BMI te berekenen.
+              </div>
+            )}
+          </div>
+
+          <div className="vigor-card col-6">
+            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', marginBottom: 16 }}>
+              Vitaliteitsdoelen Status
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Doelgewicht:</span>
+                <span style={{ fontWeight: 800, color: '#cbd5e1' }}>{profile.target_weight ? profile.target_weight + ' kg' : '--'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Stappendoel:</span>
+                <span style={{ fontWeight: 800, color: '#5c7cfa' }}>{profile.target_steps ? profile.target_steps.toLocaleString() : '10.000'} stappen</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Slaapdoel:</span>
+                <span style={{ fontWeight: 800, color: '#a855f7' }}>{profile.target_sleep_hours || 8} uur/nacht</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
+  const renderWeightTab = () => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in">
+        
+        {/* Goal Progress Summary Card */}
+        {goalProgress && (
+          <div className="vigor-card" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 40, padding: '32px 40px', border: '1px solid rgba(203, 213, 225, 0.12)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.35)' }}>
+            
+            {/* Left section: Header & description */}
+            <div style={{ flex: '1.2', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '1.5px' }}>
+                  Doelvoortgang
+                </span>
+                {goalProgress.isFallbackRate && (
+                  <span style={{ fontSize: 9, padding: '3px 8px', borderRadius: 6, background: 'var(--color-primary-dim)', color: 'var(--color-primary)', border: '1px solid rgba(203, 213, 225, 0.2)', fontWeight: 600 }}>
+                    Schatting (Standaard tempo)
+                  </span>
+                )}
+              </div>
+              <h2 style={{ fontSize: 24, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.3px', lineHeight: 1.2 }}>
+                Geschatte streefdatum:<br />
+                <span style={{ color: 'var(--color-primary-bright)', fontSize: 28, display: 'inline-block', marginTop: 4 }}>{goalProgress.forecastDateStr}</span>
+              </h2>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
+                {goalProgress.isWeightLoss 
+                  ? `Je hebt al ${Math.round((goalProgress.oldestWeight - goalProgress.currentWeight) * 10) / 10} kg verloren! Nog ${goalProgress.remainingWeight} kg te gaan tot je streefgewicht van ${goalProgress.targetWeight} kg.`
+                  : `Je hebt al ${Math.round((goalProgress.currentWeight - goalProgress.oldestWeight) * 10) / 10} kg gewonnen! Nog ${goalProgress.remainingWeight} kg te gaan tot je streefgewicht van ${goalProgress.targetWeight} kg.`
+                }
+              </p>
+            </div>
+
+            {/* Middle section: Spaced out metrics cards */}
+            <div style={{ flex: '1', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, alignSelf: 'stretch', alignItems: 'center' }}>
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Start</span>
+                <strong style={{ fontSize: 16, color: '#fff', fontWeight: 800 }}>{goalProgress.oldestWeight} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>kg</span></strong>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Huidig</span>
+                <strong style={{ fontSize: 16, color: '#fff', fontWeight: 800 }}>{goalProgress.currentWeight} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>kg</span></strong>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Tempo</span>
+                <strong style={{ fontSize: 16, color: 'var(--color-primary-bright)', fontWeight: 800 }}>{goalProgress.ratePerWeek} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>kg/wk</span></strong>
+              </div>
+            </div>
+
+            {/* Right section: Larger Circular Progress Ring */}
+            <div style={{ position: 'relative', width: 96, height: 96, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="96" height="96" viewBox="0 0 96 96" style={{ transform: 'rotate(-90deg)' }}>
+                {/* Background circle */}
+                <circle 
+                  cx="48" 
+                  cy="48" 
+                  r="42" 
+                  fill="transparent" 
+                  stroke="rgba(255,255,255,0.03)" 
+                  strokeWidth="6.5" 
+                />
+                {/* Progress circle */}
+                <circle 
+                  cx="48" 
+                  cy="48" 
+                  r="42" 
+                  fill="transparent" 
+                  stroke="var(--color-primary-bright)" 
+                  strokeWidth="6.5" 
+                  strokeDasharray={`${2 * Math.PI * 42}`}
+                  strokeDashoffset={`${2 * Math.PI * 42 * (1 - goalProgress.progressPct / 100)}`}
+                  strokeLinecap="round"
+                  style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+                />
+              </svg>
+              <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <span style={{ fontSize: 16, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{goalProgress.progressPct}%</span>
+                <span style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>doel</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Charts Grid */}
+        <div className="vigor-grid">
+          {/* Weight trend chart */}
+          <div className="vigor-card col-6" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', margin: 0 }}>
+                Gewichtsverloop (kg)
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowManualLog(true);
+                }} 
+                className="btn-secondary" 
+                style={{ padding: '6px 12px', fontSize: 11, height: 'auto' }}
+              >
+                <Plus size={12} /> Log Gewicht
+              </button>
+            </div>
+            <div style={{ height: 240, width: '100%' }}>
+              {weights.length === 0 ? (
+                <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                  <Info size={14} style={{ marginRight: 6 }} /> Geen gewichtsgegevens om trends te tekenen.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartWeightData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                    <YAxis stroke="var(--text-muted)" domain={['dataMin - 2', 'dataMax + 2']} fontSize={10} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ background: '#1c1c23', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, color: '#fff' }}
+                      labelStyle={{ fontWeight: 800, color: '#cbd5e1', marginBottom: 4 }}
+                    />
+                    {profile.target_weight && (
+                      <ReferenceLine y={profile.target_weight} stroke="rgba(239, 68, 68, 0.4)" strokeDasharray="3 3" label={{ value: `Doel: ${profile.target_weight}kg`, fill: '#ef4444', fontSize: 9, position: 'right' }} />
+                    )}
+                    <Line type="monotone" dataKey="gewicht" stroke="#cbd5e1" strokeWidth={2.5} dot={{ r: 4, stroke: '#cbd5e1', strokeWidth: 1.5, fill: '#09090b' }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Lichaamssamenstelling trend chart */}
+          <div className="vigor-card col-6" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', marginBottom: 20 }}>
+              Lichaamssamenstelling (%)
+            </h3>
+            <div style={{ height: 240, width: '100%' }}>
+              {weights.length === 0 ? (
+                <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                  <Info size={14} style={{ marginRight: 6 }} /> Geen gegevens om trends te tekenen.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartWeightData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorVet" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05}/>
+                      </linearGradient>
+                      <linearGradient id="colorVocht" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#00f5ff" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#00f5ff" stopOpacity={0.05}/>
+                      </linearGradient>
+                      <linearGradient id="colorOverig" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#64748b" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#64748b" stopOpacity={0.02}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                    <YAxis stroke="var(--text-muted)" domain={[0, 100]} fontSize={10} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ background: '#1c1c23', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, color: '#fff' }}
+                    />
+                    {/* Areas stacked to exactly 100% */}
+                    <Area type="monotone" name="Vet %" dataKey="vet" stackId="1" stroke="#ef4444" strokeWidth={1.5} fill="url(#colorVet)" />
+                    <Area type="monotone" name="Vocht %" dataKey="vocht" stackId="1" stroke="#00f5ff" strokeWidth={1.5} fill="url(#colorVocht)" />
+                    <Area type="monotone" name="Overig %" dataKey="overig" stackId="1" stroke="#64748b" strokeWidth={1.5} fill="url(#colorOverig)" />
+                    {/* Muscle % as a line overlaying the areas */}
+                    <Line type="monotone" name="Spier %" dataKey="spier" stroke="#cbd5e1" strokeWidth={2.5} dot={{ r: 4, stroke: '#cbd5e1', strokeWidth: 1.5, fill: '#09090b' }} activeDot={{ r: 6 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Weight history table */}
+        <div className="vigor-card col-12">
+          <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', marginBottom: 20 }}>
+            Gewichtsmetingen geschiedenis
+          </h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <th style={{ padding: '8px 12px' }}>Datum</th>
+                  <th style={{ padding: '8px 12px' }}>Gewicht</th>
+                  <th style={{ padding: '8px 12px' }}>Vet %</th>
+                  <th style={{ padding: '8px 12px' }}>Vocht %</th>
+                  <th style={{ padding: '8px 12px' }}>Spier %</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Acties</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...weights].reverse().slice(0, 15).map((w: any) => (
+                  <tr key={w.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>{new Date(w.logged_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 800, color: '#cbd5e1' }}>{w.weight} kg</td>
+                    <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>{w.body_fat ? w.body_fat + '%' : '--'}</td>
+                    <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>{w.water_percent ? w.water_percent + '%' : '--'}</td>
+                    <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>{w.muscle_mass ? w.muscle_mass + '%' : '--'}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      <button onClick={() => handleEditClick('weight', w)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10, marginRight: 8, height: 'auto' }}>Wijzig</button>
+                      <button onClick={() => handleDeleteLog('weight', w.id)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', height: 'auto' }}>Verwijder</button>
+                    </td>
+                  </tr>
+                ))}
+                {weights.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Nog geen gewichtsmetingen geregistreerd.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
+  const renderSleepTab = () => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in">
+        
+        {/* Sleep chart */}
+        <div className="vigor-card col-12" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', margin: 0 }}>
+              Slaapduur & Kwaliteitstrend
+            </h3>
+            <button 
+              onClick={() => {
+                setShowManualLog(true);
+              }} 
+              className="btn-secondary" 
+              style={{ padding: '6px 12px', fontSize: 11, height: 'auto', background: 'rgba(168, 85, 247, 0.08)', borderColor: '#a855f7', color: '#a855f7' }}
+            >
+              <Plus size={12} /> Log Slaap
+            </button>
+          </div>
+          <div style={{ height: 240, width: '100%' }}>
+            {sleeps.length === 0 ? (
+              <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                <Info size={14} style={{ marginRight: 6 }} /> Geen slaapgegevens gevonden.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartSleepData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                  <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ background: '#1c1c23', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, color: '#fff' }}
+                    labelStyle={{ fontWeight: 800, color: '#a855f7', marginBottom: 4 }}
+                  />
+                  {profile.target_sleep_hours && (
+                    <ReferenceLine y={profile.target_sleep_hours} stroke="rgba(168, 85, 247, 0.4)" strokeDasharray="3 3" label={{ value: `Doel: ${profile.target_sleep_hours}u`, fill: '#a855f7', fontSize: 9, position: 'right' }} />
+                  )}
+                  <Bar dataKey="uren" fill="#a855f7" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Sleep history table */}
+        <div className="vigor-card col-12">
+          <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', marginBottom: 20 }}>
+            Slaapmetingen geschiedenis
+          </h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <th style={{ padding: '8px 12px' }}>Datum</th>
+                  <th style={{ padding: '8px 12px' }}>Slaapduur</th>
+                  <th style={{ padding: '8px 12px' }}>Kwaliteit</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Acties</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...sleeps].reverse().slice(0, 15).map((s: any) => (
+                  <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>{new Date(s.logged_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 800, color: '#a855f7' }}>{Math.floor(s.duration_minutes / 60)}u {s.duration_minutes % 60}m</td>
+                    <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>{s.quality_score ? s.quality_score + '/100' : '--'}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      <button onClick={() => handleEditClick('sleep', s)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10, marginRight: 8, height: 'auto' }}>Wijzig</button>
+                      <button onClick={() => handleDeleteLog('sleep', s.id)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', height: 'auto' }}>Verwijder</button>
+                    </td>
+                  </tr>
+                ))}
+                {sleeps.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Nog geen slaapmetingen geregistreerd.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
+  const renderStepsTab = () => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in">
+        
+        {/* Steps chart */}
+        <div className="vigor-card col-12" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', margin: 0 }}>
+              Stappentrend per dag
+            </h3>
+            <button 
+              onClick={() => {
+                setShowManualLog(true);
+              }} 
+              className="btn-secondary" 
+              style={{ padding: '6px 12px', fontSize: 11, height: 'auto', background: 'rgba(92, 124, 250, 0.08)', borderColor: '#5c7cfa', color: '#5c7cfa' }}
+            >
+              <Plus size={12} /> Log Stappen
+            </button>
+          </div>
+          <div style={{ height: 240, width: '100%' }}>
+            {steps.length === 0 ? (
+              <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                <Info size={14} style={{ marginRight: 6 }} /> Geen stappenlogs geregistreerd.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartStepData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                  <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ background: '#1c1c23', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, color: '#fff' }}
+                    labelStyle={{ fontWeight: 800, color: '#5c7cfa', marginBottom: 4 }}
+                  />
+                  {profile.target_steps && (
+                    <ReferenceLine y={profile.target_steps} stroke="rgba(92, 124, 250, 0.4)" strokeDasharray="3 3" />
+                  )}
+                  <Bar dataKey="stappen" fill="#5c7cfa" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Steps history table */}
+        <div className="vigor-card col-12">
+          <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', letterSpacing: '0.8px', marginBottom: 20 }}>
+            Stappenmetingen geschiedenis
+          </h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <th style={{ padding: '8px 12px' }}>Datum</th>
+                  <th style={{ padding: '8px 12px' }}>Stappen</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Acties</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...steps].reverse().slice(0, 15).map((s: any) => (
+                  <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', color: '#cbd5e1' }}>{new Date(s.logged_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 800, color: '#5c7cfa' }}>{s.step_count.toLocaleString()} stappen</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      <button onClick={() => handleEditClick('steps', s)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10, marginRight: 8, height: 'auto' }}>Wijzig</button>
+                      <button onClick={() => handleDeleteLog('steps', s.id)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', height: 'auto' }}>Verwijder</button>
+                    </td>
+                  </tr>
+                ))}
+                {steps.length === 0 && (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Nog geen stappenlogs geregistreerd.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
+  return (
+    <div className="vigor-container animate-fade-in">
+      <div className="vigor-glow" />
+
+      {/* Header section */}
+      <header className="vigor-header animate-slide-down" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '20px', marginBottom: '24px' }}>
+        <div className="vigor-brand" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={handleReturnToHub} className="zh-back-btn">
+            <ArrowLeft size={14} /> Hub
+          </button>
+          <div>
+            <h1 className="zh-hub-title" style={{ fontSize: 22 }}>ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 18 }}>VIGOR</span></h1>
+            <p className="zh-hub-subtitle">Health & Vitality Tracker voor {userName}</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {localStorage.getItem('vigor_paired_scale_id') && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: 4, lineHeight: 1.2 }}>
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Onthouden weegschaal:</span>
+              <span style={{ fontSize: 11, color: autoConnectedDevice ? '#ffffff' : '#cbd5e1', fontWeight: 800 }}>
+                {localStorage.getItem('vigor_paired_scale_name') || 'Neo Health Scale'}
+              </span>
+              <span style={{ fontSize: 9, color: autoConnectedDevice ? '#ffffff' : 'var(--text-muted)', marginTop: 2 }}>
+                {bgStatus}
+              </span>
+            </div>
+          )}
+          <button onClick={() => setShowSettings(true)} className="vigor-nav-btn" style={{ background: 'rgba(255, 255, 255, 0.03)', borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+            <Settings size={15} /> Doelen Instellen
+          </button>
+          <button onClick={() => setShowManualLog(true)} className="btn-secondary" style={{ padding: '10px 18px', fontSize: 13, height: '40px' }}>
+            <Plus size={16} /> Log Handmatig
+          </button>
+          {/* Scale auto connect button */}
+          {(() => {
+            const isNativeMode = window.parent && window.parent !== window;
+            return (
+              <button 
+                onClick={() => setShowScaleConnect(true)} 
+                className="btn-primary" 
+                style={{ 
+                  padding: '10px 18px', 
+                  fontSize: 13, 
+                  height: '40px',
+                  background: isNativeMode || autoConnectedDevice ? 'rgba(203, 213, 225, 0.08)' : backgroundConnecting ? 'rgba(92, 124, 250, 0.08)' : 'var(--color-primary)',
+                  borderColor: isNativeMode || autoConnectedDevice ? '#cbd5e1' : backgroundConnecting ? '#5c7cfa' : 'transparent',
+                  color: isNativeMode || autoConnectedDevice ? '#cbd5e1' : backgroundConnecting ? '#5c7cfa' : '#09090b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  border: isNativeMode || autoConnectedDevice || backgroundConnecting ? '1px solid' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Scale size={16} style={{ color: isNativeMode || autoConnectedDevice ? '#cbd5e1' : backgroundConnecting ? '#5c7cfa' : 'inherit' }} /> 
+                {isNativeMode || autoConnectedDevice ? 'Weegschaal Actief' : backgroundConnecting ? 'Zoeken...' : 'Neo Health Weegschaal'}
+              </button>
+            );
+          })()}
+
+          {/* Colmi R02 Smart Ring Button */}
+          <button 
+            onClick={() => setShowRingConnect(true)} 
+            className="btn-secondary" 
+            style={{ 
+              padding: '10px 18px', 
+              fontSize: 13, 
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              border: '1px solid rgba(92, 124, 250, 0.2)',
+              color: '#cbd5e1',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Radio size={16} style={{ color: '#5c7cfa' }} /> 
+            Colmi R02 Ring
+          </button>
+        </div>
+      </header>
+
+      {/* Navigation tabs bar */}
+      <nav style={{ 
+        display: 'flex', 
+        gap: 8, 
+        background: 'rgba(255,255,255,0.02)', 
+        border: '1px solid rgba(255,255,255,0.05)', 
+        padding: '6px', 
+        borderRadius: '14px', 
+        marginBottom: '24px',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)'
+      }}>
+        <button 
+          onClick={() => setCurrentTab('home')} 
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            borderRadius: '10px',
+            border: '1px solid ' + (currentTab === 'home' ? 'rgba(203, 213, 225, 0.25)' : 'transparent'),
+            fontSize: '13px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: currentTab === 'home' ? 'rgba(203, 213, 225, 0.08)' : 'transparent',
+            color: currentTab === 'home' ? '#fff' : 'var(--text-muted)'
+          }}
+        >
+          <Sparkles size={16} style={{ color: currentTab === 'home' ? '#cbd5e1' : 'inherit' }} /> Overzicht
+        </button>
+        <button 
+          onClick={() => setCurrentTab('weight')} 
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            borderRadius: '10px',
+            border: '1px solid ' + (currentTab === 'weight' ? 'rgba(57, 255, 20, 0.2)' : 'transparent'),
+            fontSize: '13px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: currentTab === 'weight' ? 'rgba(203, 213, 225, 0.06)' : 'transparent',
+            color: currentTab === 'weight' ? '#cbd5e1' : 'var(--text-muted)'
+          }}
+        >
+          <Scale size={16} /> Gewicht
+        </button>
+        <button 
+          onClick={() => setCurrentTab('steps')} 
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            borderRadius: '10px',
+            border: '1px solid ' + (currentTab === 'steps' ? 'rgba(92, 124, 250, 0.2)' : 'transparent'),
+            fontSize: '13px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: currentTab === 'steps' ? 'rgba(92, 124, 250, 0.06)' : 'transparent',
+            color: currentTab === 'steps' ? '#5c7cfa' : 'var(--text-muted)'
+          }}
+        >
+          <Footprints size={16} /> Stappen
+        </button>
+        <button 
+          onClick={() => setCurrentTab('sleep')} 
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            borderRadius: '10px',
+            border: '1px solid ' + (currentTab === 'sleep' ? 'rgba(168, 85, 247, 0.2)' : 'transparent'),
+            fontSize: '13px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: currentTab === 'sleep' ? 'rgba(168, 85, 247, 0.06)' : 'transparent',
+            color: currentTab === 'sleep' ? '#a855f7' : 'var(--text-muted)'
+          }}
+        >
+          <Moon size={16} /> Slaap
+        </button>
+      </nav>
+
+      {loading ? (
+        <div style={{ padding: '100px 0', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'Outfit' }}>
+          Gezondheidsgegevens synchroniseren...
+        </div>
+      ) : (
+        <>
+          {currentTab === 'home' && renderHomeTab()}
+          {currentTab === 'weight' && renderWeightTab()}
+          {currentTab === 'sleep' && renderSleepTab()}
+          {currentTab === 'steps' && renderStepsTab()}
+        </>
+      )}
+
+      {/* Wijzig Log Modal */}
+      {editingLog && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-slide-up" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Meting Wijzigen</h2>
+              <button className="modal-close" onClick={() => setEditingLog(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateLog} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="form-group">
+                <label className="form-label">Datum</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              {editingLog.type === 'weight' && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">Gewicht (kg)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      value={editWeight}
+                      onChange={(e) => setEditWeight(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Vetpercentage % (Optioneel)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="form-input"
+                      value={editBodyFat}
+                      onChange={(e) => setEditBodyFat(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              {editingLog.type === 'steps' && (
+                <div className="form-group">
+                  <label className="form-label">Aantal Stappen</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editSteps}
+                    onChange={(e) => setEditSteps(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              {editingLog.type === 'sleep' && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div className="form-group">
+                      <label className="form-label">Uren Slaap</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={editSleepHours}
+                        onChange={(e) => setEditSleepHours(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Minuten Slaap</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={editSleepMinutes}
+                        onChange={(e) => setEditSleepMinutes(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <label className="form-label">Slaapkwaliteit Score</label>
+                      <span style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 700 }}>{editSleepQuality}/100</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={editSleepQuality}
+                      onChange={(e) => setEditSleepQuality(e.target.value)}
+                      style={{ width: '100%', accentColor: '#cbd5e1' }}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                <button type="button" className="btn-secondary" onClick={() => setEditingLog(null)} style={{ flex: 1 }}>
+                  Annuleren
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }}>
+                  Wijzigingen Opslaan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modals Mounting */}
+      {showSettings && (
+        <ProfileSettings 
+          userId={user.id}
+          onClose={() => setShowSettings(false)}
+          onProfileUpdated={fetchProfile}
+        />
+      )}
+
+      {showManualLog && (
+        <ManualLogModal 
+          onClose={() => setShowManualLog(false)}
+          onSave={handleManualSave}
+        />
+      )}
+
+      {showRingConnect && (
+        <ColmiRingConnector 
+          onClose={() => setShowRingConnect(false)}
+          userId={user.id}
+          onSyncComplete={fetchLogs}
+        />
+      )}
+
+      {showScaleConnect && (
+        <WeightScaleConnector 
+          onClose={() => {
+            setShowScaleConnect(false);
+            setInitialWeight(null);
+            setInitialMetrics(null);
+            sessionStorage.removeItem('vigor_last_weight');
+            sessionStorage.removeItem('vigor_last_metrics');
+          }}
+          onWeightLogged={handleScaleWeightLogged}
+          autoConnectDevice={autoConnectedDevice}
+          initialWeight={initialWeight}
+          initialMetrics={initialMetrics}
+          fitnessProfile={dbProfile || user.user_metadata?.fitness_profile || {}}
+        />
+      )}
+
+    </div>
+  );
+};
+
+export default VigorDashboard;

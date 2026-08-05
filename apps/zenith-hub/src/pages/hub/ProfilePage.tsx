@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, User, AlertCircle, Check, Sparkles } from 'lucide-react';
+import { ArrowLeft, User, AlertCircle, Check, Sparkles } from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
 import './ProfilePage.css';
 import './ZenithHub.css';
@@ -108,10 +108,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {/* Background radial glow */}
       <div className="zh-hub-glow" style={{ background: 'radial-gradient(circle at 50% 30%, rgba(108, 92, 231, 0.08) 0%, transparent 60%)' }} />
 
-      {/* Header */}
       <header className="zh-hub-header animate-slide-down">
         <button onClick={onBack} className="zh-back-btn">
-          <ChevronLeft size={16} /> Terug naar Hub
+          <ArrowLeft size={14} /> Hub
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#64748b' }}>
           <Sparkles size={12} style={{ color: '#cbd5e1' }} />

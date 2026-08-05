@@ -1,0 +1,2419 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+  Plus, Trash2, Edit, BookOpen, ChefHat, Sparkles, Check, 
+  ShieldAlert, Clock, Barcode, Activity, ChevronLeft, ChevronRight
+} from 'lucide-react';
+import { supabase } from './utils/supabaseClient';
+import { runZaneCalibration, ZaneProfile, ZaneOutput, DailyLogData, saveZaneCoefficients } from './utils/zane';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+
+interface Ingredient {
+  id: string;
+  name: string;
+  barcode?: string;
+  calories_per_100g: number;
+  carbs_per_100g: number;
+  protein_per_100g: number;
+  fat_per_100g: number;
+  portion_name?: string;
+  portion_weight_grams?: number;
+  portions_per_package?: number;
+}
+
+interface Recipe {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  serving_size: string;
+  calories: number;
+  carbs: number;
+  protein: number;
+  fat: number;
+  ingredients: any[];
+  instructions: string[];
+}
+
+interface FoodLog {
+  id: string;
+  logged_at: string;
+  meal_type: string;
+  custom_name?: string;
+  recipe_id?: string;
+  quantity: number;
+  calories: number;
+  carbs: number;
+  protein: number;
+  fat: number;
+}
+
+interface DayState {
+  date: string;
+  is_complete: boolean;
+}
+
+// Date helper functions
+function getMonday(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+function addDays(d: Date, days: number): Date {
+  const result = new Date(d);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function formatDateString(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function App() {
+  // Auth & Session
+  const [loadingSession, setLoadingSession] = useState(true);
+  const [userId, setUserId] = useState<string>('');
+
+  // Active Tab: dashboard, logbook, ingredients, recipes
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'logbook' | 'ingredients' | 'recipes'>('dashboard');
+
+  // Weekly Navigation States
+  const [currentWeekMonday, setCurrentWeekMonday] = useState<Date>(() => getMonday(new Date()));
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => formatDateString(new Date()));
+
+  // Database Data
+  const [profile, setProfile] = useState<ZaneProfile>({
+    height: 175,
+    gender: 'other',
+    birthDate: '1990-01-01',
+    targetWeight: 75,
+    targetRateKgPerWeek: 0.5,
+    dietType: 'balanced'
+  });
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [weeklyFoodLogs, setWeeklyFoodLogs] = useState<FoodLog[]>([]);
+  const [weeklyDayStates, setWeeklyDayStates] = useState<DayState[]>([]);
+  const [weightLogs, setWeightLogs] = useState<any[]>([]);
+  const [sleepLogs, setSleepLogs] = useState<any[]>([]);
+  const [activeCaloriesMap, setActiveCaloriesMap] = useState<{ [date: string]: number }>({});
+  const [zaneHistory, setZaneHistory] = useState<any[]>([]);
+
+  // ZANE Output
+  const [zaneResult, setZaneResult] = useState<ZaneOutput>({
+    bmrOffset: 0,
+    sleepQualityCoeff: 0,
+    sleepDurationCoeff: 0,
+    calculatedAt: '',
+    isCalibrated: false,
+    calibrationDays: 0,
+    dailyCalorieTarget: 2000,
+    dailyCarbTarget: 250,
+    dailyProteinTarget: 100,
+    dailyFatTarget: 67
+  });
+
+  // UI States
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [showRecipeModal, setShowRecipeModal] = useState(false);
+  const [showIngredientModal, setShowIngredientModal] = useState(false);
+  const [showCopyDayModal, setShowCopyDayModal] = useState(false);
+  const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
+
+  // Editing States
+  const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null);
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+
+  // Autocomplete / Search States
+  const [logIngredientSearch, setLogIngredientSearch] = useState('');
+  const [showLogIngDropdown, setShowLogIngDropdown] = useState(false);
+  
+  const [logRecipeSearch, setLogRecipeSearch] = useState('');
+  const [showLogRecDropdown, setShowLogRecDropdown] = useState(false);
+  
+  const [recipeIngSearch, setRecipeIngSearch] = useState('');
+  const [showRecipeIngDropdown, setShowRecipeIngDropdown] = useState(false);
+
+  const [ingDatabaseSearch, setIngDatabaseSearch] = useState('');
+
+  // Copy Day Fields
+  const [copyTargetDate, setCopyTargetDate] = useState('');
+
+  // Quick Log Fields
+  const [logMealType, setLogMealType] = useState('breakfast');
+  const [logHour, setLogHour] = useState('08:00');
+  const [logSource, setLogSource] = useState<'quick' | 'ingredient' | 'recipe'>('quick');
+  const [quickName, setQuickName] = useState('');
+  const [quickCalories, setQuickCalories] = useState('');
+  const [quickCarbs, setQuickCarbs] = useState('');
+  const [quickProtein, setQuickProtein] = useState('');
+  const [quickFat, setQuickFat] = useState('');
+
+  // Log Ingredient Selection
+  const [selectedLogIngredient, setSelectedLogIngredient] = useState<string>('');
+  const [logIngredientWeightMode, setLogIngredientWeightMode] = useState<'grams' | 'portions'>('grams');
+  const [logIngredientWeightValue, setLogIngredientWeightValue] = useState('100');
+
+  // Log Recipe Selection
+  const [selectedLogRecipe, setSelectedLogRecipe] = useState<string>('');
+  const [logRecipeServings, setLogRecipeServings] = useState('1.0');
+
+  // Ingredient Form Fields
+  const [ingName, setIngName] = useState('');
+  const [ingBarcode, setIngBarcode] = useState('');
+  const [ingKcal, setIngKcal] = useState('');
+  const [ingCarbs, setIngCarbs] = useState('');
+  const [ingProtein, setIngProtein] = useState('');
+  const [ingFat, setIngFat] = useState('');
+  const [ingPortionName, setIngPortionName] = useState('');
+  const [ingPortionWeight, setIngPortionWeight] = useState('');
+  const [ingPortionsPackage, setIngPortionsPackage] = useState('');
+  const [barcodeSearching, setBarcodeSearching] = useState(false);
+
+  // Recipe Form Fields
+  const [recName, setRecName] = useState('');
+  const [recDesc, setRecDesc] = useState('');
+  const [recCategory, setRecCategory] = useState('baseline');
+  const [recServingSize, setRecServingSize] = useState('1 portie');
+  const [recIngredients, setRecIngredients] = useState<any[]>([]);
+  const [recInstructions, setRecInstructions] = useState<string[]>(['']);
+
+  // Dynamic helper values
+  const [selectedRecipeIngId, setSelectedRecipeIngId] = useState('');
+  const [recipeIngQty, setRecipeIngQty] = useState('100');
+  const [recipeIngMode, setRecipeIngMode] = useState<'grams' | 'portions'>('grams');
+
+  // Auth Handshake via Hash params
+  useEffect(() => {
+    async function handleAuthHandshake() {
+      const hash = window.location.hash;
+      let token: string | null = null;
+      let refresh: string | null = null;
+
+      if (hash) {
+        const params = new URLSearchParams(hash.replace('#', '?'));
+        token = params.get('access_token');
+        refresh = params.get('refresh_token');
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+
+      if (token && refresh) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: refresh
+        });
+
+        if (!error && data?.session) {
+          setUserId(data.session.user.id);
+          setLoadingSession(false);
+          return;
+        }
+      }
+
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession) {
+        setUserId(currentSession.user.id);
+      }
+      setLoadingSession(false);
+    }
+
+    handleAuthHandshake();
+  }, []);
+
+  // Show Temporary Notifications
+  const triggerNotification = (text: string, isError = false) => {
+    setNotification({ text, isError });
+    setTimeout(() => setNotification(null), 3500);
+  };
+
+  // Fetch Database Data
+  const fetchData = useCallback(async () => {
+    if (!userId) return;
+
+    try {
+      // 1. Fetch Profile
+      let { data: profileData, error: pError } = await supabase
+        .from('fuel_profile')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (pError && pError.code === 'PGRST116') {
+        const { data: userDetails } = await supabase.auth.getUser();
+        const profileMeta = userDetails?.user?.user_metadata || {};
+        const fitProfile = profileMeta.fitness_profile || {};
+
+        const defaultProfile = {
+          user_id: userId,
+          target_weight: fitProfile.weight || 75.0,
+          target_rate_kg_per_week: 0.5,
+          diet_type: 'balanced',
+          learned_bmr_offset: 0.0,
+          learned_sleep_quality_coeff: 0.0,
+          learned_sleep_duration_coeff: 0.0
+        };
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('fuel_profile')
+          .insert(defaultProfile)
+          .select()
+          .single();
+
+        if (!insertError) {
+          profileData = inserted;
+        }
+      }
+
+      const { data: vigorProfile } = await supabase
+        .from('vigor_profile')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      const heightVal = vigorProfile?.height || profileData?.height || 175;
+      const targetWeightVal = vigorProfile?.target_weight || profileData?.target_weight || 75;
+
+      setProfile({
+        height: heightVal,
+        gender: vigorProfile?.gender || 'other',
+        birthDate: vigorProfile?.birth_date || '1990-01-01',
+        targetWeight: targetWeightVal,
+        targetRateKgPerWeek: profileData?.target_rate_kg_per_week ?? 0.5,
+        dietType: profileData?.diet_type ?? 'balanced'
+      });
+
+      // 2. Fetch Ingredients
+      const { data: ingData } = await supabase
+        .from('fuel_ingredients')
+        .select('*')
+        .eq('user_id', userId)
+        .order('name');
+      setIngredients(ingData || []);
+
+      // 3. Fetch Recipes
+      const { data: recData } = await supabase
+        .from('fuel_recipes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('name');
+      setRecipes(recData || []);
+
+      // 4. Fetch Food Logs for the Viewed Week
+      const startOfWeek = new Date(currentWeekMonday);
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = addDays(startOfWeek, 7);
+
+      const { data: logData } = await supabase
+        .from('fuel_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('logged_at', startOfWeek.toISOString())
+        .lt('logged_at', endOfWeek.toISOString())
+        .order('logged_at');
+      setWeeklyFoodLogs(logData || []);
+
+      // 5. Fetch Daily Completeness Status for the Viewed Week
+      const startOfWeekStr = formatDateString(startOfWeek);
+      const endOfWeekStr = formatDateString(addDays(startOfWeek, 6));
+
+      const { data: completeData } = await supabase
+        .from('fuel_days')
+        .select('date, is_complete')
+        .eq('user_id', userId)
+        .gte('date', startOfWeekStr)
+        .lte('date', endOfWeekStr);
+      setWeeklyDayStates(completeData || []);
+
+      // 6. Fetch 30-Day weight logs from Vigor
+      const startOf30Days = new Date();
+      startOf30Days.setDate(startOf30Days.getDate() - 30);
+
+      const { data: wLogs } = await supabase
+        .from('vigor_weight')
+        .select('weight, logged_at')
+        .eq('user_id', userId)
+        .gte('logged_at', startOf30Days.toISOString())
+        .order('logged_at');
+      setWeightLogs(wLogs || []);
+
+      // 7. Fetch 30-Day sleep logs from Vigor
+      const { data: sLogs } = await supabase
+        .from('vigor_sleep')
+        .select('duration_minutes, quality_score, logged_at')
+        .eq('user_id', userId)
+        .gte('logged_at', startOf30Days.toISOString())
+        .order('logged_at');
+      setSleepLogs(sLogs || []);
+
+      // 8. Fetch active training calories for the viewed week
+      const { data: ridesData } = await supabase
+        .from('rides')
+        .select('date, metadata')
+        .eq('user_id', userId)
+        .gte('date', startOfWeek.getTime())
+        .lt('date', endOfWeek.getTime());
+
+      const { data: kratosData } = await supabase
+        .from('kratos_workouts')
+        .select('volume, completed_at')
+        .eq('user_id', userId)
+        .gte('completed_at', startOfWeek.toISOString())
+        .lt('completed_at', endOfWeek.toISOString());
+
+      const activeCalMap: { [date: string]: number } = {};
+      for (let i = 0; i < 7; i++) {
+        activeCalMap[formatDateString(addDays(startOfWeek, i))] = 0;
+      }
+
+      ridesData?.forEach((r: any) => {
+        let meta = r.metadata;
+        if (typeof meta === 'string') {
+          try { meta = JSON.parse(meta); } catch { meta = {}; }
+        }
+        const dStr = formatDateString(new Date(Number(r.date)));
+        if (activeCalMap[dStr] !== undefined) {
+          activeCalMap[dStr] += Number(meta?.calories ?? 0);
+        }
+      });
+
+      kratosData?.forEach((k: any) => {
+        const dStr = k.completed_at.split('T')[0];
+        if (activeCalMap[dStr] !== undefined) {
+          const kcal = Math.min(400, Math.max(100, Number(k.volume) * 0.15));
+          activeCalMap[dStr] += Math.round(kcal);
+        }
+      });
+
+      setActiveCaloriesMap(activeCalMap);
+
+      // 9. Fetch ZANE parameter history for chart
+      const { data: zHist } = await supabase
+        .from('fuel_zane_history')
+        .select('*')
+        .eq('user_id', userId)
+        .order('calculated_at', { ascending: true });
+      
+      const formattedHist = zHist?.map((h: any) => ({
+        date: new Date(h.calculated_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+        offset: Number(h.bmr_offset),
+        quality: Number(h.sleep_quality_coeff),
+        duration: Number(h.sleep_duration_coeff)
+      })) || [];
+      setZaneHistory(formattedHist);
+
+    } catch (err) {
+      console.error("Fout bij ophalen van gegevens:", err);
+    }
+  }, [userId, currentWeekMonday]);
+
+  useEffect(() => {
+    if (userId) {
+      fetchData();
+    }
+  }, [userId, fetchData]);
+
+  // Group food logs by date for card stats
+  const dailyCaloriesMap = useMemo(() => {
+    const map: { [date: string]: number } = {};
+    weeklyFoodLogs.forEach(log => {
+      const dStr = log.logged_at.split('T')[0];
+      map[dStr] = (map[dStr] || 0) + log.calories;
+    });
+    return map;
+  }, [weeklyFoodLogs]);
+
+  // Complete status map
+  const dailyCompletionMap = useMemo(() => {
+    const map: { [date: string]: boolean } = {};
+    weeklyDayStates.forEach(s => {
+      map[s.date] = s.is_complete;
+    });
+    return map;
+  }, [weeklyDayStates]);
+
+  const selectedDateActiveCalories = useMemo(() => activeCaloriesMap[selectedDateStr] || 0, [activeCaloriesMap, selectedDateStr]);
+  const selectedDateCaloriesIntake = useMemo(() => dailyCaloriesMap[selectedDateStr] || 0, [dailyCaloriesMap, selectedDateStr]);
+  const selectedDateComplete = useMemo(() => dailyCompletionMap[selectedDateStr] ?? true, [dailyCompletionMap, selectedDateStr]);
+
+  // Run ZANE Adaptive Calibration
+  useEffect(() => {
+    if (!userId) return;
+
+    const logsMap: { [date: string]: DailyLogData } = {};
+    const today = new Date();
+
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      logsMap[dateStr] = {
+        date: dateStr,
+        weight: null,
+        calories: 0,
+        activeCalories: 0,
+        sleepQuality: null,
+        sleepDurationHours: null,
+        isComplete: true
+      };
+    }
+
+    weightLogs.forEach(w => {
+      const dStr = w.logged_at.split('T')[0];
+      if (logsMap[dStr]) {
+        logsMap[dStr].weight = Number(w.weight);
+      }
+    });
+
+    sleepLogs.forEach(s => {
+      const dStr = s.logged_at.split('T')[0];
+      if (logsMap[dStr]) {
+        logsMap[dStr].sleepQuality = Number(s.quality_score);
+        logsMap[dStr].sleepDurationHours = Number(s.duration_minutes) / 60;
+      }
+    });
+
+    const fetchCalibrationLogs = async () => {
+      const startOf30Days = new Date();
+      startOf30Days.setDate(startOf30Days.getDate() - 30);
+      const startOf30DaysMs = startOf30Days.getTime();
+
+      const { data: foodHist } = await supabase
+        .from('fuel_logs')
+        .select('logged_at, calories')
+        .eq('user_id', userId)
+        .gte('logged_at', startOf30Days.toISOString());
+
+      foodHist?.forEach(f => {
+        const dStr = f.logged_at.split('T')[0];
+        if (logsMap[dStr]) {
+          logsMap[dStr].calories += Number(f.calories);
+        }
+      });
+
+      const { data: daysHist } = await supabase
+        .from('fuel_days')
+        .select('date, is_complete')
+        .eq('user_id', userId)
+        .gte('date', startOf30Days.toISOString().split('T')[0]);
+
+      daysHist?.forEach(d => {
+        if (logsMap[d.date]) {
+          logsMap[d.date].isComplete = d.is_complete;
+        }
+      });
+
+      // CR2: Fetch 30-Day rides for active calories calibration
+      const { data: ridesHist } = await supabase
+        .from('rides')
+        .select('date, metadata')
+        .eq('user_id', userId)
+        .gte('date', startOf30DaysMs);
+
+      ridesHist?.forEach(r => {
+        const dStr = new Date(Number(r.date)).toISOString().split('T')[0];
+        if (logsMap[dStr]) {
+          let meta = r.metadata;
+          if (typeof meta === 'string') {
+            try { meta = JSON.parse(meta); } catch { meta = {}; }
+          }
+          logsMap[dStr].activeCalories += Number(meta?.calories ?? 0);
+        }
+      });
+
+      // CR3: Fetch 30-Day Kratos gym workouts for active calories calibration
+      const { data: gymHist } = await supabase
+        .from('kratos_workouts')
+        .select('volume, completed_at')
+        .eq('user_id', userId)
+        .gte('completed_at', startOf30Days.toISOString());
+
+      gymHist?.forEach(k => {
+        const dStr = k.completed_at.split('T')[0];
+        if (logsMap[dStr]) {
+          const kcal = Math.min(400, Math.max(100, Number(k.volume) * 0.15));
+          logsMap[dStr].activeCalories += Math.round(kcal);
+        }
+      });
+
+      if (logsMap[selectedDateStr]) {
+        logsMap[selectedDateStr].calories = selectedDateCaloriesIntake;
+        logsMap[selectedDateStr].activeCalories = selectedDateActiveCalories;
+        logsMap[selectedDateStr].isComplete = selectedDateComplete;
+      }
+
+      // CR7: Determine today's training type dynamically for macro timing
+      let todayTrainingType: 'intense' | 'endurance' | 'rest' | null = 'rest';
+      if (selectedDateActiveCalories > 450) {
+        todayTrainingType = 'intense';
+      } else if (selectedDateActiveCalories > 150) {
+        todayTrainingType = 'endurance';
+      }
+
+      const activeProfile = {
+        ...profile,
+        todayTrainingType
+      };
+
+      const latestWeight = weightLogs[weightLogs.length - 1]?.weight || null;
+      const zOutput = runZaneCalibration(Object.values(logsMap), activeProfile, latestWeight);
+      setZaneResult(zOutput);
+
+      if (zOutput.isCalibrated) {
+        saveLearnedState(zOutput.bmrOffset, zOutput.sleepQualityCoeff, zOutput.sleepDurationCoeff);
+      }
+    };
+
+    fetchCalibrationLogs();
+  }, [userId, weightLogs, sleepLogs, weeklyFoodLogs, selectedDateActiveCalories, selectedDateCaloriesIntake, selectedDateComplete, profile, selectedDateStr]);
+
+  // Save ZANE coefficients to database
+  const saveLearnedState = async (offset: number, qCoeff: number, dCoeff: number) => {
+    try {
+      const todayDateStr = new Date().toISOString().split('T')[0];
+      
+      // Save to ml_weights (Fase 3 persistent backup)
+      await saveZaneCoefficients(supabase, userId, offset, qCoeff, dCoeff);
+
+      await supabase
+        .from('fuel_profile')
+        .update({
+          learned_bmr_offset: offset,
+          learned_sleep_quality_coeff: qCoeff,
+          learned_sleep_duration_coeff: dCoeff,
+          last_calculated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      const { data: existingHist } = await supabase
+        .from('fuel_zane_history')
+        .select('id')
+        .eq('user_id', userId)
+        .gte('calculated_at', todayDateStr + 'T00:00:00.000Z')
+        .limit(1);
+
+      if (!existingHist || existingHist.length === 0) {
+        await supabase
+          .from('fuel_zane_history')
+          .insert({
+            user_id: userId,
+            bmr_offset: offset,
+            sleep_quality_coeff: qCoeff,
+            sleep_duration_coeff: dCoeff,
+            calculated_at: new Date().toISOString()
+          });
+      }
+    } catch (err) {
+      console.error("ZANE status opslaan mislukt:", err);
+    }
+  };
+
+  // Toggle Selected Day Complete/Incomplete status
+  const handleToggleDayIncomplete = async () => {
+    const newIsCompleteStatus = !selectedDateComplete;
+
+    try {
+      const updatedStates = weeklyDayStates.some(s => s.date === selectedDateStr)
+        ? weeklyDayStates.map(s => s.date === selectedDateStr ? { ...s, is_complete: newIsCompleteStatus } : s)
+        : [...weeklyDayStates, { date: selectedDateStr, is_complete: newIsCompleteStatus }];
+      setWeeklyDayStates(updatedStates);
+
+      const { error } = await supabase
+        .from('fuel_days')
+        .upsert({
+          user_id: userId,
+          date: selectedDateStr,
+          is_complete: newIsCompleteStatus
+        }, { onConflict: 'user_id,date' });
+
+      if (error) throw error;
+      triggerNotification(newIsCompleteStatus ? "Dagregistratie gemarkeerd als compleet!" : "Dag gemarkeerd als onvolledig (uitgesloten van ZANE).");
+    } catch (err) {
+      console.error("Incompleetheid toggle mislukt:", err);
+      setWeeklyDayStates(weeklyDayStates);
+      triggerNotification("Actie mislukt. Probeer opnieuw.", true);
+    }
+  };
+
+  // Switch Weeks
+  const handlePrevWeek = () => {
+    const prevMon = addDays(currentWeekMonday, -7);
+    setCurrentWeekMonday(prevMon);
+    setSelectedDateStr(formatDateString(prevMon));
+  };
+
+  const handleNextWeek = () => {
+    const nextMon = addDays(currentWeekMonday, 7);
+    setCurrentWeekMonday(nextMon);
+    setSelectedDateStr(formatDateString(nextMon));
+  };
+
+  // Barcode Lookup via Open Food Facts API
+  const handleBarcodeLookup = async () => {
+    if (!ingBarcode.trim()) {
+      triggerNotification("Voer eerst een streepjescode in.", true);
+      return;
+    }
+
+    setBarcodeSearching(true);
+    try {
+      const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${ingBarcode}.json`);
+      const data = await response.json();
+
+      if (data.status === 1 && data.product) {
+        const prod = data.product;
+        setIngName(prod.product_name || '');
+        
+        const kcal = prod.nutriments?.['energy-kcal_100g'] || prod.nutriments?.energy_100g || '';
+        setIngKcal(kcal.toString());
+        setIngCarbs((prod.nutriments?.carbohydrates_100g || 0).toString());
+        setIngProtein((prod.nutriments?.proteins_100g || 0).toString());
+        setIngFat((prod.nutriments?.fat_100g || 0).toString());
+        
+        if (prod.serving_size) {
+          setIngPortionName("Portie");
+          const sizeGrams = parseFloat(prod.serving_size);
+          if (!isNaN(sizeGrams)) {
+            setIngPortionWeight(sizeGrams.toString());
+          }
+        }
+        triggerNotification("Product gevonden en geladen!");
+      } else {
+        triggerNotification("Product niet gevonden op Open Food Facts.", true);
+      }
+    } catch (err) {
+      console.error("EAN lookup mislukt:", err);
+      triggerNotification("Fout bij barcode netwerkverzoek.", true);
+    } finally {
+      setBarcodeSearching(false);
+    }
+  };
+
+  // Create or Update Ingredient
+  const handleSaveIngredient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ingName.trim()) return;
+
+    try {
+      const ingPayload = {
+        user_id: userId,
+        name: ingName,
+        barcode: ingBarcode || null,
+        calories_per_100g: parseFloat(ingKcal) || 0,
+        carbs_per_100g: parseFloat(ingCarbs) || 0,
+        protein_per_100g: parseFloat(ingProtein) || 0,
+        fat_per_100g: parseFloat(ingFat) || 0,
+        portion_name: ingPortionName || null,
+        portion_weight_grams: parseFloat(ingPortionWeight) || null,
+        portions_per_package: parseInt(ingPortionsPackage) || null
+      };
+
+      if (editingIngredientId) {
+        const { data, error } = await supabase
+          .from('fuel_ingredients')
+          .update(ingPayload)
+          .eq('id', editingIngredientId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setIngredients(ingredients.map(i => i.id === editingIngredientId ? data : i).sort((a, b) => a.name.localeCompare(b.name)));
+        triggerNotification("Ingrediënt bijgewerkt!");
+      } else {
+        const { data, error } = await supabase
+          .from('fuel_ingredients')
+          .insert(ingPayload)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setIngredients([...ingredients, data].sort((a, b) => a.name.localeCompare(b.name)));
+        triggerNotification("Ingrediënt toegevoegd!");
+      }
+
+      setShowIngredientModal(false);
+      resetIngredientForm();
+    } catch (err) {
+      console.error("Fout bij opslaan ingrediënt:", err);
+      triggerNotification("Fout bij opslaan ingrediënt.", true);
+    }
+  };
+
+  // Edit Ingredient Trigger
+  const handleEditIngredient = (ing: Ingredient) => {
+    setEditingIngredientId(ing.id);
+    setIngName(ing.name);
+    setIngBarcode(ing.barcode || '');
+    setIngKcal(ing.calories_per_100g.toString());
+    setIngCarbs(ing.carbs_per_100g.toString());
+    setIngProtein(ing.protein_per_100g.toString());
+    setIngFat(ing.fat_per_100g.toString());
+    setIngPortionName(ing.portion_name || '');
+    setIngPortionWeight(ing.portion_weight_grams?.toString() || '');
+    setIngPortionsPackage(ing.portions_per_package?.toString() || '');
+    setShowIngredientModal(true);
+  };
+
+  // Delete Ingredient
+  const handleDeleteIngredient = async (id: string) => {
+    if (!confirm("Weet u zeker dat u dit ingrediënt wilt verwijderen? Dit heeft geen invloed op reeds gelogde maaltijden.")) return;
+    try {
+      const { error } = await supabase
+        .from('fuel_ingredients')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setIngredients(ingredients.filter(i => i.id !== id));
+      triggerNotification("Ingrediënt verwijderd.");
+    } catch (err) {
+      console.error("Fout bij verwijderen ingrediënt:", err);
+      triggerNotification("Verwijderen mislukt.", true);
+    }
+  };
+
+  const resetIngredientForm = () => {
+    setEditingIngredientId(null);
+    setIngName('');
+    setIngBarcode('');
+    setIngKcal('');
+    setIngCarbs('');
+    setIngProtein('');
+    setIngFat('');
+    setIngPortionName('');
+    setIngPortionWeight('');
+    setIngPortionsPackage('');
+  };
+
+  // Add Ingredient to Recipe Form
+  const handleAddRecipeIngredient = () => {
+    if (!selectedRecipeIngId) return;
+    const ing = ingredients.find(i => i.id === selectedRecipeIngId);
+    if (!ing) return;
+
+    const qty = parseFloat(recipeIngQty) || 0;
+    
+    let finalGrams = qty;
+    if (recipeIngMode === 'portions' && ing.portion_weight_grams) {
+      finalGrams = qty * ing.portion_weight_grams;
+    }
+
+    const ratio = finalGrams / 100;
+    const item = {
+      ingredient_id: ing.id,
+      name: ing.name,
+      amount_g: finalGrams,
+      portion_count: recipeIngMode === 'portions' ? qty : 0,
+      use_portion: recipeIngMode === 'portions',
+      calories: Math.round(ing.calories_per_100g * ratio),
+      carbs: Math.round(ing.carbs_per_100g * ratio),
+      protein: Math.round(ing.protein_per_100g * ratio),
+      fat: Math.round(ing.fat_per_100g * ratio)
+    };
+
+    setRecIngredients([...recIngredients, item]);
+    setSelectedRecipeIngId('');
+    setRecipeIngSearch('');
+    setRecipeIngQty('100');
+  };
+
+  const handleRemoveRecipeIngredient = (idx: number) => {
+    setRecIngredients(recIngredients.filter((_, i) => i !== idx));
+  };
+
+  // Create or Update Recipe
+  const handleSaveRecipe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recName.trim() || recIngredients.length === 0) {
+      triggerNotification("Vul een naam in en voeg tenminste één ingrediënt toe.", true);
+      return;
+    }
+
+    const totalCal = recIngredients.reduce((sum, item) => sum + item.calories, 0);
+    const totalCarb = recIngredients.reduce((sum, item) => sum + item.carbs, 0);
+    const totalProt = recIngredients.reduce((sum, item) => sum + item.protein, 0);
+    const totalFat = recIngredients.reduce((sum, item) => sum + item.fat, 0);
+
+    try {
+      const recPayload = {
+        user_id: userId,
+        name: recName,
+        description: recDesc,
+        category: recCategory,
+        serving_size: recServingSize,
+        calories: totalCal,
+        carbs: totalCarb,
+        protein: totalProt,
+        fat: totalFat,
+        ingredients: recIngredients,
+        instructions: recInstructions.filter(i => i.trim() !== '')
+      };
+
+      if (editingRecipeId) {
+        const { data, error } = await supabase
+          .from('fuel_recipes')
+          .update(recPayload)
+          .eq('id', editingRecipeId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setRecipes(recipes.map(r => r.id === editingRecipeId ? data : r).sort((a, b) => a.name.localeCompare(b.name)));
+        triggerNotification("Recept bijgewerkt!");
+      } else {
+        const { data, error } = await supabase
+          .from('fuel_recipes')
+          .insert(recPayload)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setRecipes([...recipes, data].sort((a, b) => a.name.localeCompare(b.name)));
+        triggerNotification("Recept opgeslagen!");
+      }
+
+      setShowRecipeModal(false);
+      resetRecipeForm();
+    } catch (err) {
+      console.error("Recept opslaan mislukt:", err);
+      triggerNotification("Fout bij opslaan recept.", true);
+    }
+  };
+
+  // Edit Recipe Trigger
+  const handleEditRecipe = (rec: Recipe) => {
+    setEditingRecipeId(rec.id);
+    setRecName(rec.name);
+    setRecDesc(rec.description);
+    setRecCategory(rec.category);
+    setRecServingSize(rec.serving_size);
+    setRecIngredients(rec.ingredients);
+    setRecInstructions(rec.instructions.length > 0 ? rec.instructions : ['']);
+    setShowRecipeModal(true);
+  };
+
+  // Delete Recipe
+  const handleDeleteRecipe = async (id: string) => {
+    if (!confirm("Weet u zeker dat u dit recept wilt verwijderen?")) return;
+    try {
+      const { error } = await supabase
+        .from('fuel_recipes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setRecipes(recipes.filter(r => r.id !== id));
+      triggerNotification("Recept verwijderd.");
+    } catch (err) {
+      console.error("Fout bij verwijderen recept:", err);
+      triggerNotification("Verwijderen mislukt.", true);
+    }
+  };
+
+  const resetRecipeForm = () => {
+    setEditingRecipeId(null);
+    setRecName('');
+    setRecDesc('');
+    setRecCategory('baseline');
+    setRecServingSize('1 portie');
+    setRecIngredients([]);
+    setRecInstructions(['']);
+    setRecipeIngSearch('');
+  };
+
+  // Copy Food Logs from Active Day to Target Day
+  const handleCopyDay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (filteredFoodLogs.length === 0) {
+      triggerNotification("Geen maaltijden om te kopiëren.", true);
+      return;
+    }
+    if (!copyTargetDate) {
+      triggerNotification("Kies een doeldatum.", true);
+      return;
+    }
+
+    const newLogs = filteredFoodLogs.map(log => ({
+      user_id: userId,
+      logged_at: `${copyTargetDate}T${log.logged_at.split('T')[1]}`,
+      meal_type: log.meal_type,
+      custom_name: log.custom_name,
+      recipe_id: log.recipe_id || null,
+      quantity: log.quantity,
+      calories: log.calories,
+      carbs: log.carbs,
+      protein: log.protein,
+      fat: log.fat
+    }));
+
+    try {
+      const { data, error } = await supabase
+        .from('fuel_logs')
+        .insert(newLogs)
+        .select();
+
+      if (error) throw error;
+
+      // Update weekly logs state if target date is in the viewed week range
+      const startOfWeek = new Date(currentWeekMonday);
+      const endOfWeek = addDays(startOfWeek, 7);
+      const targetDateObj = new Date(copyTargetDate);
+
+      if (targetDateObj >= startOfWeek && targetDateObj < endOfWeek) {
+        setWeeklyFoodLogs(prev => [...prev, ...data].sort((a, b) => a.logged_at.localeCompare(b.logged_at)));
+      }
+
+      setShowCopyDayModal(false);
+      triggerNotification(`${newLogs.length} maaltijden gekopieerd naar ${new Date(copyTargetDate).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}!`);
+    } catch (err) {
+      console.error("Fout bij kopiëren van dag:", err);
+      triggerNotification("Kopiëren mislukt. Probeer opnieuw.", true);
+    }
+  };
+
+  // Add Log Entry
+  const handleAddFoodLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const logTimestamp = new Date(`${selectedDateStr}T${logHour}:00`).toISOString();
+
+    let entry: any = {
+      user_id: userId,
+      logged_at: logTimestamp,
+      meal_type: logMealType,
+      quantity: 1.0
+    };
+
+    if (logSource === 'quick') {
+      if (!quickName.trim()) return;
+      entry.custom_name = quickName;
+      entry.calories = parseFloat(quickCalories) || 0;
+      entry.carbs = parseFloat(quickCarbs) || 0;
+      entry.protein = parseFloat(quickProtein) || 0;
+      entry.fat = parseFloat(quickFat) || 0;
+    } else if (logSource === 'ingredient') {
+      const ing = ingredients.find(i => i.id === selectedLogIngredient);
+      if (!ing) return;
+      
+      const qty = parseFloat(logIngredientWeightValue) || 0;
+      let grams = qty;
+      if (logIngredientWeightMode === 'portions' && ing.portion_weight_grams) {
+        grams = qty * ing.portion_weight_grams;
+      }
+
+      const ratio = grams / 100;
+      entry.custom_name = ing.name;
+      entry.quantity = logIngredientWeightMode === 'portions' ? qty : grams / 100;
+      entry.calories = Math.round(ing.calories_per_100g * ratio);
+      entry.carbs = Math.round(ing.carbs_per_100g * ratio);
+      entry.protein = Math.round(ing.protein_per_100g * ratio);
+      entry.fat = Math.round(ing.fat_per_100g * ratio);
+    } else if (logSource === 'recipe') {
+      const rec = recipes.find(r => r.id === selectedLogRecipe);
+      if (!rec) return;
+
+      const servings = parseFloat(logRecipeServings) || 1.0;
+      entry.recipe_id = rec.id;
+      entry.custom_name = rec.name;
+      entry.quantity = servings;
+      entry.calories = Math.round(rec.calories * servings);
+      entry.carbs = Math.round(rec.carbs * servings);
+      entry.protein = Math.round(rec.protein * servings);
+      entry.fat = Math.round(rec.fat * servings);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('fuel_logs')
+        .insert(entry)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setWeeklyFoodLogs([...weeklyFoodLogs, data].sort((a, b) => a.logged_at.localeCompare(b.logged_at)));
+      setShowLogModal(false);
+      resetLogForm();
+      triggerNotification("Maaltijd geregistreerd!");
+    } catch (err) {
+      console.error("Loggen mislukt:", err);
+      triggerNotification("Fout bij opslaan log.", true);
+    }
+  };
+
+  const resetLogForm = () => {
+    setQuickName('');
+    setQuickCalories('');
+    setQuickCarbs('');
+    setQuickProtein('');
+    setQuickFat('');
+    setSelectedLogIngredient('');
+    setLogIngredientSearch('');
+    setSelectedLogRecipe('');
+    setLogRecipeSearch('');
+    setLogRecipeServings('1.0');
+    setLogIngredientWeightValue('100');
+  };
+
+  // Delete Log Entry
+  const handleDeleteLog = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('fuel_logs')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setWeeklyFoodLogs(weeklyFoodLogs.filter(f => f.id !== id));
+      triggerNotification("Log verwijderd.");
+    } catch (err) {
+      console.error("Fout bij verwijderen:", err);
+      triggerNotification("Actie mislukt.", true);
+    }
+  };
+
+  // Filter food logs for active date
+  const filteredFoodLogs = useMemo(() => {
+    return weeklyFoodLogs.filter(log => log.logged_at.split('T')[0] === selectedDateStr);
+  }, [weeklyFoodLogs, selectedDateStr]);
+
+  const intakeCalories = useMemo(() => filteredFoodLogs.reduce((sum, f) => sum + f.calories, 0), [filteredFoodLogs]);
+  const intakeCarbs = useMemo(() => filteredFoodLogs.reduce((sum, f) => sum + f.carbs, 0), [filteredFoodLogs]);
+  const intakeProtein = useMemo(() => filteredFoodLogs.reduce((sum, f) => sum + f.protein, 0), [filteredFoodLogs]);
+  const intakeFat = useMemo(() => filteredFoodLogs.reduce((sum, f) => sum + f.fat, 0), [filteredFoodLogs]);
+
+  const caloriesPercentage = Math.min(100, Math.round((intakeCalories / zaneResult.dailyCalorieTarget) * 100)) || 0;
+  const carbsPercentage = Math.min(100, Math.round((intakeCarbs / zaneResult.dailyCarbTarget) * 100)) || 0;
+  const proteinPercentage = Math.min(100, Math.round((intakeProtein / zaneResult.dailyProteinTarget) * 100)) || 0;
+  const fatPercentage = Math.min(100, Math.round((intakeFat / zaneResult.dailyFatTarget) * 100)) || 0;
+
+  const radius = 60;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (caloriesPercentage / 100) * circumference;
+
+  // Build the list of 7 days in the viewed week
+  const weekDays = useMemo(() => {
+    const days = [];
+    const weekdaysLong = ['Zondag', 'Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag'];
+    const weekdaysShort = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+    
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(currentWeekMonday, i);
+      const dStr = formatDateString(d);
+      days.push({
+        dateStr: dStr,
+        dayNum: d.getDate(),
+        dayShortName: weekdaysShort[d.getDay()],
+        dayLongName: weekdaysLong[d.getDay()],
+        calories: dailyCaloriesMap[dStr] || 0,
+        isComplete: dailyCompletionMap[dStr] ?? true
+      });
+    }
+    return days;
+  }, [currentWeekMonday, dailyCaloriesMap, dailyCompletionMap]);
+
+  const formattedWeekRange = useMemo(() => {
+    const mondayStr = currentWeekMonday.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' });
+    const sundayStr = addDays(currentWeekMonday, 6).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' });
+    return `Week van ${mondayStr} t/m ${sundayStr}`;
+  }, [currentWeekMonday]);
+
+  const selectedDateLongName = useMemo(() => {
+    const match = weekDays.find(d => d.dateStr === selectedDateStr);
+    if (!match) return '';
+    return `${match.dayLongName} ${new Date(selectedDateStr).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' })}`;
+  }, [weekDays, selectedDateStr]);
+
+  if (loadingSession) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#09090b' }}>
+        <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>
+          Zenith Fuel laden...
+        </div>
+      </div>
+    );
+  }
+
+  const handleClose = () => {
+    if (window.parent) {
+      window.parent.postMessage({ type: 'close-app' }, '*');
+    }
+  };
+
+  return (
+    <div className="fuel-container animate-fade-in">
+      <div className="fuel-glow" />
+      {/* TOP HEADER */}
+      <header className="fuel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div className="fuel-brand">
+          <button className="fuel-nav-btn" onClick={handleClose}>
+            Sluiten
+          </button>
+          <div className="fuel-logo">
+            <span>ZENITH</span> FUEL
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation tabs bar in Vigor-style */}
+      <div className="fuel-tabs" style={{ 
+        display: 'flex', 
+        gap: 8, 
+        background: 'rgba(255,255,255,0.02)', 
+        border: '1px solid rgba(255,255,255,0.05)', 
+        padding: '6px', 
+        borderRadius: '14px', 
+        marginBottom: '24px',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)'
+      }}>
+        {[
+          { id: 'dashboard', label: 'Dashboard', icon: <Sparkles size={14} /> },
+          { id: 'logbook', label: 'Logboek', icon: <BookOpen size={14} /> },
+          { id: 'ingredients', label: 'Ingrediënten', icon: <Barcode size={14} /> },
+          { id: 'recipes', label: 'Recepten', icon: <ChefHat size={14} /> }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            className={`fuel-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id as any)}
+            style={{ flex: 1, justifyContent: 'center' }}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {/* NOTIFICATION TOAST BANNER */}
+      {notification && (
+        <div 
+          className={`notification-banner ${notification.isError ? 'error' : ''} animate-slide-down`}
+          style={{ position: 'fixed', top: 20, right: 32, zIndex: 110 }}
+        >
+          {notification.isError ? <ShieldAlert size={16} /> : <Check size={16} />}
+          <span>{notification.text}</span>
+        </div>
+      )}
+
+      {/* DASHBOARD VIEW */}
+      {activeTab === 'dashboard' && (
+        <div className="fuel-grid">
+          {/* Main Calorie Ring */}
+          <div className="fuel-card col-6">
+            <h3 className="fuel-card-title">
+              <Activity size={14} style={{ color: 'var(--color-primary)' }} /> Caloriebalans ({new Date(selectedDateStr).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })})
+            </h3>
+            <div className="cal-balance-wrap">
+              <div className="cal-circle-container">
+                <svg width="140" height="140">
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    fill="transparent"
+                    stroke="rgba(255, 255, 255, 0.04)"
+                    strokeWidth="10"
+                  />
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    fill="transparent"
+                    stroke="var(--color-primary)"
+                    strokeWidth="10"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    transform="rotate(-90 70 70)"
+                    style={{ transition: 'stroke-dashoffset 0.3s' }}
+                  />
+                </svg>
+                <div className="cal-circle-text">
+                  <span className="cal-circle-val">{intakeCalories}</span>
+                  <span className="cal-circle-lbl">kcal in</span>
+                </div>
+              </div>
+
+              <div className="cal-details">
+                <div className="cal-detail-row">
+                  <span style={{ color: 'var(--text-muted)' }}>ZANE Calorie Doel</span>
+                  <span className="cal-detail-val">{zaneResult.dailyCalorieTarget} kcal</span>
+                </div>
+                <div className="cal-detail-row">
+                  <span style={{ color: 'var(--text-muted)' }}>Inname Totaal</span>
+                  <span className="cal-detail-val">{intakeCalories} kcal</span>
+                </div>
+                <div className="cal-detail-row">
+                  <span style={{ color: 'var(--text-muted)' }}>Resterend</span>
+                  <span className="cal-detail-val" style={{ color: 'var(--color-primary)' }}>
+                    {zaneResult.dailyCalorieTarget - intakeCalories} kcal
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Macros Progress Card */}
+          <div className="fuel-card col-6">
+            <h3 className="fuel-card-title">
+              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> Macronutriënten
+            </h3>
+            <div className="macro-list">
+              <div className="macro-bar-item">
+                <div className="macro-header">
+                  <span className="macro-name" style={{ color: 'var(--color-carb)' }}>Koolhydraten</span>
+                  <span className="macro-amounts">
+                    {intakeCarbs}g <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {zaneResult.dailyCarbTarget}g</span>
+                  </span>
+                </div>
+                <div className="macro-track">
+                  <div 
+                    className="macro-fill" 
+                    style={{ width: `${carbsPercentage}%`, background: 'var(--color-carb)' }} 
+                  />
+                </div>
+              </div>
+
+              <div className="macro-bar-item">
+                <div className="macro-header">
+                  <span className="macro-name" style={{ color: 'var(--color-protein)' }}>Eiwitten</span>
+                  <span className="macro-amounts">
+                    {intakeProtein}g <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {zaneResult.dailyProteinTarget}g</span>
+                  </span>
+                </div>
+                <div className="macro-track">
+                  <div 
+                    className="macro-fill" 
+                    style={{ width: `${proteinPercentage}%`, background: 'var(--color-protein)' }} 
+                  />
+                </div>
+              </div>
+
+              <div className="macro-bar-item">
+                <div className="macro-header">
+                  <span className="macro-name" style={{ color: 'var(--color-fat)' }}>Vetten</span>
+                  <span className="macro-amounts">
+                    {intakeFat}g <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {zaneResult.dailyFatTarget}g</span>
+                  </span>
+                </div>
+                <div className="macro-track">
+                  <div 
+                    className="macro-fill" 
+                    style={{ width: `${fatPercentage}%`, background: 'var(--color-fat)' }} 
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Calories Integration banner */}
+          {selectedDateActiveCalories > 0 && (
+            <div className="fuel-card col-12" style={{ padding: 14 }}>
+              <div className="integration-card">
+                <Activity className="integration-icon" size={18} />
+                <div className="integration-text">
+                  Ecosystem-synchronisatie: we hebben actieve trainingen gedetecteerd voor deze datum uit Aero/Kratos. 
+                  De baseline-energiebehoefte is automatisch met <strong>+{selectedDateActiveCalories} kcal</strong> verhoogd.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ZANE Calibration Card */}
+          <div className="fuel-card col-5">
+            <h3 className="fuel-card-title">
+              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> ZANE Status & Insights
+            </h3>
+            <div className="zane-insights-wrap">
+              <div className="zane-stat-grid">
+                <div className="zane-stat-item">
+                  <span className="zane-stat-lbl">BMR Offset</span>
+                  <div className="zane-stat-val" style={{ color: zaneResult.bmrOffset >= 0 ? '#55efc4' : '#ff7675' }}>
+                    {zaneResult.bmrOffset >= 0 ? `+${zaneResult.bmrOffset}` : zaneResult.bmrOffset} kcal
+                  </div>
+                </div>
+                <div className="zane-stat-item">
+                  <span className="zane-stat-lbl">Slaap Kwaliteit</span>
+                  <div className="zane-stat-val">
+                    {zaneResult.isCalibrated ? `${zaneResult.sleepQualityCoeff} kcal` : '--'}
+                  </div>
+                </div>
+                <div className="zane-stat-item">
+                  <span className="zane-stat-lbl">Slaap Duur</span>
+                  <div className="zane-stat-val">
+                    {zaneResult.isCalibrated ? `${zaneResult.sleepDurationCoeff} kcal` : '--'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="zane-feedback-text">
+                {zaneResult.isCalibrated ? (
+                  <>
+                    ZANE is volledig gekalibreerd op basis van <strong>{zaneResult.calibrationDays} dagen</strong> aan data. 
+                    Het algoritme past uw energiebehoefte direct aan op uw werkelijke metabolisme-afwijking en de kwaliteit van uw slaap.
+                  </>
+                ) : (
+                  <>
+                    Kalibratie status: <strong>{zaneResult.calibrationDays}/14 dagen</strong> compleet gelogd. 
+                    ZANE gebruikt momenteel standaard sportwetenschappelijke fallbacks en prior-factoren tot er voldoende data is voor de regressie-regels.
+                  </>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+                <input
+                  type="checkbox"
+                  id="dayIncompleteCheck"
+                  checked={!selectedDateComplete}
+                  onChange={handleToggleDayIncomplete}
+                  style={{ width: 18, height: 18, accentColor: 'var(--color-primary)', cursor: 'pointer' }}
+                />
+                <label htmlFor="dayIncompleteCheck" style={{ fontSize: 12, fontWeight: 700, cursor: 'pointer', color: !selectedDateComplete ? '#ff9f43' : 'var(--text-muted)' }}>
+                  Markeer deze dag als ONVOLLEDIG (sluit uit van ZANE regressie)
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* ZANE Evolution Chart Card */}
+          <div className="fuel-card col-7">
+            <h3 className="fuel-card-title">
+              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> ZANE Parameter Evolutie
+            </h3>
+            {zaneHistory.length < 2 ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, minHeight: 180, textAlign: 'center' }}>
+                Onvoldoende kalibratiegeschiedenis om de grafiek te tonen.<br />Voltooi de dagelijkse logs gedurende meerdere dagen om evolutie te plotten.
+              </div>
+            ) : (
+              <div style={{ width: '100%', height: 210 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={zaneHistory} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.03)" />
+                    <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                    <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ background: '#121218', borderColor: 'var(--border-color)', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ fontWeight: 800, color: 'var(--color-primary)' }}
+                    />
+                    <Line name="BMR Offset (kcal)" type="monotone" dataKey="offset" stroke="var(--color-primary)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                    <Line name="Kwaliteit Coeff" type="monotone" dataKey="quality" stroke="var(--color-protein)" strokeWidth={2} dot={false} />
+                    <Line name="Duur Coeff" type="monotone" dataKey="duration" stroke="var(--color-fat)" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* LOGBOOK VIEW */}
+      {activeTab === 'logbook' && (
+        <div className="fuel-grid animate-fade-in">
+          {/* Week Selector Header */}
+          <div className="fuel-card col-12" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: 'row' }}>
+            <button className="fuel-nav-btn" onClick={handlePrevWeek} style={{ padding: '8px 14px' }}>
+              <ChevronLeft size={16} /> Vorige Week
+            </button>
+            <strong style={{ fontSize: 14, color: 'var(--text-main)', letterSpacing: '0.5px' }}>
+              {formattedWeekRange}
+            </strong>
+            <button className="fuel-nav-btn" onClick={handleNextWeek} style={{ padding: '8px 14px' }}>
+              Volgende Week <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* 7 Days Selector cards row */}
+          <div className="col-12" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12 }}>
+            {weekDays.map(day => {
+              const isSelected = day.dateStr === selectedDateStr;
+              return (
+                <div 
+                  key={day.dateStr}
+                  onClick={() => setSelectedDateStr(day.dateStr)}
+                  style={{
+                    background: isSelected ? 'rgba(255, 159, 67, 0.08)' : 'var(--bg-card)',
+                    border: `1px solid ${isSelected ? 'var(--color-primary)' : 'var(--border-color)'}`,
+                    borderRadius: '12px',
+                    padding: '12px 10px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    position: 'relative'
+                  }}
+                >
+                  {!day.isComplete && (
+                    <div style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', background: '#ff9f43' }} title="ZANE Uitgesloten (Onvolledig)" />
+                  )}
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, display: 'block' }}>
+                    {day.dayShortName}
+                  </span>
+                  <strong style={{ fontSize: 20, color: isSelected ? 'var(--color-primary)' : 'var(--text-main)', display: 'block', margin: '4px 0', fontFamily: 'Outfit, sans-serif' }}>
+                    {day.dayNum}
+                  </strong>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>
+                    {day.calories > 0 ? `${day.calories} kcal` : '—'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Timeline of Logs for Selected Date */}
+          <div className="fuel-card col-12">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h3 className="fuel-card-title" style={{ margin: 0, textTransform: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Clock size={14} style={{ color: 'var(--color-primary)' }} /> {selectedDateLongName}
+                </h3>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
+                  Geselecteerde dag intake: <strong>{intakeCalories} kcal</strong>
+                  {!selectedDateComplete && <span style={{ color: '#ff9f43', marginLeft: 8 }}>⚠️ ZANE Uitgesloten (Onvolledig)</span>}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, cursor: 'pointer', color: !selectedDateComplete ? '#ff9f43' : 'var(--text-muted)', fontWeight: 700, margin: 0, userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={!selectedDateComplete}
+                    onChange={handleToggleDayIncomplete}
+                    style={{ width: 15, height: 15, accentColor: 'var(--color-primary)', cursor: 'pointer' }}
+                  />
+                  Onvolledig registreren
+                </label>
+                {filteredFoodLogs.length > 0 && (
+                  <button 
+                    className="btn-barcode-lookup" 
+                    style={{ padding: '6px 12px', fontSize: 11, margin: 0 }}
+                    onClick={() => {
+                      setCopyTargetDate(formatDateString(addDays(new Date(selectedDateStr), 1)));
+                      setShowCopyDayModal(true);
+                    }}
+                  >
+                    Kopieer dag
+                  </button>
+                )}
+                <button className="btn-submit" style={{ padding: '6px 12px', fontSize: 11, margin: 0 }} onClick={() => { setLogSource('quick'); setShowLogModal(true); }}>
+                  <Plus size={12} /> Log Maaltijd
+                </button>
+              </div>
+            </div>
+
+            {filteredFoodLogs.length === 0 ? (
+              <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                Geen maaltijden geregistreerd voor deze datum. Klik op de knop om te loggen.
+              </div>
+            ) : (
+              <div className="timeline">
+                {filteredFoodLogs.map(log => {
+                  const timeStr = new Date(log.logged_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <div key={log.id} className="timeline-item">
+                      <div className="timeline-time">{timeStr}</div>
+                      <div className="timeline-content">
+                        <div className="timeline-title">{log.custom_name}</div>
+                        <div className="timeline-desc" style={{ textTransform: 'capitalize' }}>
+                          {log.meal_type} {log.quantity !== 1 && `(${log.quantity}x)`}
+                        </div>
+                        <div className="timeline-macros">
+                          <span className="timeline-macro">Kcal: <span>{log.calories}</span></span>
+                          <span className="timeline-macro">Carbs: <span>{log.carbs}g</span></span>
+                          <span className="timeline-macro">Prot: <span>{log.protein}g</span></span>
+                          <span className="timeline-macro">Fat: <span>{log.fat}g</span></span>
+                        </div>
+                      </div>
+                      <div className="timeline-actions">
+                        <button className="btn-delete" onClick={() => handleDeleteLog(log.id)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* INGREDIENTS VIEW (SEPARATE TAB) */}
+      {activeTab === 'ingredients' && (
+        <div className="fuel-grid animate-fade-in">
+          <div className="fuel-card col-12">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', margin: 0 }}>
+                  Ingrediënten Database
+                </h2>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
+                  Beheer uw eigen voedingsmiddelen en portiegroottes
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Zoek in database..." 
+                  value={ingDatabaseSearch} 
+                  onChange={e => setIngDatabaseSearch(e.target.value)}
+                  style={{ width: 220, height: 36, padding: '8px 12px', fontSize: 12 }}
+                />
+                <button className="btn-submit" style={{ padding: '8px 16px', fontSize: 11, margin: 0 }} onClick={() => { resetIngredientForm(); setShowIngredientModal(true); }}>
+                  <Plus size={12} /> Nieuw Ingrediënt
+                </button>
+              </div>
+            </div>
+
+            {ingredients.length === 0 ? (
+              <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                Geen ingrediënten gevonden. Maak ingrediënten aan om uw database op te bouwen.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+                {ingredients
+                  .filter(ing => ing.name.toLowerCase().includes(ingDatabaseSearch.toLowerCase()))
+                  .map(ing => (
+                    <div key={ing.id} className="recipe-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div>
+                        <strong style={{ fontSize: 13, color: 'var(--text-main)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ing.name}>
+                          {ing.name}
+                        </strong>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 10 }}>
+                          {ing.barcode ? (
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                              EAN: {ing.barcode}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Geen barcode</span>
+                          )}
+                          {ing.portion_name && (
+                            <span style={{ background: 'rgba(255, 159, 67, 0.1)', color: 'var(--color-primary)', border: '1px solid rgba(255,159,67,0.2)', fontSize: 9, padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap', fontWeight: 800, textTransform: 'uppercase' }}>
+                              1 {ing.portion_name} ({ing.portion_weight_grams}g)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="recipe-macros" style={{ margin: '4px 0', background: 'rgba(0,0,0,0.15)', padding: '10px', borderRadius: 8 }}>
+                        <div>
+                          <div className="recipe-macro-val" style={{ fontSize: 13, fontWeight: 700 }}>{ing.calories_per_100g}</div>
+                          <div className="recipe-macro-lbl" style={{ fontSize: 8, color: 'var(--text-muted)' }}>kcal</div>
+                        </div>
+                        <div>
+                          <div className="recipe-macro-val" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-carb)' }}>{ing.carbs_per_100g}g</div>
+                          <div className="recipe-macro-lbl" style={{ fontSize: 8, color: 'var(--text-muted)' }}>carbs</div>
+                        </div>
+                        <div>
+                          <div className="recipe-macro-val" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-protein)' }}>{ing.protein_per_100g}g</div>
+                          <div className="recipe-macro-lbl" style={{ fontSize: 8, color: 'var(--text-muted)' }}>prot</div>
+                        </div>
+                        <div>
+                          <div className="recipe-macro-val" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-fat)' }}>{ing.fat_per_100g}g</div>
+                          <div className="recipe-macro-lbl" style={{ fontSize: 8, color: 'var(--text-muted)' }}>vet</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                        <button 
+                          className="recipe-btn-log" 
+                          style={{ margin: 0, flex: 3 }}
+                          onClick={() => {
+                            setSelectedLogIngredient(ing.id);
+                            setLogIngredientSearch(ing.name);
+                            setLogSource('ingredient');
+                            setLogMealType('snack');
+                            setShowLogModal(true);
+                          }}
+                        >
+                          Log Item
+                        </button>
+                        <button 
+                          className="btn-barcode-lookup" 
+                          style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          onClick={() => handleEditIngredient(ing)}
+                        >
+                          <Edit size={13} style={{ color: 'var(--text-muted)' }} />
+                        </button>
+                        <button 
+                          className="btn-delete" 
+                          style={{ width: 34, height: 34, padding: 0 }}
+                          onClick={() => handleDeleteIngredient(ing.id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* RECIPES VIEW */}
+      {activeTab === 'recipes' && (
+        <div style={{ zIndex: 1, position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', margin: 0 }}>
+              Mijn Sportrecepten
+            </h2>
+            <button className="btn-submit" style={{ padding: '8px 16px', fontSize: 11 }} onClick={() => { resetRecipeForm(); setShowRecipeModal(true); }}>
+              <Plus size={14} /> Nieuw Recept
+            </button>
+          </div>
+
+          {recipes.length === 0 ? (
+            <div className="fuel-card" style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+              U heeft nog geen recepten aangemaakt. Maak uw eerste recept an!
+            </div>
+          ) : (
+            <div className="recipes-grid">
+              {recipes.map(rec => (
+                <div key={rec.id} className="recipe-card">
+                  <span className="recipe-badge">{rec.category}</span>
+                  <h4 className="recipe-title">{rec.name}</h4>
+                  <p className="recipe-desc">{rec.description || 'Geen beschrijving'}</p>
+                  
+                  <div className="recipe-macros" style={{ marginBottom: 12 }}>
+                    <div>
+                      <div className="recipe-macro-val">{rec.calories}</div>
+                      <div className="recipe-macro-lbl">kcal</div>
+                    </div>
+                    <div>
+                      <div className="recipe-macro-val">{rec.carbs}g</div>
+                      <div className="recipe-macro-lbl">carbs</div>
+                    </div>
+                    <div>
+                      <div className="recipe-macro-val">{rec.protein}g</div>
+                      <div className="recipe-macro-lbl">prot</div>
+                    </div>
+                    <div>
+                      <div className="recipe-macro-val">{rec.fat}g</div>
+                      <div className="recipe-macro-lbl">vet</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                    <button 
+                      className="recipe-btn-log"
+                      style={{ margin: 0, flex: 3 }}
+                      onClick={() => {
+                        setSelectedLogRecipe(rec.id);
+                        setLogRecipeSearch(rec.name);
+                        setLogSource('recipe');
+                        setLogMealType('snack');
+                        setShowLogModal(true);
+                      }}
+                    >
+                      Log Recept
+                    </button>
+                    <button 
+                      className="btn-barcode-lookup" 
+                      style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => handleEditRecipe(rec)}
+                    >
+                      <Edit size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button 
+                      className="btn-delete" 
+                      style={{ width: 34, height: 34, padding: 0 }}
+                      onClick={() => handleDeleteRecipe(rec.id)}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAL 1: ADD FOOD LOG */}
+      {showLogModal && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-slide-up">
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <Clock size={16} /> Voeding Loggen
+              </h3>
+              <button className="modal-close" onClick={() => setShowLogModal(false)}>Close</button>
+            </div>
+            <form onSubmit={handleAddFoodLog}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Eetmoment</label>
+                  <select 
+                    className="form-select" 
+                    value={logMealType} 
+                    onChange={e => setLogMealType(e.target.value)}
+                  >
+                    <option value="breakfast">Ontbijt</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Avondeten</option>
+                    <option value="snack">Tussendoortje</option>
+                    <option value="pre-ride">Pre-Ride Carb loading</option>
+                    <option value="on-the-bike">Intra-Workout Fuel</option>
+                    <option value="post-ride">Post-Ride Herstel</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Tijdstip van nuttigen</label>
+                  <input 
+                    type="time" 
+                    className="form-input" 
+                    value={logHour} 
+                    onChange={e => setLogHour(e.target.value)} 
+                    required 
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Logbron</label>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                    {[
+                      { id: 'quick', label: 'Snel Invoeren' },
+                      { id: 'ingredient', label: 'Ingrediënt' },
+                      { id: 'recipe', label: 'Recept' }
+                    ].map(src => (
+                      <button
+                        key={src.id}
+                        type="button"
+                        className="fuel-tab-btn"
+                        style={{ 
+                          flex: 1, 
+                          background: logSource === src.id ? 'var(--color-primary-dim)' : 'transparent',
+                          border: `1px solid ${logSource === src.id ? 'var(--color-primary)' : 'var(--border-color)'}`,
+                          color: logSource === src.id ? 'var(--color-primary)' : 'var(--text-muted)'
+                        }}
+                        onClick={() => {
+                          setLogSource(src.id as any);
+                          setSelectedLogIngredient('');
+                          setLogIngredientSearch('');
+                          setSelectedLogRecipe('');
+                          setLogRecipeSearch('');
+                        }}
+                      >
+                        {src.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {logSource === 'quick' && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Naam Maaltijd / Product</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Bijv. Energiereep, Banaan" 
+                        value={quickName}
+                        onChange={e => setQuickName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Calorieën (kcal)</label>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          placeholder="0" 
+                          value={quickCalories}
+                          onChange={e => setQuickCalories(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Koolhydraten (g)</label>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          placeholder="0" 
+                          value={quickCarbs}
+                          onChange={e => setQuickCarbs(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Eiwitten (g)</label>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          placeholder="0" 
+                          value={quickProtein}
+                          onChange={e => setQuickProtein(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Vetten (g)</label>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          placeholder="0" 
+                          value={quickFat}
+                          onChange={e => setQuickFat(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {logSource === 'ingredient' && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Zoek Ingrediënt</label>
+                      <div className="search-dropdown-wrap">
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Typ ingrediënt naam om te zoeken..." 
+                          value={logIngredientSearch} 
+                          onChange={e => {
+                            setLogIngredientSearch(e.target.value);
+                            setShowLogIngDropdown(true);
+                          }}
+                          onFocus={() => setShowLogIngDropdown(true)}
+                          onBlur={() => setTimeout(() => setShowLogIngDropdown(false), 220)}
+                          required
+                        />
+                        {showLogIngDropdown && (
+                          <div className="search-dropdown-list">
+                            {ingredients.filter(i => i.name.toLowerCase().includes(logIngredientSearch.toLowerCase())).length === 0 ? (
+                              <div className="search-dropdown-item disabled">Geen ingrediënten gevonden</div>
+                            ) : (
+                              ingredients.filter(i => i.name.toLowerCase().includes(logIngredientSearch.toLowerCase())).map(i => (
+                                <div 
+                                  key={i.id} 
+                                  className="search-dropdown-item" 
+                                  onClick={() => {
+                                    setSelectedLogIngredient(i.id);
+                                    setLogIngredientSearch(i.name);
+                                    setShowLogIngDropdown(false);
+                                  }}
+                                >
+                                  {i.name} {i.portion_name && `(per ${i.portion_name}: ${i.portion_weight_grams}g)`}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedLogIngredient && (
+                      <div className="form-row" style={{ alignItems: 'flex-end', marginTop: 8 }}>
+                        <div className="form-group">
+                          <label className="form-label">Invoermethode</label>
+                          <select 
+                            className="form-select"
+                            value={logIngredientWeightMode}
+                            onChange={e => setLogIngredientWeightMode(e.target.value as any)}
+                          >
+                            <option value="grams">Grammen</option>
+                            {ingredients.find(i => i.id === selectedLogIngredient)?.portion_name && (
+                              <option value="portions">
+                                Porties ({ingredients.find(i => i.id === selectedLogIngredient)?.portion_name})
+                              </option>
+                            )}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Hoeveelheid</label>
+                          <input 
+                            type="number" 
+                            step="any"
+                            className="form-input"
+                            value={logIngredientWeightValue}
+                            onChange={e => setLogIngredientWeightValue(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {logSource === 'recipe' && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Zoek Recept</label>
+                      <div className="search-dropdown-wrap">
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Typ recept naam om te zoeken..." 
+                          value={logRecipeSearch} 
+                          onChange={e => {
+                            setLogRecipeSearch(e.target.value);
+                            setShowLogRecDropdown(true);
+                          }}
+                          onFocus={() => setShowLogRecDropdown(true)}
+                          onBlur={() => setTimeout(() => setShowLogRecDropdown(false), 220)}
+                          required
+                        />
+                        {showLogRecDropdown && (
+                          <div className="search-dropdown-list">
+                            {recipes.filter(r => r.name.toLowerCase().includes(logRecipeSearch.toLowerCase())).length === 0 ? (
+                              <div className="search-dropdown-item disabled">Geen recepten gevonden</div>
+                            ) : (
+                              recipes.filter(r => r.name.toLowerCase().includes(logRecipeSearch.toLowerCase())).map(r => (
+                                <div 
+                                  key={r.id} 
+                                  className="search-dropdown-item" 
+                                  onClick={() => {
+                                    setSelectedLogRecipe(r.id);
+                                    setLogRecipeSearch(r.name);
+                                    setShowLogRecDropdown(false);
+                                  }}
+                                >
+                                  {r.name} ({r.calories} kcal)
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedLogRecipe && (
+                      <div className="form-group" style={{ marginTop: 8 }}>
+                        <label className="form-label">Porties / Factor</label>
+                        <input 
+                          type="number" 
+                          step="any"
+                          className="form-input"
+                          value={logRecipeServings}
+                          onChange={e => setLogRecipeServings(e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div style={{ padding: '0 24px 24px' }}>
+                <button type="submit" className="btn-submit" style={{ width: '100%' }}>
+                  Voeg toe aan Logboek
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: ADD / EDIT INGREDIENT */}
+      {showIngredientModal && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-slide-up">
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <Barcode size={16} /> {editingIngredientId ? 'Ingrediënt Bewerken' : 'Nieuw Ingrediënt Aanmaken'}
+              </h3>
+              <button className="modal-close" onClick={() => setShowIngredientModal(false)}>Close</button>
+            </div>
+            <form onSubmit={handleSaveIngredient}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Barcode Scannen / Opzoeken via OFF</label>
+                  <div className="barcode-lookup-group">
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Streepjescode (EAN)" 
+                      value={ingBarcode}
+                      onChange={e => setIngBarcode(e.target.value)}
+                    />
+                    <button 
+                      type="button" 
+                      className="btn-barcode-lookup" 
+                      disabled={barcodeSearching}
+                      onClick={handleBarcodeLookup}
+                    >
+                      {barcodeSearching ? 'Zoeken...' : 'Zoeken'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Naam Ingrediënt</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Bijv. Havermout, Pindakaas" 
+                    value={ingName}
+                    onChange={e => setIngName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '0.5px', marginTop: 10 }}>
+                  Voedingswaarden per 100 gram
+                </h4>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Energie (kcal)</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      placeholder="0" 
+                      value={ingKcal}
+                      onChange={e => setIngKcal(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Koolhydraten (g)</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      className="form-input" 
+                      placeholder="0" 
+                      value={ingCarbs}
+                      onChange={e => setIngCarbs(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Eiwitten (g)</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      className="form-input" 
+                      placeholder="0" 
+                      value={ingProtein}
+                      onChange={e => setIngProtein(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Vetten (g)</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      className="form-input" 
+                      placeholder="0" 
+                      value={ingFat}
+                      onChange={e => setIngFat(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '0.5px', marginTop: 10 }}>
+                  Portiegroottes & Verpakking (Optioneel)
+                </h4>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Naam Portie</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Bijv. Snee, Banaan, Stuk" 
+                      value={ingPortionName}
+                      onChange={e => setIngPortionName(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Portiegewicht (g)</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      placeholder="Bijv. 35" 
+                      value={ingPortionWeight}
+                      onChange={e => setIngPortionWeight(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Porties per Verpakking</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    placeholder="Bijv. 12" 
+                    value={ingPortionsPackage}
+                    onChange={e => setIngPortionsPackage(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div style={{ padding: '0 24px 24px' }}>
+                <button type="submit" className="btn-submit" style={{ width: '100%' }}>
+                  {editingIngredientId ? 'Ingrediënt Bijwerken' : 'Sla ingrediënt op'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: CREATE / EDIT RECIPE */}
+      {showRecipeModal && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-slide-up" style={{ maxWidth: 660 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <ChefHat size={16} /> {editingRecipeId ? 'Recept Bewerken' : 'Nieuw Sportrecept Aanmaken'}
+              </h3>
+              <button className="modal-close" onClick={() => setShowRecipeModal(false)}>Close</button>
+            </div>
+            <form onSubmit={handleSaveRecipe}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Naam Recept</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Bijv. Zenith Rice Cakes" 
+                    value={recName}
+                    onChange={e => setRecName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Beschrijving / Notities</label>
+                  <textarea 
+                    className="form-textarea" 
+                    placeholder="Korte beschrijving..." 
+                    value={recDesc}
+                    onChange={e => setRecDesc(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Categorie</label>
+                    <select 
+                      className="form-select"
+                      value={recCategory}
+                      onChange={e => setRecCategory(e.target.value)}
+                    >
+                      <option value="pre-ride">Pre-Ride Carb-loading</option>
+                      <option value="on-the-bike">On-the-Bike Fuel</option>
+                      <option value="post-ride">Post-Ride Herstel</option>
+                      <option value="baseline">Baseline Gezond</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Portiegrootte (tekstueel)</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Bijv. 4 repen" 
+                      value={recServingSize}
+                      onChange={e => setRecServingSize(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 10 }}>
+                  <h4 className="form-label" style={{ marginBottom: 10 }}>Ingrediënten toevoegen</h4>
+                  
+                  {recIngredients.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                      {recIngredients.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: 6, fontSize: 12 }}>
+                          <span>
+                            {item.name} - <strong>{item.amount_g}g</strong> 
+                            {item.use_portion && ` (${item.portion_count} porties)`}
+                          </span>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <span style={{ color: 'var(--color-carb)', fontWeight: 800 }}>{item.carbs}g carbs</span>
+                            <button type="button" className="btn-delete" style={{ width: 22, height: 22 }} onClick={() => handleRemoveRecipeIngredient(idx)}>
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10, alignItems: 'flex-end' }}>
+                    <div className="form-group" style={{ position: 'relative' }}>
+                      <label className="form-label" style={{ fontSize: 9 }}>Zoek ingrediënt</label>
+                      <div className="search-dropdown-wrap">
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Typ om te zoeken..." 
+                          value={recipeIngSearch} 
+                          onChange={e => {
+                            setRecipeIngSearch(e.target.value);
+                            setShowRecipeIngDropdown(true);
+                          }}
+                          onFocus={() => setShowRecipeIngDropdown(true)}
+                          onBlur={() => setTimeout(() => setShowRecipeIngDropdown(false), 220)}
+                          style={{ height: 38 }}
+                        />
+                        {showRecipeIngDropdown && (
+                          <div className="search-dropdown-list" style={{ zIndex: 110 }}>
+                            {ingredients.filter(i => i.name.toLowerCase().includes(recipeIngSearch.toLowerCase())).length === 0 ? (
+                              <div className="search-dropdown-item disabled">Geen ingrediënten gevonden</div>
+                            ) : (
+                              ingredients.filter(i => i.name.toLowerCase().includes(recipeIngSearch.toLowerCase())).map(i => (
+                                <div 
+                                  key={i.id} 
+                                  className="search-dropdown-item" 
+                                  onClick={() => {
+                                    setSelectedRecipeIngId(i.id);
+                                    setRecipeIngSearch(i.name);
+                                    setShowRecipeIngDropdown(false);
+                                  }}
+                                >
+                                  {i.name}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 9 }}>Eenheid</label>
+                      <select 
+                        className="form-select"
+                        value={recipeIngMode}
+                        onChange={e => setRecipeIngMode(e.target.value as any)}
+                        disabled={!selectedRecipeIngId}
+                        style={{ height: 38 }}
+                      >
+                        <option value="grams">Gram</option>
+                        {ingredients.find(i => i.id === selectedRecipeIngId)?.portion_name && (
+                          <option value="portions">
+                            {ingredients.find(i => i.id === selectedRecipeIngId)?.portion_name}
+                          </option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 9 }}>Hoeveelheid</label>
+                      <input 
+                        type="number" 
+                        className="form-input" 
+                        value={recipeIngQty}
+                        onChange={e => setRecipeIngQty(e.target.value)}
+                        disabled={!selectedRecipeIngId}
+                        style={{ height: 38 }}
+                      />
+                    </div>
+
+                    <button 
+                      type="button" 
+                      className="btn-barcode-lookup" 
+                      onClick={handleAddRecipeIngredient}
+                      style={{ height: 38 }}
+                      disabled={!selectedRecipeIngId}
+                    >
+                      Voeg toe
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 10 }}>
+                  <h4 className="form-label" style={{ marginBottom: 10 }}>Bereidingsstappen</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {recInstructions.map((step, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: 10 }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-primary)', alignSelf: 'center' }}>
+                          {idx + 1}.
+                        </span>
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ flex: 1 }}
+                          placeholder="Stap omschrijving..."
+                          value={step}
+                          onChange={e => {
+                            const copy = [...recInstructions];
+                            copy[idx] = e.target.value;
+                            setRecInstructions(copy);
+                          }}
+                        />
+                        {recInstructions.length > 1 && (
+                          <button 
+                            type="button" 
+                            className="btn-delete"
+                            onClick={() => setRecInstructions(recInstructions.filter((_, i) => i !== idx))}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn-barcode-lookup"
+                      style={{ alignSelf: 'flex-start', padding: '6px 12px', fontSize: 11 }}
+                      onClick={() => setRecInstructions([...recInstructions, ''])}
+                    >
+                      <Plus size={12} /> Voeg stap toe
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div style={{ padding: '0 24px 24px' }}>
+                <button type="submit" className="btn-submit" style={{ width: '100%' }}>
+                  {editingRecipeId ? 'Recept Bijwerken' : 'Sla recept op'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: COPY DAY LOGS */}
+      {showCopyDayModal && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-slide-up" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <Clock size={16} /> Dag Kopiëren
+              </h3>
+              <button className="modal-close" onClick={() => setShowCopyDayModal(false)}>Close</button>
+            </div>
+            <form onSubmit={handleCopyDay}>
+              <div className="modal-body">
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: '1.4' }}>
+                  Kopieer alle <strong>{filteredFoodLogs.length}</strong> maaltijden van <strong>{new Date(selectedDateStr).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' })}</strong> naar een andere datum. De tijdstippen van nuttigen blijven behouden.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Kies Doeldatum</label>
+                  <input 
+                    type="date" 
+                    className="form-input" 
+                    value={copyTargetDate} 
+                    onChange={e => setCopyTargetDate(e.target.value)} 
+                    required 
+                  />
+                </div>
+              </div>
+              <div style={{ padding: '0 24px 24px' }}>
+                <button type="submit" className="btn-submit" style={{ width: '100%' }}>
+                  Kopieer maaltijden
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;

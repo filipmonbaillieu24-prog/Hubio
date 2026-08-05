@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, Download, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
+import { ArrowLeft, Download, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import './ZenithHub.css';
 
 interface PilotPanelProps {
+  userName: string;
   onBack: () => void;
 }
 
-export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
+export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
   const [localIp, setLocalIp] = useState<string | null>(null);
   const [useLocalDevLink, setUseLocalDevLink] = useState(false);
   const [selectedApp, setSelectedApp] = useState<'pilot' | 'kratos'>('pilot');
@@ -32,8 +33,8 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
         ? `http://${localIp}:1420/app-debug.apk` 
         : `https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk?t=${Date.now()}`)
     : ((useLocalDevLink && localIp)
-        ? `http://${localIp}:1420/kratos-pilot-debug.apk` 
-        : `https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos-pilot-debug.apk?t=${Date.now()}`);
+        ? `http://${localIp}:1420/kratos.apk` 
+        : `https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos.apk?t=${Date.now()}`);
 
   return (
     <div className="zh-hub-container">
@@ -41,12 +42,18 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ onBack }) => {
       <div className="zh-hub-glow" style={{ background: 'radial-gradient(circle at 80% 20%, rgba(203, 213, 225, 0.1) 0%, transparent 60%)' }} />
 
       {/* Header */}
-      <header className="zh-hub-header animate-slide-down">
-        <button onClick={onBack} className="zh-back-btn">
-          <ChevronLeft size={16} /> Terug naar Zenith Hub
-        </button>
+      <header className="zh-hub-header animate-slide-down" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '20px', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={onBack} className="zh-back-btn">
+            <ArrowLeft size={14} /> Hub
+          </button>
+          <div>
+            <h1 className="zh-hub-title" style={{ fontSize: 22 }}>ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 18 }}>PILOT</span></h1>
+            <p className="zh-hub-subtitle">Android Audio Companion voor {userName}</p>
+          </div>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#64748b' }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--color-primary)', display: 'inline-block' }} />
           <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {useLocalDevLink ? 'Lokale dev build' : 'Alpha build'} beschikbaar
           </span>

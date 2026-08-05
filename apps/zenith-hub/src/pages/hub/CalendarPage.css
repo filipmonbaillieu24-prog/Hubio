@@ -1,0 +1,372 @@
+.zh-calendar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.zh-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(28, 28, 35, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+}
+
+.zh-calendar-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  text-transform: capitalize;
+}
+
+.zh-calendar-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.zh-calendar-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #cbd5e1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.zh-calendar-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.zh-calendar-grid-wrap {
+  background: rgba(28, 28, 35, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(20px);
+}
+
+.zh-calendar-grid-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.zh-calendar-day-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.zh-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: minmax(100px, auto);
+  gap: 8px;
+}
+
+.zh-calendar-cell {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.zh-calendar-cell:hover {
+  background: rgba(255, 255, 255, 0.015);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.zh-calendar-cell.outside {
+  opacity: 0.3;
+}
+
+.zh-calendar-cell.today {
+  border-color: rgba(203, 213, 225, 0.3);
+  background: rgba(203, 213, 225, 0.02);
+}
+
+.zh-calendar-cell.today .zh-calendar-date {
+  background: #cbd5e1;
+  color: #09090b;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-weight: 900;
+}
+
+.zh-calendar-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  align-self: flex-start;
+}
+
+.zh-calendar-badge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.zh-workout-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.15s;
+}
+
+.zh-workout-badge:hover {
+  transform: scale(1.02);
+}
+
+.zh-badge-planned {
+  background: rgba(203, 213, 225, 0.08);
+  border: 1px solid rgba(203, 213, 225, 0.2);
+  color: #cbd5e1;
+}
+
+.zh-badge-ride {
+  background: rgba(92, 124, 250, 0.08);
+  border: 1px solid rgba(92, 124, 250, 0.2);
+  color: #96adfc;
+}
+
+.zh-badge-kratos {
+  background: rgba(168, 85, 247, 0.08);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+}
+
+/* Modal details */
+.zh-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(9, 9, 11, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.zh-modal-content {
+  background: #1c1c23;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: slideUp 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.zh-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.zh-modal-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.zh-modal-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.zh-modal-close:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.zh-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.zh-workout-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.zh-workout-meta-item {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.zh-workout-meta-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.zh-workout-meta-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.zh-modal-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 4px 0 8px;
+}
+
+.zh-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.zh-kratos-exercise-block {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.zh-kratos-ex-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.zh-kratos-sets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.zh-kratos-sets-table th {
+  text-align: left;
+  color: #64748b;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 6px;
+  font-size: 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.zh-kratos-sets-table td {
+  padding: 6px;
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.zh-kratos-set-type {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.zh-set-warmup { background: rgba(220, 180, 0, 0.08); color: #ffd32a; border: 1px solid rgba(220, 180, 0, 0.15); }
+.zh-set-working { background: rgba(168, 85, 247, 0.08); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.15); }
+.zh-set-drop { background: rgba(255, 118, 117, 0.08); color: #ff7675; border: 1px solid rgba(255, 118, 117, 0.15); }
+
+.zh-best-efforts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.zh-best-efforts-table th {
+  text-align: left;
+  color: #64748b;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 6px 8px;
+  font-size: 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.zh-best-efforts-table td {
+  padding: 8px;
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.zh-best-efforts-table tr:hover td {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

@@ -2,6 +2,10 @@ package com.zenith.kratos.data
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 
 @Serializable
 data class Exercise(
@@ -12,6 +16,7 @@ data class Exercise(
     val notes: String? = null,
     @SerialName("increment_weight") val incrementWeight: Double = 2.5,
     @SerialName("increment_per_side") val incrementPerSide: Boolean = false,
+    @SerialName("is_bodyweight") val isBodyweight: Boolean = false,
     @SerialName("default_rir") val defaultRir: Int = 2,
     @SerialName("weight_unit") val weightUnit: String = "kg",
     val deleted: Boolean = false
@@ -67,18 +72,29 @@ data class Workout(
     val sets: List<WorkoutExerciseLog>
 )
 
+
 // Simple helper class to represent active workout UI state
-data class ActiveSetState(
-    var type: String, // warmup, working
-    var targetWeight: Double,
-    var targetReps: Int,
-    var targetRir: Int,
-    var weightInput: String = "",
-    var repsInput: String = "",
-    var rirInput: String = "",
-    var isCompleted: Boolean = false,
-    var isNewPR: Boolean = false
-)
+class ActiveSetState(
+    type: String,
+    targetWeight: Double,
+    targetReps: Int,
+    targetRir: Int,
+    weightInput: String = "",
+    repsInput: String = "",
+    rirInput: String = "",
+    isCompleted: Boolean = false,
+    isNewPR: Boolean = false
+) {
+    var type by mutableStateOf(type)
+    var targetWeight by mutableStateOf(targetWeight)
+    var targetReps by mutableStateOf(targetReps)
+    var targetRir by mutableStateOf(targetRir)
+    var weightInput by mutableStateOf(weightInput)
+    var repsInput by mutableStateOf(repsInput)
+    var rirInput by mutableStateOf(rirInput)
+    var isCompleted by mutableStateOf(isCompleted)
+    var isNewPR by mutableStateOf(isNewPR)
+}
 
 data class ActiveExerciseState(
     val exerciseId: String,
@@ -88,5 +104,37 @@ data class ActiveExerciseState(
     val incrementWeight: Double,
     val incrementPerSide: Boolean,
     val notes: String?,
-    val sets: MutableList<ActiveSetState>
+    val isBodyweight: Boolean,
+    val sets: SnapshotStateList<ActiveSetState>
+)
+
+@Serializable
+data class PersistedActiveSet(
+    val type: String,
+    val targetWeight: Double,
+    val targetReps: Int,
+    val targetRir: Int,
+    val weightInput: String,
+    val repsInput: String,
+    val rirInput: String,
+    val isCompleted: Boolean,
+    val isNewPR: Boolean
+)
+
+@Serializable
+data class PersistedActiveExercise(
+    val exerciseId: String,
+    val name: String,
+    val category: String,
+    val weightUnit: String,
+    val incrementWeight: Double,
+    val incrementPerSide: Boolean,
+    val notes: String?,
+    val isBodyweight: Boolean = false,
+    val sets: List<PersistedActiveSet>
+)
+
+@Serializable
+data class BodyweightEntry(
+    val weight: Double
 )

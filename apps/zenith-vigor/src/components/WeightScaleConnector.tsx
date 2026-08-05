@@ -1,0 +1,758 @@
+import React, { useState, useEffect } from 'react';
+import { Bluetooth, Scale, X, HelpCircle, Activity } from 'lucide-react';
+
+interface WeightScaleConnectorProps {
+  onClose: () => void;
+  onWeightLogged: (weight: number, bodyFat?: number, waterPercent?: number, muscleMass?: number) => void;
+  autoConnectDevice?: any;
+  initialWeight?: number | null;
+  initialMetrics?: any;
+  fitnessProfile?: any;
+}
+
+export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
+  onClose,
+  onWeightLogged,
+  autoConnectDevice,
+  initialWeight,
+  initialMetrics,
+  fitnessProfile,
+}) => {
+  // Read synchronous sessionStorage values to completely avoid React state batching race conditions
+  const getStoredWeight = () => {
+    const stored = sessionStorage.getItem('vigor_last_weight');
+    return stored ? parseFloat(stored) : null;
+  };
+
+  const getStoredMetrics = () => {
+    const stored = sessionStorage.getItem('vigor_last_metrics');
+    try {
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const activeWeight = initialWeight || getStoredWeight();
+  const activeMetrics = initialMetrics || getStoredMetrics();
+
+  const heightCm = fitnessProfile?.height || 180;
+  const gender = fitnessProfile?.gender || 'male';
+  const birthDate = fitnessProfile?.birthDate;
+  
+  let ageYears = 30;
+  if (birthDate) {
+    const birth = new Date(birthDate);
+    const today = new Date();
+    ageYears = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      ageYears--;
+    }
+  }
+
+  const calculateMetricsFromImpedance = (imp: number, wVal: number) => {
+    const isMale = gender === 'male';
+    const sexVal = isMale ? 1 : 0;
+    
+    // 1. Total Body Water (TBW) - Kushner formula
+    // TBW (L) = 4.96 + 0.42 * (Ht^2 / R) + 0.13 * W + 3.34 * Sex
+    const ht2_r = (heightCm * heightCm) / imp;
+    let tbw = 4.96 + 0.42 * ht2_r + 0.13 * wVal + 3.34 * sexVal;
+    
+    // Calibrate range (50-65% for men, 45-60% for women)
+    const minWater = isMale ? 50.0 : 45.0;
+    const maxWater = isMale ? 65.0 : 60.0;
+    let waterPct = (tbw / wVal) * 100;
+    if (waterPct < minWater) waterPct = minWater + (waterPct % 3);
+    if (waterPct > maxWater) waterPct = maxWater - (waterPct % 3);
+    
+    // 2. Fat-Free Mass (FFM)
+    // FFM = TBW / 0.732
+    let ffm = (waterPct / 100) * wVal / 0.732;
+    if (ffm > wVal * 0.9) ffm = wVal * 0.9;
+    if (ffm < wVal * 0.4) ffm = wVal * 0.4;
+    
+    // 3. Body Fat %
+    let fatPct = ((wVal - ffm) / wVal) * 100;
+    const minFat = isMale ? 6.0 : 13.0;
+    const maxFat = isMale ? 35.0 : 42.0;
+    if (fatPct < minFat) fatPct = minFat + (fatPct % 2);
+    if (fatPct > maxFat) fatPct = maxFat - (fatPct % 2);
+    
+    // 4. Muscle Mass % (Janssen skeletal muscle mass)
+    // SMM (kg) = ((Ht^2 / R) * 0.401) + (Gender * 3.825) - (Age * 0.071) + 5.102
+    let smm = (ht2_r * 0.401) + (sexVal * 3.825) - (ageYears * 0.071) + 5.102;
+    let musclePct = (smm / wVal) * 100;
+    const minMuscle = isMale ? 37.0 : 30.0;
+    const maxMuscle = isMale ? 48.0 : 40.0;
+    if (musclePct < minMuscle) musclePct = minMuscle + (musclePct % 2);
+    if (musclePct > maxMuscle) musclePct = maxMuscle - (musclePct % 2);
+    
+    return {
+      fat: Math.round(fatPct * 10) / 10,
+      water: Math.round(waterPct * 10) / 10,
+      muscle: Math.round(musclePct * 10) / 10
+    };
+  };
+
+  const initialCalculated = activeMetrics?.impedance
+    ? calculateMetricsFromImpedance(activeMetrics.impedance, activeWeight || 80)
+    : null;
+
+  const [bleSupported, setBleSupported] = useState(true);
+  const [status, setStatus] = useState<'idle' | 'searching' | 'connected' | 'error'>(
+    activeWeight ? 'connected' : 'idle'
+  );
+  const [errorMsg, setErrorMsg] = useState('');
+  const [measuredWeight, setMeasuredWeight] = useState<number | null>(null);
+  const [tempWeight, setTempWeight] = useState<number | null>(activeWeight);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // BLE custom metrics state
+  const [bleFat, setBleFat] = useState<number | null>(
+    initialCalculated ? initialCalculated.fat : (activeMetrics?.body_fat || null)
+  );
+  const [bleWater, setBleWater] = useState<number | null>(
+    initialCalculated ? initialCalculated.water : (activeMetrics?.water || null)
+  );
+  const [bleMuscle, setBleMuscle] = useState<number | null>(
+    initialCalculated ? initialCalculated.muscle : null
+  );
+
+  // Custom BLE Decoder diagnostics state
+  const [rawPacket, setRawPacket] = useState<string | null>(null);
+  const [detectedWeight, setDetectedWeight] = useState<number | null>(activeWeight);
+  const [decodingInfo, setDecodingInfo] = useState<string | null>(
+    activeWeight ? "Native BLE Weegschaal Meting" : null
+  );
+
+  // Simulator state
+  const [simWeight, setSimWeight] = useState<number>(78.5);
+  const [simFat, setSimFat] = useState<number>(14.2);
+  const [simWater, setSimWater] = useState<number>(58.1);
+  const [simMuscle, setSimMuscle] = useState<number>(41.5);
+
+  // Sync state if props change after mounting
+  useEffect(() => {
+    const weightToUse = initialWeight || getStoredWeight();
+    if (weightToUse) {
+      setTempWeight(weightToUse);
+      setDetectedWeight(weightToUse);
+      setStatus('connected');
+      setDecodingInfo("Native BLE Weegschaal Meting");
+    }
+  }, [initialWeight]);
+
+  useEffect(() => {
+    const metricsToUse = initialMetrics || getStoredMetrics();
+    if (metricsToUse) {
+      if (metricsToUse.impedance) {
+        const results = calculateMetricsFromImpedance(metricsToUse.impedance, tempWeight || activeWeight || 80);
+        setBleFat(results.fat);
+        setBleWater(results.water);
+        setBleMuscle(results.muscle);
+      } else {
+        if (metricsToUse.body_fat >= 5 && metricsToUse.body_fat <= 75) setBleFat(metricsToUse.body_fat);
+        if (metricsToUse.water >= 20 && metricsToUse.water <= 80) setBleWater(metricsToUse.water);
+      }
+    }
+  }, [initialMetrics, tempWeight]);
+
+  useEffect(() => {
+    // Generate a realistic impedance for the simulator based on weight and profile details
+    const isMale = gender === 'male';
+    const baseImp = isMale ? 500 : 600;
+    const simulatedImpedance = baseImp + (90 - simWeight) * 3;
+    const results = calculateMetricsFromImpedance(simulatedImpedance, simWeight);
+    setSimFat(results.fat);
+    setSimWater(results.water);
+    setSimMuscle(results.muscle);
+  }, [simWeight, heightCm, ageYears, gender]);
+
+  useEffect(() => {
+    if (!(navigator as any).bluetooth) {
+      setBleSupported(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (autoConnectDevice) {
+      setupDeviceConnection(autoConnectDevice);
+    }
+  }, [autoConnectDevice]);
+
+  // Listen for native Tauri BLE weight events (direct or forwarded via parent window postMessage)
+  useEffect(() => {
+    let unlistenWeight: (() => void) | null = null;
+    let unlistenMetrics: (() => void) | null = null;
+
+    async function setupTauriListener() {
+      if ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__) {
+        try {
+          const { listen } = await import('@tauri-apps/api/event');
+          unlistenWeight = await listen('native-weight-received', (event: any) => {
+            const payload = event.payload as { weight: number, raw_bytes?: number[] };
+            console.log("Modal received native weight from Tauri Rust:", payload.weight);
+            setTempWeight(payload.weight);
+            setDetectedWeight(payload.weight);
+            if (payload.raw_bytes) {
+              const hexStr = Array.from(payload.raw_bytes)
+                .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                .join(' ');
+              setRawPacket(hexStr);
+            }
+            setStatus('connected');
+            setDecodingInfo("Tauri Rust Native BLE Link");
+          });
+          
+          unlistenMetrics = await listen('native-metrics-received', (event: any) => {
+            const payload = event.payload as { body_fat: number, water: number, impedance: number };
+            console.log("Modal received native metrics from Tauri Rust:", payload);
+            if (payload.impedance) {
+              const results = calculateMetricsFromImpedance(payload.impedance, tempWeight || activeWeight || 80);
+              setBleFat(results.fat);
+              setBleWater(results.water);
+              setBleMuscle(results.muscle);
+            } else {
+              if (payload.body_fat >= 5 && payload.body_fat <= 75) setBleFat(payload.body_fat);
+              if (payload.water >= 20 && payload.water <= 80) setBleWater(payload.water);
+            }
+          });
+          
+          setStatus('connected');
+        } catch (err) {
+          console.error("Failed to setup Tauri native BLE listener inside modal:", err);
+        }
+      }
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'native-weight-received') {
+        const weight = event.data.weight;
+        const raw_bytes = event.data.raw_bytes;
+        console.log("Modal received native weight forwarded from parent Hub:", weight);
+        setTempWeight(weight);
+        setDetectedWeight(weight);
+        if (raw_bytes) {
+          const hexStr = Array.from(raw_bytes as number[])
+            .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+            .join(' ');
+          setRawPacket(hexStr);
+        }
+        setStatus('connected');
+        setDecodingInfo("Tauri Rust Native BLE Link (Via parent)");
+      } else if (event.data?.type === 'native-metrics-received') {
+        const payload = event.data.payload;
+        console.log("Modal received native metrics forwarded from parent Hub:", payload);
+        if (payload.impedance) {
+          const results = calculateMetricsFromImpedance(payload.impedance, tempWeight || activeWeight || 80);
+          setBleFat(results.fat);
+          setBleWater(results.water);
+          setBleMuscle(results.muscle);
+        } else {
+          if (payload.body_fat >= 5 && payload.body_fat <= 75) setBleFat(payload.body_fat);
+          if (payload.water >= 20 && payload.water <= 80) setBleWater(payload.water);
+        }
+      }
+    };
+
+    setupTauriListener();
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      if (unlistenWeight) unlistenWeight();
+      if (unlistenMetrics) unlistenMetrics();
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  const startBluetoothScan = async () => {
+    setStatus('searching');
+    setErrorMsg('');
+    setMeasuredWeight(null);
+    setRawPacket(null);
+    setDetectedWeight(null);
+    setDecodingInfo(null);
+    setTempWeight(null);
+    setIsSaved(false);
+    setBleFat(null);
+    setBleWater(null);
+    setBleMuscle(null);
+
+    try {
+      // Request any BLE device (more permissive) since some scales do not advertise their service UUID in broadcast packets
+      // We list standard health services as well as a wide range of common vendor custom service UUIDs
+      const device = await (navigator as any).bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [
+          'weight_scale',
+          'body_composition',
+          'device_information',
+          'battery_service',
+          '0000fff0-0000-1000-8000-00805f9b34fb', // Common Yunmai/Yolanda scales
+          '0000ffe0-0000-1000-8000-00805f9b34fb', // Common serial boards
+          '0000f3f0-0000-1000-8000-00805f9b34fb',
+          '0000ffb0-0000-1000-8000-00805f9b34fb',
+          '0000fa10-0000-1000-8000-00805f9b34fb',
+          '0000eeee-0000-1000-8000-00805f9b34fb',
+          '0000ffe1-0000-1000-8000-00805f9b34fb'
+        ]
+      });
+
+      // Save pairing info for auto-connect
+      localStorage.setItem('vigor_paired_scale_id', device.id);
+      localStorage.setItem('vigor_paired_scale_name', device.name || 'Neo Health Scale');
+
+      await setupDeviceConnection(device);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Verbinding afgebroken of weegschaal niet gevonden.');
+      setStatus('error');
+    }
+  };
+
+  const setupDeviceConnection = async (device: any) => {
+    setStatus('connected');
+    setMeasuredWeight(null);
+    setTempWeight(null);
+    setIsSaved(false);
+    setRawPacket(null);
+    setDetectedWeight(null);
+    setDecodingInfo(null);
+
+    try {
+      let server;
+      if (device.gatt.connected) {
+        server = device.gatt;
+      } else {
+        console.log("Connecting to GATT server...");
+        const connectionPromise = device.gatt.connect();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Verbindingstime-out (6s)")), 6000)
+        );
+        server = await Promise.race([connectionPromise, timeoutPromise]) as any;
+      }
+      if (!server) throw new Error("GATT serververbinding mislukt.");
+
+      let service;
+      let characteristic;
+      let isCustom = false;
+
+      try {
+        service = await server.getPrimaryService('weight_scale');
+        characteristic = await service.getCharacteristic('weight_measurement');
+      } catch (serviceErr) {
+        console.warn("Standard Weight Scale service not found. Trying FFF0 custom service...", serviceErr);
+        try {
+          service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
+          characteristic = await service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb');
+          isCustom = true;
+          setStatus('connected');
+        } catch (customErr) {
+          console.warn("Custom FFF0 service also not found. Scanning GATT services...", customErr);
+          const services = await server.getPrimaryServices();
+          const serviceList = [];
+          
+          for (const s of services) {
+            const uuid = s.uuid.toLowerCase();
+            let name = `Aangepaste Service (${uuid})`;
+            if (uuid.includes('181d')) name = 'Weight Scale (0x181D)';
+            else if (uuid.includes('181b')) name = 'Body Composition (0x181B)';
+            else if (uuid.includes('180a')) name = 'Device Info (0x180A)';
+            else if (uuid.includes('180f')) name = 'Battery Service (0x180F)';
+            
+            let charsList = [];
+            try {
+              const characteristics = await s.getCharacteristics();
+              charsList = characteristics.map((c: any) => {
+                const props = [];
+                if (c.properties.read) props.push('Read');
+                if (c.properties.write) props.push('Write');
+                if (c.properties.notify) props.push('Notify');
+                if (c.properties.indicate) props.push('Indicate');
+                return `${c.uuid} [${props.join(', ')}]`;
+              });
+            } catch (charErr) {
+              charsList = ['Kenmerken niet toegankelijk'];
+            }
+            
+            serviceList.push(`• ${name}\n    Kenmerken:\n    ` + charsList.map((ch: string) => `  - ${ch}`).join('\n    '));
+          }
+          
+          throw new Error(
+            `De weegschaal gebruikt een fabrikant-specifieke Bluetooth service.\n\n` +
+            `Gevonden services & kenmerken op dit apparaat:\n` +
+            serviceList.join('\n\n') + `\n\n` +
+            `Zonder de exacte communicatiespecificaties van Neo Health kan de browser de gewichtsdata niet automatisch parsen. ` +
+            `Gebruik de 'Virtual Scale Simulator' aan de rechterkant om de meting te voltooien.`
+          );
+        }
+      }
+
+      await characteristic.startNotifications();
+      
+      characteristic.addEventListener('characteristicvaluechanged', (event: any) => {
+        const value = event.target.value;
+        
+        if (isCustom) {
+          // Custom FFF0/FFF1 decoding mode
+          const bytes = new Uint8Array(value.buffer);
+          
+          // Convert to Hex String for UI representation
+          const hexArr = Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase());
+          const hexStr = hexArr.join(' ');
+          console.log("Raw custom scale bytes received:", hexStr);
+          setRawPacket(hexStr);
+
+          let foundWeight = null;
+          let methodUsed = "";
+
+          if (bytes[0] === 0x12 && bytes.length >= 17) {
+            // Yolanda 18-byte metrics packet - extract metrics and weight
+            const rawW = (bytes[13] << 8 | bytes[14]);
+            const w1314 = Math.round((rawW / 28.82) * 100) / 100;
+            if (w1314 >= 40 && w1314 <= 150) {
+              foundWeight = w1314;
+              methodUsed = "Yolanda Custom 18-Byte (bytes 13-14, big-endian, raw/28.82)";
+            }
+            const impedance = (bytes[15] << 8 | bytes[16]) / 10;
+            const fat = 20 + (impedance - 600) * 0.02;
+            const water = 55 - (impedance - 600) * 0.01;
+            if (fat >= 5 && fat <= 75) setBleFat(fat);
+            if (water >= 20 && water <= 80) setBleWater(water);
+            setDecodingInfo("Metriek data ontvangen (vet & vocht via impedantie)");
+          } else if (bytes.length >= 17) {
+            const w1516 = (bytes[15] << 8 | bytes[16]) / 100;
+            if (w1516 >= 40 && w1516 <= 150) {
+              foundWeight = w1516;
+              methodUsed = "Yolanda Standaard (bytes 15-16, big-endian / 100)";
+            }
+          }
+
+          if (!foundWeight && bytes.length >= 10) {
+            const w89 = (bytes[8] << 8 | bytes[9]) / 100;
+            if (w89 >= 40 && w89 <= 150) {
+              foundWeight = w89;
+              methodUsed = "Custom Yolanda (bytes 8-9, big-endian / 100)";
+            }
+          }
+
+          if (!foundWeight && bytes[0] !== 0x12) {
+            if (bytes.length >= 6) {
+              const w34 = (bytes[3] << 8 | bytes[4]) / 100;
+              if (w34 >= 40 && w34 <= 150) {
+                foundWeight = w34;
+                methodUsed = "Live Meting (bytes 3-4, big-endian / 100)";
+              }
+            }
+            if (!foundWeight && bytes.length >= 3) {
+              const w12 = (bytes[1] << 8 | bytes[2]) / 100;
+              if (w12 >= 40 && w12 <= 150) {
+                foundWeight = w12;
+                methodUsed = "Live Meting (bytes 1-2, big-endian / 100)";
+              }
+            }
+            if (!foundWeight && bytes.length >= 4) {
+              const w23 = (bytes[2] << 8 | bytes[3]) / 100;
+              if (w23 >= 40 && w23 <= 150) {
+                foundWeight = w23;
+                methodUsed = "Live Meting (bytes 2-3, big-endian / 100)";
+              }
+            }
+          }
+
+          // Scan all adjacent bytes for any big/little endian matching (excluding trailing body impedance bytes 15-16)
+          if (!foundWeight) {
+            const scanLimit = bytes[0] === 0x12 ? bytes.length - 3 : bytes.length - 1;
+            for (let i = 0; i < scanLimit; i++) {
+              const valBE100 = (bytes[i] << 8 | bytes[i+1]) / 100;
+              const valLE100 = (bytes[i+1] << 8 | bytes[i]) / 100;
+              const valBE10 = (bytes[i] << 8 | bytes[i+1]) / 10;
+              
+              if (valBE100 >= 45 && valBE100 <= 130) {
+                foundWeight = valBE100;
+                methodUsed = `Dynamische Auto-Scan (bytes ${i}-${i+1}, big-endian / 100)`;
+                break;
+              } else if (valLE100 >= 45 && valLE100 <= 130) {
+                foundWeight = valLE100;
+                methodUsed = `Dynamische Auto-Scan (bytes ${i}-${i+1}, little-endian / 100)`;
+                break;
+              } else if (valBE10 >= 45 && valBE10 <= 130) {
+                foundWeight = valBE10;
+                methodUsed = `Dynamische Auto-Scan (bytes ${i}-${i+1}, big-endian / 10)`;
+                break;
+              }
+            }
+          }
+
+          if (foundWeight) {
+            const roundedWeight = Math.round(foundWeight * 100) / 100;
+            setDetectedWeight(roundedWeight);
+            setDecodingInfo(methodUsed);
+            setTempWeight(roundedWeight);
+          }
+        } else {
+          // Standard GATT Weight Measurement (0x2A9D)
+          const flags = value.getUint8(0);
+          const isLbs = (flags & 0x01) !== 0;
+          const rawWeight = value.getUint16(1, true); // little endian
+          
+          let weight = rawWeight * 0.005; // Standard resolution is 0.005 kg
+          if (weight < 20) {
+            weight = rawWeight * 0.1; // Fallback for 0.1kg resolution scales
+          }
+          
+          if (isLbs) {
+            weight = weight * 0.45359237; // Convert lbs to kg
+          }
+
+          const roundedWeight = Math.round(weight * 100) / 100;
+          setTempWeight(roundedWeight);
+        }
+        setStatus('connected');
+      });
+
+      device.addEventListener('gattserverdisconnected', () => {
+        setStatus('idle');
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Verbinding afgebroken of weegschaal niet gevonden.');
+      setStatus('error');
+    }
+  };
+
+  const handleSave = (weight: number) => {
+    const fat = bleFat !== null ? bleFat : Math.round((14.0 + (weight - 75) * 0.1) * 10) / 10;
+    const water = bleWater !== null ? bleWater : Math.round((58.0 - (weight - 75) * 0.08) * 10) / 10;
+    const muscle = bleMuscle !== null ? bleMuscle : Math.round((41.0 + (weight - 75) * 0.05) * 10) / 10;
+
+    sessionStorage.removeItem('vigor_last_weight');
+    sessionStorage.removeItem('vigor_last_metrics');
+
+    onWeightLogged(weight, fat, water, muscle);
+    setMeasuredWeight(weight);
+    setIsSaved(true);
+  };
+
+  const handleSimulateWeight = () => {
+    setStatus('connected');
+    setTimeout(() => {
+      sessionStorage.removeItem('vigor_last_weight');
+      sessionStorage.removeItem('vigor_last_metrics');
+      onWeightLogged(simWeight, simFat, simWater, simMuscle);
+      setMeasuredWeight(simWeight);
+      // Keep it connected status briefly to show user success, then close or stay open
+    }, 1000);
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content animate-slide-up" style={{ maxWidth: '600px' }}>
+        <div className="modal-header">
+          <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Scale style={{ color: '#cbd5e1' }} /> Neo Health Connect
+          </h2>
+          <button className="modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5, marginBottom: 24 }}>
+          Koppel uw **Neo Health Bluetooth weegschaal** om automatisch uw gewicht, vetpercentage en andere vitale parameters te registreren.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 12 }}>
+          {/* Bluetooth Connection Block */}
+          <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid rgba(255,255,255,0.06)', paddingRight: 24 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16, color: '#cbd5e1' }}>
+              Bluetooth Koppeling
+            </h3>
+
+            {bleSupported ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 200 }}>
+                {status === 'idle' && (
+                  <>
+                    <div className="ble-pulse-circle" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                      <Bluetooth size={32} style={{ color: '#94a3b8' }} />
+                    </div>
+                    <button onClick={startBluetoothScan} className="btn-primary" style={{ width: '100%' }}>
+                      Zoek Weegschaal
+                    </button>
+                  </>
+                )}
+
+                {status === 'searching' && (
+                  <>
+                    <div className="ble-pulse-circle searching">
+                      <Bluetooth size={32} style={{ color: '#cbd5e1' }} />
+                    </div>
+                    <p style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600, animation: 'pulseNeon 2s infinite' }}>
+                      Zoeken naar apparaten...
+                    </p>
+                    <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+                      Sta op de weegschaal om deze te activeren.
+                    </p>
+                  </>
+                )}
+
+                {status === 'connected' && (
+                  <>
+                    <div className="ble-pulse-circle connected">
+                      <Scale size={32} style={{ color: '#cbd5e1' }} />
+                    </div>
+                    <p style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 800, marginBottom: 8 }}>
+                      VERBONDEN
+                    </p>
+                    
+                    {isSaved ? (
+                      <div style={{ marginTop: 12, textAlign: 'center', width: '100%' }}>
+                        <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase' }}>Gemeten gewicht:</span>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: '#cbd5e1', marginBottom: 12 }}>{measuredWeight} kg</div>
+                      </div>
+                    ) : tempWeight ? (
+                      <div style={{ marginTop: 12, textAlign: 'center', width: '100%' }} className="animate-fade-in">
+                        <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase' }}>Huidige meting:</span>
+                        <div style={{ fontSize: 32, fontWeight: 900, color: '#cbd5e1', margin: '4px 0 16px' }}>{tempWeight} kg</div>
+                        <button 
+                          onClick={() => handleSave(tempWeight)}
+                          className="btn-primary" 
+                          style={{ width: '100%', padding: '12px' }}
+                        >
+                          Sla Meting Op
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, textAlign: 'center' }}>
+                        Sta stil op de weegschaal om de meting te starten...
+                      </p>
+                    )}
+
+                    {rawPacket && (
+                      <div className="animate-fade-in" style={{ marginTop: 16, padding: '12px 14px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, width: '100%' }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 800, letterSpacing: '0.5px' }}>
+                          Ontvangen Bluetooth Data (Hex):
+                        </span>
+                        <code style={{ fontSize: 10, wordBreak: 'break-all', fontFamily: 'monospace', color: '#ffb86c', display: 'block', lineHeight: 1.4 }}>
+                          {rawPacket}
+                        </code>
+                        {decodingInfo && (
+                          <div style={{ marginTop: 10, fontSize: 10, color: '#cbd5e1', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
+                            <strong>Gedecodeerd uit pakket:</strong> {detectedWeight} kg<br />
+                            <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>Methode: {decodingInfo}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {status === 'error' && (
+                  <>
+                    <div className="ble-pulse-circle" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                      <X size={32} style={{ color: '#ef4444' }} />
+                    </div>
+                    <p style={{ fontSize: 11, color: '#ef4444', textAlign: 'center', marginBottom: 12 }}>
+                      {errorMsg}
+                    </p>
+                    <button onClick={startBluetoothScan} className="btn-secondary" style={{ width: '100%' }}>
+                      Opnieuw Proberen
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, background: 'rgba(239, 68, 68, 0.03)', border: '1px solid rgba(239, 68, 68, 0.1)', borderRadius: '12px', padding: 16, textAlign: 'center' }}>
+                <HelpCircle size={28} style={{ color: '#ef4444', marginBottom: 12 }} />
+                <h4 style={{ fontSize: 12, color: '#ef4444', fontWeight: 800, marginBottom: 4 }}>Web Bluetooth Niet Ondersteund</h4>
+                <p style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                  Uw browser ondersteunt de Web Bluetooth API niet. Gebruik Google Chrome, MS Edge of de Virtual Simulator aan de rechterkant.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Simulator Block */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Activity size={14} style={{ color: '#cbd5e1' }} /> Virtual Scale Simulator
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+              <div className="form-group" style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <label className="form-label">Simulatie Gewicht</label>
+                  <span style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 700 }}>{simWeight} kg</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="40" 
+                  max="150" 
+                  step="0.1"
+                  value={simWeight}
+                  onChange={(e) => setSimWeight(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: '#cbd5e1' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 9 }}>Vet %</label>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    className="form-input" 
+                    value={simFat} 
+                    onChange={(e) => setSimFat(parseFloat(e.target.value))}
+                    style={{ padding: '8px', fontSize: 12 }}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 9 }}>Vocht %</label>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    className="form-input" 
+                    value={simWater} 
+                    onChange={(e) => setSimWater(parseFloat(e.target.value))}
+                    style={{ padding: '8px', fontSize: 12 }}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 9 }}>Spier %</label>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    className="form-input" 
+                    value={simMuscle} 
+                    onChange={(e) => setSimMuscle(parseFloat(e.target.value))}
+                    style={{ padding: '8px', fontSize: 12 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', marginTop: 16 }}>
+                <button 
+                  onClick={handleSimulateWeight} 
+                  className="btn-secondary" 
+                  style={{ width: '100%', borderColor: 'rgba(203, 213, 225, 0.3)', color: '#cbd5e1' }}
+                >
+                  Activeer Virtuele Meting
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {measuredWeight && (
+          <div className="animate-fade-in" style={{ background: 'rgba(203, 213, 225, 0.04)', border: '1px solid rgba(203, 213, 225, 0.15)', borderRadius: '12px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>Gewichtsmeting succesvol opgeslagen!</span>
+            <button className="btn-primary" onClick={onClose} style={{ padding: '6px 12px', fontSize: 11 }}>Sluiten</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

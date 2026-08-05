@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { Mail, Lock, User, AlertCircle, ArrowRight } from 'lucide-react';
 import '../workout.css';
@@ -11,6 +11,19 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('zenith_remember_email');
+    const savedPassword = localStorage.getItem('zenith_remember_password');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      if (savedPassword) {
+        setPassword(savedPassword);
+      }
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +57,15 @@ export const LoginPage: React.FC = () => {
           password,
         });
         if (error) throw error;
+
+        // Remember credentials if login was successful
+        if (rememberMe) {
+          localStorage.setItem('zenith_remember_email', email);
+          localStorage.setItem('zenith_remember_password', password);
+        } else {
+          localStorage.removeItem('zenith_remember_email');
+          localStorage.removeItem('zenith_remember_password');
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Er is een fout opgetreden.");
@@ -232,6 +254,26 @@ export const LoginPage: React.FC = () => {
               />
             </div>
           </div>
+
+          {!isSignUp && (
+            <div 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }} 
+              onClick={() => setRememberMe(!rememberMe)}
+            >
+              <input 
+                type="checkbox" 
+                checked={rememberMe} 
+                onChange={() => {}} 
+                style={{
+                  cursor: 'pointer',
+                  accentColor: '#cbd5e1'
+                }}
+              />
+              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>
+                Onthoud inloggegevens
+              </span>
+            </div>
+          )}
 
           <button
             type="submit"

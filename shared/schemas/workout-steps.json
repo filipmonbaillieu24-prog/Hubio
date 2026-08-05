@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Zenith Workout Steps Schema",
+  "description": "Validates the structure of the steps array inside planned_workouts, representing interval blocks.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The name or description of this block (e.g. 'Warm Up', 'Interval 1')."
+      },
+      "duration": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "Duration of the block in seconds."
+      },
+      "powerPct": {
+        "type": "number",
+        "minimum": 0.0,
+        "maximum": 3.0,
+        "description": "Power targets as a percentage of FTP (e.g. 0.85 for 85%)."
+      },
+      "zone": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 7,
+        "description": "Target power zone (1 = Recovery, 2 = Endurance, 3 = Tempo, 4 = Threshold, 5 = VO2Max, 6 = Anaerobic, 7 = Neuromuscular)."
+      },
+      "color": {
+        "type": "string",
+        "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+        "description": "Color code representing the zone color in hex format."
+      }
+    },
+    "required": ["name", "duration", "powerPct", "zone"]
+  }
+}

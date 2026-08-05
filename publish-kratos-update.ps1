@@ -11,7 +11,7 @@ Write-Host "Set JAVA_HOME to: $env:JAVA_HOME" -ForegroundColor Cyan
 # Define paths
 $GradleFile = "apps/zenith-kratos-pilot/app/build.gradle.kts"
 $ApkSrcPath = "apps/zenith-kratos-pilot/app/build/outputs/apk/debug/app-debug.apk"
-$ApkDestPath = "apk/kratos-pilot-debug.apk"
+$ApkDestPath = "apk/kratos.apk"
 $VersionJsonPath = "apk/kratos-version.json"
 $AdbPath = "C:\Users\filip\AppData\Local\Android\Sdk\platform-tools\adb.exe"
 
@@ -88,17 +88,21 @@ Copy-Item -Path $ApkSrcPath -Destination $ApkDestPath -Force
 Write-Host "Copied APK to $ApkDestPath." -ForegroundColor Green
 
 # Copy to Zenith Hub public folder for local developer QR-code sync
-$HubApkPath = "apps/zenith-hub/public/kratos-pilot-debug.apk"
+$HubApkPath = "apps/zenith-hub/public/kratos.apk"
 if (Test-Path "apps/zenith-hub/public") {
-    Copy-Item -Path $ApkSrcPath -Destination $HubApkPath -Force
-    Write-Host "Copied APK to Hub public assets at $HubApkPath." -ForegroundColor Green
+    try {
+        Copy-Item -Path $ApkSrcPath -Destination $HubApkPath -Force
+        Write-Host "Copied APK to Hub public assets at $HubApkPath." -ForegroundColor Green
+    } catch {
+        Write-Warning "Could not copy APK to Hub public assets (file might be locked by a running process): $_"
+    }
 }
 
 # 4. Update version.json
 $VersionJson = @{
     versionCode = $NewVersionCode
     versionName = $NewVersionName
-    apkUrl = "https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos-pilot-debug.apk"
+    apkUrl = "https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos.apk"
 } | ConvertTo-Json
 
 Set-Content -Path $VersionJsonPath -Value $VersionJson
@@ -130,9 +134,9 @@ Write-Host "Staging files in Git..." -ForegroundColor Yellow
 git add $GradleFile $ApkDestPath $VersionJsonPath
 
 Write-Host "Committing changes..." -ForegroundColor Yellow
-git commit -m "Release Kratos Pilot v$NewVersionName (versionCode $NewVersionCode)"
+git commit -m "Release Kratos v$NewVersionName (versionCode $NewVersionCode)"
 
 Write-Host "Pushing changes to origin main..." -ForegroundColor Yellow
 git push origin main
 
-Write-Host "Zenith Kratos Pilot update v$NewVersionName published successfully!" -ForegroundColor Green
+Write-Host "Kratos update v$NewVersionName published successfully!" -ForegroundColor Green

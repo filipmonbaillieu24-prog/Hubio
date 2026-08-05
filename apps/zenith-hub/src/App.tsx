@@ -10,7 +10,7 @@ import './App.css';
 function App() {
   const [session, setSession] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'hub' | 'cyclopilot' | 'profile' | 'vigor' | 'kratos'>('hub');
+  const [activeTab, setActiveTab] = useState<'hub' | 'cyclopilot' | 'profile' | 'vigor' | 'kratos' | 'fuel'>('hub');
   const [rides, setRides] = useState<{ date: number; tss: number }[]>([]);
   const [fitnessProfile, setFitnessProfile] = useState<any>({ name: 'Atleet' });
 
@@ -38,6 +38,17 @@ function App() {
     return isDev
       ? `http://localhost:1450/#access_token=${token}&refresh_token=${refresh}`
       : `${window.location.origin}/kratos/index.html#access_token=${token}&refresh_token=${refresh}`;
+  }, [session]);
+
+  // Memoized Fuel URL containing auth hashes
+  const fuelUrl = useMemo(() => {
+    if (!session) return '';
+    const token = session.access_token;
+    const refresh = session.refresh_token;
+    const isDev = import.meta.env.DEV;
+    return isDev
+      ? `http://localhost:1460/#access_token=${token}&refresh_token=${refresh}`
+      : `${window.location.origin}/fuel/index.html#access_token=${token}&refresh_token=${refresh}`;
   }, [session]);
 
   // Listen for native Tauri BLE weight and metrics events and forward to Vigor iframe
@@ -132,23 +143,66 @@ function App() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  // Central profile loader from public.profiles table
+  const loadFitnessProfile = useCallback(async (userId: string, userMetadata: any) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      if (data) {
+        setFitnessProfile({
+          name: data.name || 'Atleet',
+          gender: data.gender,
+          birthDate: data.birth_date,
+          height: data.height_cm,
+          weight: data.weight_kg,
+          ftp: data.ftp_watts || 220,
+          lthr: data.lthr_bpm || 165,
+          trainingGoal: data.training_goal || 'general'
+        });
+      } else {
+        const initialName = userMetadata?.name || 'Atleet';
+        const defaultProfile = {
+          id: userId,
+          name: initialName,
+          training_goal: 'general',
+          ftp_watts: 220,
+          lthr_bpm: 165
+        };
+        await supabase.from('profiles').insert(defaultProfile);
+        setFitnessProfile({
+          name: defaultProfile.name,
+          trainingGoal: 'general',
+          ftp: 220,
+          lthr: 165
+        });
+      }
+    } catch (e) {
+      console.error("Error loading profile from profiles table:", e);
+      const profile = userMetadata?.fitness_profile || {};
+      const name = userMetadata?.name || profile.name || 'Atleet';
+      setFitnessProfile({ ...profile, name });
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setSessionLoading(false);
       if (session?.user) {
-        const profile = session.user.user_metadata?.fitness_profile || {};
-        const name = session.user.user_metadata?.name || profile.name || 'Atleet';
-        setFitnessProfile({ ...profile, name });
+        loadFitnessProfile(session.user.id, session.user.user_metadata);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        const profile = session.user.user_metadata?.fitness_profile || {};
-        const name = session.user.user_metadata?.name || profile.name || 'Atleet';
-        setFitnessProfile({ ...profile, name });
+        loadFitnessProfile(session.user.id, session.user.user_metadata);
       } else {
         setRides([]);
         setFitnessProfile({ name: 'Atleet' });
@@ -156,7 +210,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [loadFitnessProfile]);
 
   const fetchRides = useCallback(async () => {
     if (!session) return;
@@ -190,6 +244,45 @@ function App() {
     }
   }, [fetchRides, session]);
 
+  // Supabase Realtime channel to orchestrate background MLP training cycles
+  useEffect(() => {
+    if (!session?.user) return;
+    const userId = session.user.id;
+
+    // Load background trainer dynamically to keep start bundle lightweight
+    const triggerTraining = async () => {
+      const { runBackgroundTraining } = await import('./utils/backgroundTrainer');
+      await runBackgroundTraining(supabase, userId);
+    };
+
+    // Trigger initial train run on load
+    triggerTraining();
+
+    const channel = supabase
+      .channel('hub-db-ml-trigger')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: `user_id=eq.${userId}` }, () => {
+        triggerTraining();
+        fetchRides();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vigor_weight', filter: `user_id=eq.${userId}` }, () => {
+        triggerTraining();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vigor_sleep', filter: `user_id=eq.${userId}` }, () => {
+        triggerTraining();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vigor_steps', filter: `user_id=eq.${userId}` }, () => {
+        triggerTraining();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'kratos_workouts', filter: `user_id=eq.${userId}` }, () => {
+        triggerTraining();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, fetchRides]);
+
   const fitnessMetrics = useMemo(() => {
     if (rides.length === 0) return { ctl: 0, atl: 0, tsb: 0 };
     const points = computePMC(rides);
@@ -201,14 +294,13 @@ function App() {
     };
   }, [rides]);
 
-  const onOpenApp = async (appKey: 'cyclo' | 'cyclopilot' | 'vigor' | 'indigogym') => {
+  const onOpenApp = async (appKey: 'cyclo' | 'cyclopilot' | 'vigor' | 'indigogym' | 'fuel') => {
     if (appKey === 'cyclo') {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       const token = currentSession?.access_token;
       const refresh = currentSession?.refresh_token;
       const isDev = import.meta.env.DEV;
 
-      // In development we use port 1430, in production we use local directory path
       const aeroUrl = isDev
         ? `http://localhost:1430/#access_token=${token}&refresh_token=${refresh}`
         : `${window.location.origin}/aero/index.html`;
@@ -220,20 +312,37 @@ function App() {
       setActiveTab('vigor');
     } else if (appKey === 'indigogym') {
       setActiveTab('kratos');
+    } else if (appKey === 'fuel') {
+      setActiveTab('fuel');
     }
   };
 
   const handleSaveProfile = async (updatedProfile: any) => {
     if (!session?.user) return;
 
-    const { error } = await supabase.auth.updateUser({
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: session.user.id,
+        name: updatedProfile.name,
+        gender: updatedProfile.gender || null,
+        birth_date: updatedProfile.birthDate || null,
+        height_cm: updatedProfile.height || null,
+        weight_kg: updatedProfile.weight || null,
+        ftp_watts: updatedProfile.ftp || 220,
+        lthr_bpm: updatedProfile.lthr || 165,
+        training_goal: updatedProfile.trainingGoal || 'general',
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) throw error;
+
+    await supabase.auth.updateUser({
       data: {
-        fitness_profile: updatedProfile,
         name: updatedProfile.name || undefined
       }
     });
 
-    if (error) throw error;
     setFitnessProfile(updatedProfile);
   };
 
@@ -255,6 +364,8 @@ function App() {
     return <LoginPage />;
   }
 
+  const userName = fitnessProfile?.name || session?.user?.user_metadata?.name || 'Atleet';
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#09090b', overflow: 'hidden' }}>
       {activeTab === 'hub' && (
@@ -264,10 +375,12 @@ function App() {
           onOpenApp={onOpenApp}
           onOpenProfile={() => setActiveTab('profile')}
           onLogout={handleLogout}
+          userId={session.user.id}
         />
       )}
       {activeTab === 'cyclopilot' && (
         <PilotPanel
+          userName={userName}
           onBack={() => setActiveTab('hub')}
         />
       )}
@@ -280,7 +393,7 @@ function App() {
         />
       )}
       {activeTab === 'vigor' && (
-        <div style={{ width: '100vw', height: '100vh', background: '#09090b', position: 'relative' }}>
+        <div style={{ width: '100%', height: '100vh', background: '#09090b', position: 'relative' }}>
           <iframe
             id="vigor-iframe"
             src={vigorUrl}
@@ -291,12 +404,22 @@ function App() {
         </div>
       )}
       {activeTab === 'kratos' && (
-        <div style={{ width: '100vw', height: '100vh', background: '#09090b', position: 'relative' }}>
+        <div style={{ width: '100%', height: '100vh', background: '#09090b', position: 'relative' }}>
           <iframe
             id="kratos-iframe"
             src={kratosUrl}
             style={{ width: '100%', height: '100%', border: 'none' }}
             title="Zenith Kratos"
+          />
+        </div>
+      )}
+      {activeTab === 'fuel' && (
+        <div style={{ width: '100%', height: '100vh', background: '#09090b', position: 'relative' }}>
+          <iframe
+            id="fuel-iframe"
+            src={fuelUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Zenith Fuel"
           />
         </div>
       )}
