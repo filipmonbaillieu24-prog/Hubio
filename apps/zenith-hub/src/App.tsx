@@ -14,6 +14,75 @@ function App() {
   const [rides, setRides] = useState<{ date: number; tss: number }[]>([]);
   const [fitnessProfile, setFitnessProfile] = useState<any>({ name: 'Atleet' });
 
+  // Update states
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'available' | 'downloading' | 'installing' | 'done' | 'error'>('idle');
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  // Check for updates on mount
+  useEffect(() => {
+    async function checkForUpdates() {
+      if ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__) {
+        try {
+          const { check } = await import('@tauri-apps/plugin-updater');
+          console.log("Checking for updates...");
+          const update = await check();
+          if (update) {
+            console.log(`Update available: ${update.version}`);
+            setUpdateInfo(update);
+            setUpdateStatus('available');
+          }
+        } catch (err) {
+          console.error("Failed to check for updates:", err);
+        }
+      }
+    }
+    checkForUpdates();
+  }, []);
+
+  const handleStartUpdate = async () => {
+    if (!updateInfo) return;
+    setUpdateStatus('downloading');
+    setDownloadProgress(0);
+    try {
+      let totalLength = 0;
+      let downloaded = 0;
+
+      await updateInfo.downloadAndInstall((event: any) => {
+        if (event.event === 'Started') {
+          totalLength = event.data.contentLength || 0;
+          console.log(`Download started. Size: ${totalLength}`);
+        } else if (event.event === 'Progress') {
+          downloaded += event.data.chunkLength;
+          if (totalLength > 0) {
+            const percent = Math.round((downloaded / totalLength) * 100);
+            setDownloadProgress(percent);
+          }
+        } else if (event.event === 'Finished') {
+          console.log("Download finished.");
+        }
+      });
+
+      setUpdateStatus('installing');
+      setTimeout(async () => {
+        try {
+          const { relaunch } = await import('@tauri-apps/plugin-process');
+          await relaunch();
+        } catch (err) {
+          console.error("Failed to relaunch application:", err);
+          setUpdateError("Kan de applicatie niet automatisch herstarten. Sluit de app en start hem handmatig opnieuw op.");
+          setUpdateStatus('error');
+        }
+      }, 1000);
+
+    } catch (err: any) {
+      console.error("Update failed:", err);
+      setUpdateError(err.toString() || "Update mislukt. Probeer het later opnieuw.");
+      setUpdateStatus('error');
+    }
+  };
+
   const pendingWeight = useRef<number | null>(null);
   const pendingRawBytes = useRef<number[] | null>(null);
   const pendingMetrics = useRef<any | null>(null);
@@ -421,6 +490,170 @@ function App() {
             style={{ width: '100%', height: '100%', border: 'none' }}
             title="Zenith Fuel"
           />
+        </div>
+      )}
+
+      {updateStatus !== 'idle' && updateInfo && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(9, 9, 11, 0.85)',
+          backdropFilter: 'blur(16px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99999,
+          color: '#ffffff',
+          fontFamily: 'Inter, sans-serif'
+        }}>
+          <div style={{
+            background: 'rgba(23, 23, 23, 0.75)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(59, 130, 246, 0.15)',
+            borderRadius: '24px',
+            padding: '40px',
+            width: '460px',
+            textAlign: 'center',
+            backdropFilter: 'blur(20px)'
+          }}>
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              margin: '0 auto 24px auto',
+              boxShadow: '0 0 30px rgba(59, 130, 246, 0.4)'
+            }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#fff' }}>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </div>
+
+            <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.5px' }}>
+              Update Beschikbaar!
+            </h2>
+            <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 14, marginBottom: 24 }}>
+              Er is een nieuwe versie van Zenith gevonden: <strong style={{ color: '#60a5fa' }}>v{updateInfo.version}</strong>
+            </p>
+
+            {updateInfo.body && (
+              <div style={{
+                background: 'rgba(0, 0, 0, 0.3)',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: 24,
+                textAlign: 'left',
+                maxHeight: '140px',
+                overflowY: 'auto',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: 'rgba(255, 255, 255, 0.8)'
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 6, color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', fontSize: 10, letterSpacing: '1px' }}>Release Notes</div>
+                {updateInfo.body}
+              </div>
+            )}
+
+            {updateStatus === 'available' && (
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setUpdateStatus('idle')}
+                  style={{
+                    flex: 1,
+                    padding: '14px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Later
+                </button>
+                <button
+                  onClick={handleStartUpdate}
+                  style={{
+                    flex: 2,
+                    padding: '14px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Nu Updaten
+                </button>
+              </div>
+            )}
+
+            {(updateStatus === 'downloading' || updateStatus === 'installing') && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8, color: 'rgba(255, 255, 255, 0.6)' }}>
+                  <span>{updateStatus === 'downloading' ? 'Downloaden...' : 'Installeren...'}</span>
+                  <span>{downloadProgress}%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: 12 }}>
+                  <div style={{
+                    width: `${downloadProgress}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                    borderRadius: '4px',
+                    transition: 'width 0.2s ease-out'
+                  }} />
+                </div>
+                <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.4)' }}>
+                  {updateStatus === 'downloading' ? 'Sluit de app niet af.' : 'Herstarten om update te voltooien...'}
+                </span>
+              </div>
+            )}
+
+            {updateStatus === 'error' && (
+              <div>
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  color: '#ef4444',
+                  fontSize: 13,
+                  marginBottom: 20,
+                  textAlign: 'left'
+                }}>
+                  {updateError}
+                </div>
+                <button
+                  onClick={() => setUpdateStatus('idle')}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Sluiten
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -45,9 +45,54 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Zenith Pre-Alpha ${{ github.ref_name }}'
           releaseDraft: false
           prerelease: true
           projectPath: './apps/zenith-hub'
+
+      - name: Generate and Publish updater.json
+        shell: pwsh
+        run: |
+          $Tag = "${{ github.ref_name }}"
+          $Version = $Tag.TrimStart('v').TrimStart('V')
+          $NsisDir = "./apps/zenith-hub/src-tauri/target/release/bundle/nsis"
+          $ZipFile = Get-ChildItem -Path $NsisDir -Filter "*.nsis.zip" | Select-Object -First 1
+          $SigFile = Get-ChildItem -Path $NsisDir -Filter "*.nsis.zip.sig" | Select-Object -First 1
+          
+          if (-not $ZipFile -or -not $SigFile) {
+            Write-Warning "Could not find built zip or signature file at $NsisDir. Skipping updater.json generation."
+            exit 0
+          }
+          
+          $Signature = Get-Content -Path $SigFile.FullName -Raw
+          $Signature = $Signature.Trim()
+          $Date = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $Url = "https://github.com/filipmonbaillieu24-prog/Zenith/releases/download/$Tag/$($ZipFile.Name)"
+          
+          $UpdaterJson = @{
+            version = $Version
+            notes = "Zenith Update version $Version"
+            pub_date = $Date
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $Signature
+                url = $Url
+              }
+            }
+          } | ConvertTo-Json -Depth 4
+          
+          Set-Content -Path "./updater.json" -Value $UpdaterJson -NoNewline
+          Write-Host "Generated updater.json successfully with version $Version"
+          
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config http.sslVerify false
+          git checkout main
+          git pull origin main
+          git add updater.json
+          git commit -m "chore: update updater.json to version $Version [skip ci]"
+          git push origin main
