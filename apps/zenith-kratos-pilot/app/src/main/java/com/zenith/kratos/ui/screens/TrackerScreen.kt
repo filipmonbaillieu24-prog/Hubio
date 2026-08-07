@@ -752,43 +752,45 @@ fun TrackerScreen(
                                                     val baseRest = if (setVal.type == "warmup") 60 else (if (isCompound) 120 else 90)
                                                     val totalRest = Math.round(baseRest * cardioStressFactor).toInt()
 
-                                                    if (nextSet != null && nextSet.type == "working") {
-                                                        val nextTargetRir = nextSet.targetRir
-                                                        val nextTargetReps = nextSet.targetReps
-                                                        val step = if (exState.incrementPerSide) 2.0 * exState.incrementWeight else exState.incrementWeight
+                                                    if (nextSet != null) {
+                                                        if (setVal.type == "working" && nextSet.type == "working") {
+                                                            val nextTargetRir = nextSet.targetRir
+                                                            val nextTargetReps = nextSet.targetReps
+                                                            val step = if (exState.incrementPerSide) 2.0 * exState.incrementWeight else exState.incrementWeight
 
-                                                        val predictedW = if (KratosAutoregModel.isLoaded()) {
-                                                            KratosAutoregModel.predictWeight(
-                                                                setIndex = setIndex,
-                                                                prevWeight = w,
-                                                                prevReps = r,
-                                                                prevRir = rir,
-                                                                restSeconds = totalRest,
-                                                                targetReps = nextTargetReps,
-                                                                targetRir = nextTargetRir
-                                                            )
-                                                        } else {
-                                                            val repsToFailure = r + rir
-                                                            val e1RM = w * (1.0 + repsToFailure / 30.0)
-                                                            e1RM / (1.0 + (nextTargetReps + nextTargetRir) / 30.0)
-                                                        }
+                                                            val predictedW = if (KratosAutoregModel.isLoaded()) {
+                                                                KratosAutoregModel.predictWeight(
+                                                                    setIndex = setIndex,
+                                                                    prevWeight = w,
+                                                                    prevReps = r,
+                                                                    prevRir = rir,
+                                                                    restSeconds = totalRest,
+                                                                    targetReps = nextTargetReps,
+                                                                    targetRir = nextTargetRir
+                                                                )
+                                                            } else {
+                                                                val repsToFailure = r + rir
+                                                                val e1RM = w * (1.0 + repsToFailure / 30.0)
+                                                                e1RM / (1.0 + (nextTargetReps + nextTargetRir) / 30.0)
+                                                            }
 
-                                                        val roundedW = Math.round(predictedW / step) * step
-                                                        val diff = Math.abs(w - roundedW)
-                                                        if (diff >= 0.5 * step) {
-                                                            nextSet.targetWeight = roundedW
-                                                            nextSet.targetReps = nextTargetReps
-                                                        } else {
-                                                            nextSet.targetWeight = w
-                                                            val e1RMFallback = w * (1.0 + (r + rir) / 30.0)
-                                                            val exactReps = (30.0 * (e1RMFallback / w - 1.0) - nextTargetRir).toInt()
-                                                            nextSet.targetReps = exactReps.coerceIn(3, nextTargetReps + 4)
+                                                            val roundedW = Math.round(predictedW / step) * step
+                                                            val diff = Math.abs(w - roundedW)
+                                                            if (diff >= 0.5 * step) {
+                                                                nextSet.targetWeight = roundedW
+                                                                nextSet.targetReps = nextTargetReps
+                                                            } else {
+                                                                nextSet.targetWeight = w
+                                                                val e1RMFallback = w * (1.0 + (r + rir) / 30.0)
+                                                                val exactReps = (30.0 * (e1RMFallback / w - 1.0) - nextTargetRir).toInt()
+                                                                nextSet.targetReps = exactReps.coerceIn(3, nextTargetReps + 4)
+                                                            }
                                                         }
 
                                                         // Pre-fill fields silently
                                                         nextSet.weightInput = nextSet.targetWeight.toString()
                                                         nextSet.repsInput = nextSet.targetReps.toString()
-                                                        nextSet.rirInput = nextSet.targetRir.toString()
+                                                        nextSet.rirInput = if (nextSet.type == "warmup") "4" else nextSet.targetRir.toString()
                                                     }
 
                                                     // Start Rest Timer
