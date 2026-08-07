@@ -6,9 +6,10 @@ interface ColmiRingConnectorProps {
   onClose: () => void;
   userId: string;
   onSyncComplete: () => void;
+  onPairingSuccess?: (brand: string, model: string) => void;
 }
 
-export default function ColmiRingConnector({ onClose, userId, onSyncComplete }: ColmiRingConnectorProps) {
+export default function ColmiRingConnector({ onClose, userId, onSyncComplete, onPairingSuccess }: ColmiRingConnectorProps) {
   const [status, setStatus] = useState<'idle' | 'scanning' | 'connecting' | 'syncing' | 'completed' | 'error'>('idle');
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -69,6 +70,9 @@ export default function ColmiRingConnector({ onClose, userId, onSyncComplete }: 
 
       setStatus('completed');
       addLog('Synchronisatie volledig voltooid!');
+      if (onPairingSuccess) {
+        onPairingSuccess('Colmi', 'R02');
+      }
       onSyncComplete();
     } catch (err: any) {
       console.error('Ring sync error:', err);

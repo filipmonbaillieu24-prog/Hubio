@@ -11,7 +11,7 @@ import {
   Calendar,
   Sparkles,
   X,
-  Radio
+  Bluetooth
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -31,7 +31,7 @@ import {
 import { WeightScaleConnector } from '../components/WeightScaleConnector';
 import { ManualLogModal } from '../components/ManualLogModal';
 import { ProfileSettings } from '../components/ProfileSettings';
-import ColmiRingConnector from '../components/ColmiRingConnector';
+import { DeviceManagerModal } from '../components/DeviceManagerModal';
 
 interface VigorDashboardProps {
   session: any;
@@ -53,7 +53,8 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showManualLog, setShowManualLog] = useState(false);
   const [showScaleConnect, setShowScaleConnect] = useState(false);
-  const [showRingConnect, setShowRingConnect] = useState(false);
+  const [showDeviceManager, setShowDeviceManager] = useState(false);
+  const [pairedDevices, setPairedDevices] = useState<any[]>([]);
 
   // Profile data
   const [profile, setProfile] = useState<any>({
@@ -74,7 +75,7 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
   // Auto-connect BLE scale state
   const [autoConnectedDevice, setAutoConnectedDevice] = useState<any>(null);
   const [backgroundConnecting, setBackgroundConnecting] = useState(false);
-  const [bgStatus, setBgStatus] = useState('Stand-by');
+
 
   // Logs management state
   const [editingLog, setEditingLog] = useState<{ type: 'weight' | 'sleep' | 'steps'; item: any } | null>(null);
@@ -159,11 +160,25 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
     }
   }, [user.id]);
 
+  const fetchPairedDevices = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vigor_paired_devices')
+        .select('*')
+        .eq('user_id', user.id);
+      if (error && error.code !== 'PGRST116') throw error;
+      setPairedDevices(data || []);
+    } catch (err) {
+      console.error('Error fetching paired devices:', err);
+    }
+  }, [user.id]);
+
   // Load profile and logs on start
   useEffect(() => {
     fetchProfile();
+    fetchPairedDevices();
     fetchLogs();
-  }, [fetchProfile, fetchLogs]);
+  }, [fetchProfile, fetchPairedDevices, fetchLogs]);
 
   // Background Web BLE scanner for Yolanda/Qingniu scales
   useEffect(() => {
@@ -173,8 +188,11 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
       return;
     }
 
+    const isScalePaired = pairedDevices.some(
+      d => d.device_type === 'scale' && d.brand === 'Neo Health' && d.model === 'Onyx SE' && d.auto_connect
+    );
     const pairedScaleId = localStorage.getItem('vigor_paired_scale_id');
-    if (!pairedScaleId || autoConnectedDevice) return;
+    if (!isScalePaired || !pairedScaleId || autoConnectedDevice) return;
 
     let scanTimeout: any;
 
@@ -186,7 +204,6 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
 
       console.log("Auto-connecting to previously paired scale:", pairedScaleId);
       setBackgroundConnecting(true);
-      setBgStatus('Zoeken...');
 
       try {
         // Yolanda/Qingniu scale advertises custom FFF0 service
@@ -197,13 +214,11 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
 
         if (device.id === pairedScaleId) {
           console.log("Device found, connecting...");
-          setBgStatus('Verbinden...');
           const server = await device.gatt?.connect();
           
           if (server) {
             console.log("GATT Server connected!");
             setAutoConnectedDevice(device);
-            setBgStatus('Verbonden');
 
             const service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
             const characteristic = await service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb');
@@ -247,20 +262,17 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
             device.addEventListener('gattserverdisconnected', () => {
               console.log("Device disconnected!");
               setAutoConnectedDevice(null);
-              setBgStatus('Verbinding verbroken');
               setBackgroundConnecting(false);
             });
           }
         } else {
           console.log("Found device does not match paired scale ID.");
           setBackgroundConnecting(false);
-          setBgStatus('Mislukt (Id mismatch)');
         }
 
       } catch (err) {
         console.error("Auto connect failed:", err);
         setBackgroundConnecting(false);
-        setBgStatus('Niet gevonden');
       }
     }
 
@@ -269,7 +281,7 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
     return () => {
       clearTimeout(scanTimeout);
     };
-  }, [autoConnectedDevice]);
+  }, [autoConnectedDevice, pairedDevices]);
 
   // Listen for native Tauri BLE weight events (direct or forwarded via parent window postMessage)
   useEffect(() => {
@@ -294,7 +306,6 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
             sessionStorage.setItem('vigor_last_metrics', JSON.stringify(payload));
             setInitialMetrics(payload);
           });
-          setBgStatus('Native BLE weegschaal actief');
         } catch (err) {
           console.error("Failed to setup Tauri native BLE listener:", err);
         }
@@ -1123,54 +1134,26 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {localStorage.getItem('vigor_paired_scale_id') && (
+          {pairedDevices.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: 4, lineHeight: 1.2 }}>
-              <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Onthouden weegschaal:</span>
-              <span style={{ fontSize: 11, color: autoConnectedDevice ? '#ffffff' : '#cbd5e1', fontWeight: 800 }}>
-                {localStorage.getItem('vigor_paired_scale_name') || 'Neo Health Scale'}
-              </span>
-              <span style={{ fontSize: 9, color: autoConnectedDevice ? '#ffffff' : 'var(--text-muted)', marginTop: 2 }}>
-                {bgStatus}
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status:</span>
+              <span style={{ fontSize: 10, color: autoConnectedDevice ? '#39ff14' : backgroundConnecting ? '#5c7cfa' : '#cbd5e1', fontWeight: 800 }}>
+                {autoConnectedDevice ? 'Weegschaal Actief' : backgroundConnecting ? 'Zoeken...' : 'Stand-by'}
               </span>
             </div>
           )}
+          
           <button onClick={() => setShowSettings(true)} className="vigor-nav-btn" style={{ background: 'rgba(255, 255, 255, 0.03)', borderColor: 'rgba(255, 255, 255, 0.08)' }}>
             <Settings size={15} /> Doelen Instellen
           </button>
+          
           <button onClick={() => setShowManualLog(true)} className="btn-secondary" style={{ padding: '10px 18px', fontSize: 13, height: '40px' }}>
             <Plus size={16} /> Log Handmatig
           </button>
-          {/* Scale auto connect button */}
-          {(() => {
-            const isNativeMode = window.parent && window.parent !== window;
-            return (
-              <button 
-                onClick={() => setShowScaleConnect(true)} 
-                className="btn-primary" 
-                style={{ 
-                  padding: '10px 18px', 
-                  fontSize: 13, 
-                  height: '40px',
-                  background: isNativeMode || autoConnectedDevice ? 'rgba(203, 213, 225, 0.08)' : backgroundConnecting ? 'rgba(92, 124, 250, 0.08)' : 'var(--color-primary)',
-                  borderColor: isNativeMode || autoConnectedDevice ? '#cbd5e1' : backgroundConnecting ? '#5c7cfa' : 'transparent',
-                  color: isNativeMode || autoConnectedDevice ? '#cbd5e1' : backgroundConnecting ? '#5c7cfa' : '#09090b',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  border: isNativeMode || autoConnectedDevice || backgroundConnecting ? '1px solid' : 'none',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Scale size={16} style={{ color: isNativeMode || autoConnectedDevice ? '#cbd5e1' : backgroundConnecting ? '#5c7cfa' : 'inherit' }} /> 
-                {isNativeMode || autoConnectedDevice ? 'Weegschaal Actief' : backgroundConnecting ? 'Zoeken...' : 'Neo Health Weegschaal'}
-              </button>
-            );
-          })()}
 
-          {/* Colmi R02 Smart Ring Button */}
           <button 
-            onClick={() => setShowRingConnect(true)} 
-            className="btn-secondary" 
+            onClick={() => setShowDeviceManager(true)} 
+            className="btn-primary" 
             style={{ 
               padding: '10px 18px', 
               fontSize: 13, 
@@ -1178,13 +1161,34 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: '1px solid rgba(92, 124, 250, 0.2)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               color: '#cbd5e1',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              cursor: 'pointer'
             }}
           >
-            <Radio size={16} style={{ color: '#5c7cfa' }} /> 
-            Colmi R02 Ring
+            <Bluetooth size={16} style={{ color: autoConnectedDevice ? '#39ff14' : backgroundConnecting ? '#5c7cfa' : 'var(--text-muted)' }} /> 
+            <span>Apparaten</span>
+            {pairedDevices.length > 0 && (
+              <span 
+                style={{ 
+                  background: autoConnectedDevice ? '#39ff14' : 'rgba(255, 255, 255, 0.1)', 
+                  color: autoConnectedDevice ? '#09090b' : '#cbd5e1',
+                  borderRadius: '50%',
+                  fontSize: 10,
+                  width: 18,
+                  height: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  marginLeft: 2
+                }}
+              >
+                {pairedDevices.length}
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -1432,11 +1436,12 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
         />
       )}
 
-      {showRingConnect && (
-        <ColmiRingConnector 
-          onClose={() => setShowRingConnect(false)}
+      {showDeviceManager && (
+        <DeviceManagerModal 
           userId={user.id}
-          onSyncComplete={fetchLogs}
+          onClose={() => setShowDeviceManager(false)}
+          fitnessProfile={dbProfile || user.user_metadata?.fitness_profile || {}}
+          onDevicesUpdated={fetchPairedDevices}
         />
       )}
 
