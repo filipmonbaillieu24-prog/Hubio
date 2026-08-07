@@ -325,6 +325,9 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
         console.log("Dashboard received native metrics forwarded from parent Hub:", payload);
         sessionStorage.setItem('vigor_last_metrics', JSON.stringify(payload));
         setInitialMetrics(payload);
+      } else if (event.data?.type === 'refresh-paired-devices') {
+        console.log("Dashboard received refresh-paired-devices request");
+        fetchPairedDevices();
       }
     };
 
@@ -340,7 +343,7 @@ export const VigorDashboard: React.FC<VigorDashboardProps> = ({ session }) => {
       if (unlistenMetrics) unlistenMetrics();
       window.removeEventListener('message', handleMessage);
     };
-  }, []);
+  }, [fetchPairedDevices]);
 
   const handleEditClick = (type: 'weight' | 'sleep' | 'steps', item: any) => {
     setEditingLog({ type, item });

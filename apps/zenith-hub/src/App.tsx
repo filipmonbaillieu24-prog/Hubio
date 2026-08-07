@@ -162,6 +162,43 @@ function App() {
     let unlistenWeight: (() => void) | null = null;
     let unlistenMetrics: (() => void) | null = null;
 
+    async function autoRegisterScale(userId: string) {
+      try {
+        const { data, error } = await supabase
+          .from('vigor_paired_devices')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('device_type', 'scale')
+          .limit(1);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          console.log("Auto-registering Neo Health Onyx SE scale in database...");
+          const { error: insError } = await supabase
+            .from('vigor_paired_devices')
+            .insert({
+              user_id: userId,
+              device_type: 'scale',
+              brand: 'Neo Health',
+              model: 'Onyx SE',
+              auto_connect: true,
+              settings: {}
+            });
+
+          if (insError) throw insError;
+
+          // Tell the iframe to reload devices
+          const iframe = document.getElementById('vigor-iframe') as HTMLIFrameElement;
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'refresh-paired-devices' }, '*');
+          }
+        }
+      } catch (err) {
+        console.error("Error auto-registering scale:", err);
+      }
+    }
+
     async function setupTauriListener() {
       if ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__) {
         try {
@@ -169,6 +206,12 @@ function App() {
           unlistenWeight = await listen('native-weight-received', (event: any) => {
             const payload = event.payload as { weight: number, raw_bytes?: number[] };
             console.log("Hub received native weight from Tauri Rust:", payload.weight);
+            
+            // Auto-register scale in DB if not already done
+            const currentUserId = session?.user?.id;
+            if (currentUserId) {
+              autoRegisterScale(currentUserId);
+            }
             
             pendingWeight.current = payload.weight;
             pendingRawBytes.current = payload.raw_bytes ?? null;
@@ -216,7 +259,7 @@ function App() {
       if (unlistenWeight) unlistenWeight();
       if (unlistenMetrics) unlistenMetrics();
     };
-  }, []);
+  }, [session]);
 
   // Handle close-app and ready postMessages from iframe
   useEffect(() => {
