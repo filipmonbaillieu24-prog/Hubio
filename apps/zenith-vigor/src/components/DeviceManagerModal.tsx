@@ -416,9 +416,19 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({
           <button 
             className="btn-primary" 
             disabled={!selectedType || !selectedModel}
-            onClick={() => {
-              if (selectedType === 'scale') setView('scale_pairing');
-              else if (selectedType === 'ring') setView('ring_pairing');
+            onClick={async () => {
+              const isNativeMode = window.parent && window.parent !== window;
+              if (isNativeMode) {
+                if (selectedType === 'scale') {
+                  await saveDeviceToDatabase('scale', 'Neo Health', 'Onyx SE');
+                } else if (selectedType === 'ring') {
+                  await saveDeviceToDatabase('ring', 'Colmi', 'R02');
+                }
+                setView('list');
+              } else {
+                if (selectedType === 'scale') setView('scale_pairing');
+                else if (selectedType === 'ring') setView('ring_pairing');
+              }
             }}
             style={{ 
               flex: 1, 
