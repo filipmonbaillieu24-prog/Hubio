@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bluetooth, Scale, X, HelpCircle, Activity } from 'lucide-react';
+import { Bluetooth, Scale, X, HelpCircle } from 'lucide-react';
 
 interface WeightScaleConnectorProps {
   onClose: () => void;
@@ -8,6 +8,7 @@ interface WeightScaleConnectorProps {
   initialWeight?: number | null;
   initialMetrics?: any;
   fitnessProfile?: any;
+  onPairingSuccess?: (brand: string, model: string) => void;
   scaleModel?: string;
 }
 
@@ -18,6 +19,7 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
   initialWeight,
   initialMetrics,
   fitnessProfile,
+  onPairingSuccess,
   scaleModel,
 }) => {
   // Read synchronous sessionStorage values to completely avoid React state batching race conditions
@@ -129,11 +131,6 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
     activeWeight ? "Native BLE Weegschaal Meting" : null
   );
 
-  // Simulator state
-  const [simWeight, setSimWeight] = useState<number>(78.5);
-  const [simFat, setSimFat] = useState<number>(14.2);
-  const [simWater, setSimWater] = useState<number>(58.1);
-  const [simMuscle, setSimMuscle] = useState<number>(41.5);
 
   // Sync state if props change after mounting
   useEffect(() => {
@@ -161,16 +158,6 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
     }
   }, [initialMetrics, tempWeight]);
 
-  useEffect(() => {
-    // Generate a realistic impedance for the simulator based on weight and profile details
-    const isMale = gender === 'male';
-    const baseImp = isMale ? 500 : 600;
-    const simulatedImpedance = baseImp + (90 - simWeight) * 3;
-    const results = calculateMetricsFromImpedance(simulatedImpedance, simWeight);
-    setSimFat(results.fat);
-    setSimWater(results.water);
-    setSimMuscle(results.muscle);
-  }, [simWeight, heightCm, ageYears, gender]);
 
   useEffect(() => {
     if (!(navigator as any).bluetooth) {
@@ -206,6 +193,9 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
             }
             setStatus('connected');
             setDecodingInfo("Tauri Rust Native BLE Link");
+            if (onPairingSuccess) {
+              onPairingSuccess('Neo Health', 'Onyx SE');
+            }
           });
           
           unlistenMetrics = await listen('native-metrics-received', (event: any) => {
@@ -244,6 +234,9 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
         }
         setStatus('connected');
         setDecodingInfo("Tauri Rust Native BLE Link (Via parent)");
+        if (onPairingSuccess) {
+          onPairingSuccess('Neo Health', 'Onyx SE');
+        }
       } else if (event.data?.type === 'native-metrics-received') {
         const payload = event.data.payload;
         console.log("Modal received native metrics forwarded from parent Hub:", payload);
@@ -283,6 +276,8 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
     setBleMuscle(null);
 
     try {
+      // Request any BLE device (more permissive) since some scales do not advertise their service UUID in broadcast packets
+      // We list standard health services as well as a wide range of common vendor custom service UUIDs
       const scanOptions: any = {
         optionalServices: [
           'weight_scale',
@@ -299,7 +294,7 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
         ]
       };
 
-      if (scaleModel === 'neo-health-onyx-se') {
+      if (scaleModel === 'Onyx SE' || scaleModel === 'neo-health-onyx-se') {
         scanOptions.filters = [
           { namePrefix: 'Neo' },
           { namePrefix: 'Onyx' },
@@ -313,7 +308,11 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
 
       // Save pairing info for auto-connect
       localStorage.setItem('vigor_paired_scale_id', device.id);
-      localStorage.setItem('vigor_paired_scale_name', device.name || 'Neo Health Onyx SE');
+      localStorage.setItem('vigor_paired_scale_name', device.name || 'Neo Health Scale');
+
+      if (onPairingSuccess) {
+        onPairingSuccess('Neo Health', 'Onyx SE');
+      }
 
       await setupDeviceConnection(device);
     } catch (err: any) {
@@ -548,20 +547,10 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
     setIsSaved(true);
   };
 
-  const handleSimulateWeight = () => {
-    setStatus('connected');
-    setTimeout(() => {
-      sessionStorage.removeItem('vigor_last_weight');
-      sessionStorage.removeItem('vigor_last_metrics');
-      onWeightLogged(simWeight, simFat, simWater, simMuscle);
-      setMeasuredWeight(simWeight);
-      // Keep it connected status briefly to show user success, then close or stay open
-    }, 1000);
-  };
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content animate-slide-up" style={{ maxWidth: '600px' }}>
+      <div className="modal-content animate-slide-up" style={{ maxWidth: '440px' }}>
         <div className="modal-header">
           <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Scale style={{ color: '#cbd5e1' }} /> Neo Health Connect
@@ -575,15 +564,11 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
           Koppel uw **Neo Health Bluetooth weegschaal** om automatisch uw gewicht, vetpercentage en andere vitale parameters te registreren.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 12 }}>
           {/* Bluetooth Connection Block */}
-          <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid rgba(255,255,255,0.06)', paddingRight: 24 }}>
-            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16, color: '#cbd5e1' }}>
-              Bluetooth Koppeling
-            </h3>
-
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {bleSupported ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 200 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
                 {status === 'idle' && (
                   <>
                     <div className="ble-pulse-circle" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)' }}>
@@ -679,81 +664,10 @@ export const WeightScaleConnector: React.FC<WeightScaleConnectorProps> = ({
                 <HelpCircle size={28} style={{ color: '#ef4444', marginBottom: 12 }} />
                 <h4 style={{ fontSize: 12, color: '#ef4444', fontWeight: 800, marginBottom: 4 }}>Web Bluetooth Niet Ondersteund</h4>
                 <p style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
-                  Uw browser ondersteunt de Web Bluetooth API niet. Gebruik Google Chrome, MS Edge of de Virtual Simulator aan de rechterkant.
+                  Uw browser ondersteunt de Web Bluetooth API niet. Gebruik Google Chrome of MS Edge.
                 </p>
               </div>
             )}
-          </div>
-
-          {/* Simulator Block */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Activity size={14} style={{ color: '#cbd5e1' }} /> Virtual Scale Simulator
-            </h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
-              <div className="form-group" style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <label className="form-label">Simulatie Gewicht</label>
-                  <span style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 700 }}>{simWeight} kg</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="40" 
-                  max="150" 
-                  step="0.1"
-                  value={simWeight}
-                  onChange={(e) => setSimWeight(parseFloat(e.target.value))}
-                  style={{ width: '100%', accentColor: '#cbd5e1' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 9 }}>Vet %</label>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    className="form-input" 
-                    value={simFat} 
-                    onChange={(e) => setSimFat(parseFloat(e.target.value))}
-                    style={{ padding: '8px', fontSize: 12 }}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 9 }}>Vocht %</label>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    className="form-input" 
-                    value={simWater} 
-                    onChange={(e) => setSimWater(parseFloat(e.target.value))}
-                    style={{ padding: '8px', fontSize: 12 }}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 9 }}>Spier %</label>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    className="form-input" 
-                    value={simMuscle} 
-                    onChange={(e) => setSimMuscle(parseFloat(e.target.value))}
-                    style={{ padding: '8px', fontSize: 12 }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', marginTop: 16 }}>
-                <button 
-                  onClick={handleSimulateWeight} 
-                  className="btn-secondary" 
-                  style={{ width: '100%', borderColor: 'rgba(203, 213, 225, 0.3)', color: '#cbd5e1' }}
-                >
-                  Activeer Virtuele Meting
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 

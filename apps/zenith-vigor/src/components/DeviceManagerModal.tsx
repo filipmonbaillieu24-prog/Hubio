@@ -465,6 +465,7 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({
             }}
             fitnessProfile={fitnessProfile}
             onPairingSuccess={handlePairingScaleSuccess}
+            scaleModel={selectedModel}
           />
         )}
 

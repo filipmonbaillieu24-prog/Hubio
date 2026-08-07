@@ -4141,3 +4141,6 @@
 [DBG-0x10] raw_w=8690 → 86.90 kg  stable=false impedance=0 Ohm
 [EMIT] Gewicht: 86.90 kg  should_emit=false (vorig=86.90)
 [STATE] t+12561ms  measurement_done=true impedance_ontvangen=false
+[System] Tauri Native BLE Listener gestart!
+[System] Tauri Native BLE Listener gestart!
+[System] Tauri Native BLE Listener gestart!
