@@ -39,8 +39,8 @@
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico",
-        "headerImage": "icons/installer_header.jpg",
-        "sidebarImage": "icons/installer_sidebar.jpg"
+        "headerImage": "icons/installer_header.bmp",
+        "sidebarImage": "icons/installer_sidebar.bmp"
       }
     }
   },
@@ -51,7 +51,7 @@
       "endpoints": [
         "https://raw.githubusercontent.com/filipmonbaillieu24-prog/Zenith/main/updater.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFMTA4OUFDNEZDM0ExRDMKUldUVG9jTlBySWtRcnFsWThXQyttODFQMzFaS0NMVTIrRzRmMEFOVTFxS3VNS0FZVWs1UW9CUkQK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk3NEI1NzRENDFERERCRDMKUldUVDI5MUJUVmRMbDZERVVqdmhjcE9BL3d6dExMVzZYenFiYzZiV1VRbzAvQ3VINW1aQXpLaXMK"
     }
   }
 }
