@@ -14,6 +14,10 @@ import { BugReportModal, BugReportSubmitData } from './components/BugReportModal
 
 function App() {
   const [session, setSession] = useState<any>(null);
+  const sessionRef = useRef<any>(null);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>('hub');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -208,7 +212,7 @@ function App() {
             console.log("Hub received native weight from Tauri Rust:", payload.weight);
             
             // Auto-register scale in DB if not already done
-            const currentUserId = session?.user?.id;
+            const currentUserId = sessionRef.current?.user?.id;
             if (currentUserId) {
               autoRegisterScale(currentUserId);
             }
@@ -259,7 +263,7 @@ function App() {
       if (unlistenWeight) unlistenWeight();
       if (unlistenMetrics) unlistenMetrics();
     };
-  }, [session]);
+  }, []);
 
   // Handle close-app and ready postMessages from iframe
   useEffect(() => {
