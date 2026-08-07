@@ -210,10 +210,21 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
     return computeSimulatedPMC(tssList, plannedWorkouts, 35);
   }, [allRides, allKratos, plannedWorkouts]);
 
-  const latestSimPoint = useMemo(() => {
-    if (simPMC.length === 0) return { ctl: 0, atl: 0, tsb: 0 };
-    return simPMC[simPMC.length - 1];
-  }, [simPMC]);
+  // Find today's point in the simulation to show unified metrics (Aero + Kratos)
+  const todayPoint = useMemo(() => {
+    if (simPMC.length === 0) return { ctl: fitnessMetrics.ctl, atl: fitnessMetrics.atl, tsb: fitnessMetrics.tsb };
+    const todayKey = new Date().setHours(0,0,0,0);
+    const pt = simPMC.find(p => {
+      const d = new Date(p.date);
+      d.setHours(0,0,0,0);
+      return d.getTime() === todayKey;
+    });
+    return pt || { ctl: fitnessMetrics.ctl, atl: fitnessMetrics.atl, tsb: fitnessMetrics.tsb };
+  }, [simPMC, fitnessMetrics]);
+
+  const currentFormStatus = useMemo(() => {
+    return interpretTSB(todayPoint.tsb);
+  }, [todayPoint]);
 
   const chartData = useMemo(() => {
     return simPMC.map(pt => ({
@@ -226,22 +237,6 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
       isSimulated: pt.isSimulated,
     }));
   }, [simPMC]);
-
-  const currentFormStatus = useMemo(() => {
-    return interpretTSB(latestSimPoint.tsb);
-  }, [latestSimPoint]);
-
-  // Find today's point in the simulation to show unified metrics (Aero + Kratos)
-  const todayPoint = useMemo(() => {
-    if (simPMC.length === 0) return { ctl: fitnessMetrics.ctl, atl: fitnessMetrics.atl, tsb: fitnessMetrics.tsb };
-    const todayKey = new Date().setHours(0,0,0,0);
-    const pt = simPMC.find(p => {
-      const d = new Date(p.date);
-      d.setHours(0,0,0,0);
-      return d.getTime() === todayKey;
-    });
-    return pt || { ctl: fitnessMetrics.ctl, atl: fitnessMetrics.atl, tsb: fitnessMetrics.tsb };
-  }, [simPMC, fitnessMetrics]);
 
   const ctl = Math.round(todayPoint.ctl);
   const atl = Math.round(todayPoint.atl);
