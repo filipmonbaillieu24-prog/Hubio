@@ -2,17 +2,43 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from './utils/supabaseClient';
 import { LoginPage } from './pages/LoginPage';
 import { ZenithHubPage } from './pages/hub/ZenithHubPage';
+import { CalendarPage } from './pages/hub/CalendarPage';
 import { PilotPanel } from './pages/hub/PilotPanel';
 import { ProfilePage } from './pages/hub/ProfilePage';
+import { Sidebar, TabKey } from './components/Sidebar';
 import { computePMC } from './utils/pmc';
+import { recoveryModel } from '../../../shared/ml/RecoveryScore';
 import './App.css';
+import { AppTitlebar } from './components/AppTitlebar';
+import { BugReportModal, BugReportSubmitData } from './components/BugReportModal';
 
 function App() {
   const [session, setSession] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'hub' | 'cyclopilot' | 'profile' | 'vigor' | 'kratos' | 'fuel'>('hub');
+  const [activeTab, setActiveTab] = useState<TabKey>('hub');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('zenith_sidebar_collapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [rides, setRides] = useState<{ date: number; tss: number }[]>([]);
   const [fitnessProfile, setFitnessProfile] = useState<any>({ name: 'Atleet' });
+  const [mlModelsLoaded, setMlModelsLoaded] = useState(false);
+  const [pendingRideId, setPendingRideId] = useState<string | null>(null);
+  const [isBugReportOpen, setIsBugReportOpen] = useState(false);
+  const [bugPrefilledCategory, setBugPrefilledCategory] = useState<string | null>(null);
+
+  // Helper to inject openRide query param before hash routing
+  const getAeroUrl = () => {
+    if (!aeroUrl) return '';
+    if (pendingRideId) {
+      const parts = aeroUrl.split('#');
+      const base = parts[0];
+      const hash = parts[1] ? `#${parts[1]}` : '';
+      const separator = base.includes('?') ? '&' : '?';
+      return `${base}${separator}openRide=${pendingRideId}${hash}`;
+    }
+    return aeroUrl;
+  };
 
   // Update states
   const [updateInfo, setUpdateInfo] = useState<any>(null);
@@ -86,6 +112,17 @@ function App() {
   const pendingWeight = useRef<number | null>(null);
   const pendingRawBytes = useRef<number[] | null>(null);
   const pendingMetrics = useRef<any | null>(null);
+
+  // Memoized Aero URL containing auth hashes
+  const aeroUrl = useMemo(() => {
+    if (!session) return '';
+    const token = session.access_token;
+    const refresh = session.refresh_token;
+    const isDev = import.meta.env.DEV;
+    return isDev
+      ? `http://localhost:1430/#access_token=${token}&refresh_token=${refresh}`
+      : `${window.location.origin}/aero/index.html#access_token=${token}&refresh_token=${refresh}`;
+  }, [session]);
 
   // Memoized Vigor URL containing auth hashes
   const vigorUrl = useMemo(() => {
@@ -186,6 +223,10 @@ function App() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'close-app') {
         setActiveTab('hub');
+      } else if (event.data?.type === 'open-bug-report') {
+        console.log("Hub received open-bug-report event from iframe:", event.data);
+        setBugPrefilledCategory(event.data.category || null);
+        setIsBugReportOpen(true);
       } else if (event.data?.type === 'vigor-dashboard-ready') {
         console.log("Hub received ready notification from Vigor iframe");
         const iframe = document.getElementById('vigor-iframe') as HTMLIFrameElement;
@@ -318,10 +359,18 @@ function App() {
     if (!session?.user) return;
     const userId = session.user.id;
 
-    // Load background trainer dynamically to keep start bundle lightweight
     const triggerTraining = async () => {
+      // 1. Initialise models in memory for UI immediately
+      await recoveryModel.loadOrInit(supabase, userId);
+      setMlModelsLoaded(true);
+
+      // 2. Run background training
       const { runBackgroundTraining } = await import('./utils/backgroundTrainer');
       await runBackgroundTraining(supabase, userId);
+
+      // 3. Re-load the freshly trained weights into memory and trigger UI updates
+      await recoveryModel.loadOrInit(supabase, userId);
+      setMlModelsLoaded(prev => !prev);
     };
 
     // Trigger initial train run on load
@@ -363,28 +412,6 @@ function App() {
     };
   }, [rides]);
 
-  const onOpenApp = async (appKey: 'cyclo' | 'cyclopilot' | 'vigor' | 'indigogym' | 'fuel') => {
-    if (appKey === 'cyclo') {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      const token = currentSession?.access_token;
-      const refresh = currentSession?.refresh_token;
-      const isDev = import.meta.env.DEV;
-
-      const aeroUrl = isDev
-        ? `http://localhost:1430/#access_token=${token}&refresh_token=${refresh}`
-        : `${window.location.origin}/aero/index.html`;
-
-      window.location.href = aeroUrl;
-    } else if (appKey === 'cyclopilot') {
-      setActiveTab('cyclopilot');
-    } else if (appKey === 'vigor') {
-      setActiveTab('vigor');
-    } else if (appKey === 'indigogym') {
-      setActiveTab('kratos');
-    } else if (appKey === 'fuel') {
-      setActiveTab('fuel');
-    }
-  };
 
   const handleSaveProfile = async (updatedProfile: any) => {
     if (!session?.user) return;
@@ -419,6 +446,151 @@ function App() {
     await supabase.auth.signOut();
   };
 
+  const handleBugReportSubmit = async (data: BugReportSubmitData) => {
+    if (!session?.user) {
+      throw new Error("U moet ingelogd zijn om een bug te melden.");
+    }
+
+    let imageUrl: string | null = null;
+
+    // 1. Upload screenshot to Supabase Storage if present
+    if (data.screenshot) {
+      const fileExt = data.screenshot.name.split('.').pop() || 'png';
+      const fileName = `${session.user.id}/${Date.now()}_screenshot.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('bug-reports')
+        .upload(fileName, data.screenshot, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw new Error(`Schermafbeelding uploaden mislukt: ${uploadError.message}`);
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('bug-reports')
+        .getPublicUrl(fileName);
+
+      imageUrl = publicUrl;
+    }
+
+    // 2. Resolve environment details
+    const envOs = navigator.platform || 'Onbekend';
+    const envBrowser = navigator.userAgent || 'Onbekend';
+    const envScreen = `${window.screen.width}x${window.screen.height} (Venster: ${window.innerWidth}x${window.innerHeight})`;
+
+    // 3. Resolve GitHub credentials
+    const repo = data.developerRepo || import.meta.env.VITE_GITHUB_REPO || 'filipmonbaillieu24-prog/Zenith';
+    const token = data.developerToken || import.meta.env.VITE_GITHUB_TOKEN;
+
+    if (!token) {
+      throw new Error(
+        'Geen GitHub Access Token gevonden. Vul a.u.b. uw token in onder "Developer instellingen" onderaan het formulier.'
+      );
+    }
+
+    // 4. Format the Markdown body of the GitHub issue
+    const bodyContent = `### Omschrijving / Reproductie
+${data.description}
+
+### Details
+- **Categorie:** ${data.category}
+- **Type probleem:** ${data.problemType}
+- **Urgentie:** ${data.severity.toUpperCase()}
+- **Gebruiker:** ${session.user.email} (${session.user.id})
+
+### Omgevingsfactoren
+- **Besturingssysteem:** ${envOs}
+- **Browser:** ${envBrowser}
+- **Schermresolutie:** ${envScreen}
+- **Applicatie Versie:** 0.1.0 (Tauri)
+
+${imageUrl ? `### Schermafbeelding\n\n![Screenshot](${imageUrl})` : ''}
+`;
+
+    // 5. Send post request to GitHub Issues API
+    const githubResponse = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `[${data.category.toUpperCase()}] [${data.problemType.toUpperCase()}] ${data.title}`,
+        body: bodyContent,
+        labels: ['bug', `severity:${data.severity}`, `comp:${data.category}`]
+      })
+    });
+
+    if (!githubResponse.ok) {
+      const errJson = await githubResponse.json().catch(() => ({}));
+      throw new Error(errJson.message || `GitHub API fout: ${githubResponse.status} ${githubResponse.statusText}`);
+    }
+
+    const issueData = await githubResponse.json();
+    const githubUrl = issueData.html_url;
+    const githubNumber = issueData.number;
+
+    // 6. Save to Supabase public.bug_reports table
+    try {
+      const { error: dbError } = await supabase
+        .from('bug_reports')
+        .insert({
+          user_id: session.user.id,
+          title: data.title,
+          description: data.description,
+          category: data.category,
+          problem_type: data.problemType,
+          severity: data.severity,
+          image_url: imageUrl,
+          env_os: envOs,
+          env_browser: envBrowser,
+          env_screen: envScreen,
+          github_issue_url: githubUrl,
+          github_issue_number: githubNumber,
+          status: 'open'
+        });
+
+      if (dbError) {
+        console.warn("Kon bugrapport niet opslaan in Supabase database:", dbError);
+      }
+    } catch (dbErr) {
+      console.warn("Fout bij opslaan in database:", dbErr);
+    }
+
+    return { success: true, githubUrl };
+  };
+
+  const handleMinimize = async () => {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().minimize();
+    } catch (e) {
+      console.warn("Tauri window minimize error:", e);
+    }
+  };
+
+  const handleMaximize = async () => {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().toggleMaximize();
+    } catch (e) {
+      console.warn("Tauri window maximize error:", e);
+    }
+  };
+
+  const handleClose = async () => {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().close();
+    } catch (e) {
+      console.warn("Tauri window close error:", e);
+    }
+  };
+
   if (sessionLoading) {
     return (
       <div className="zh-hub-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -436,62 +608,100 @@ function App() {
   const userName = fitnessProfile?.name || session?.user?.user_metadata?.name || 'Atleet';
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#09090b', overflow: 'hidden' }}>
-      {activeTab === 'hub' && (
-        <ZenithHubPage
-          fitnessProfile={fitnessProfile}
-          fitnessMetrics={fitnessMetrics}
-          onOpenApp={onOpenApp}
-          onOpenProfile={() => setActiveTab('profile')}
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', background: '#09090b', overflow: 'hidden' }}>
+      <AppTitlebar
+        onMinimize={handleMinimize}
+        onMaximize={handleMaximize}
+        onClose={handleClose}
+      />
+      <div style={{ display: 'flex', flex: 1, width: '100%', height: 'calc(100vh - 32px)', overflow: 'hidden' }}>
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
           onLogout={handleLogout}
-          userId={session.user.id}
-        />
-      )}
-      {activeTab === 'cyclopilot' && (
-        <PilotPanel
           userName={userName}
-          onBack={() => setActiveTab('hub')}
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
+          onOpenBugReport={() => {
+            setBugPrefilledCategory(null);
+            setIsBugReportOpen(true);
+          }}
         />
-      )}
-      {activeTab === 'profile' && (
-        <ProfilePage
-          initialProfile={fitnessProfile}
-          userId={session.user.id}
-          onBack={() => setActiveTab('hub')}
-          onSave={handleSaveProfile}
-        />
-      )}
-      {activeTab === 'vigor' && (
-        <div style={{ width: '100%', height: '100vh', background: '#09090b', position: 'relative' }}>
-          <iframe
-            id="vigor-iframe"
-            src={vigorUrl}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            title="Zenith Vigor"
-            allow="bluetooth"
-          />
+        <div style={{ flex: 1, height: 'calc(100vh - 32px)', marginTop: '32px', overflow: 'hidden', position: 'relative' }}>
+          {activeTab === 'hub' && (
+            <ZenithHubPage
+              fitnessProfile={fitnessProfile}
+              fitnessMetrics={fitnessMetrics}
+              userId={session.user.id}
+              mlModelsLoaded={mlModelsLoaded}
+            />
+          )}
+          {activeTab === 'calendar' && (
+            <CalendarPage
+              userId={session.user.id}
+              onOpenRideInAero={(rideId) => {
+                setPendingRideId(rideId);
+                setActiveTab('aero');
+              }}
+            />
+          )}
+          {activeTab === 'mobiel' && (
+            <PilotPanel
+              userName={userName}
+            />
+          )}
+          {activeTab === 'profile' && (
+            <ProfilePage
+              initialProfile={fitnessProfile}
+              userId={session.user.id}
+              onBack={() => setActiveTab('hub')}
+              onSave={handleSaveProfile}
+            />
+          )}
+          {activeTab === 'aero' && (
+            <div style={{ width: '100%', height: '100%', background: '#09090b', position: 'relative' }}>
+              <iframe
+                id="aero-iframe"
+                src={getAeroUrl()}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Zenith Aero"
+                allow="bluetooth"
+              />
+            </div>
+          )}
+          {activeTab === 'vigor' && (
+            <div style={{ width: '100%', height: '100%', background: '#09090b', position: 'relative' }}>
+              <iframe
+                id="vigor-iframe"
+                src={vigorUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Zenith Vigor"
+                allow="bluetooth"
+              />
+            </div>
+          )}
+          {activeTab === 'kratos' && (
+            <div style={{ width: '100%', height: '100%', background: '#09090b', position: 'relative' }}>
+              <iframe
+                id="kratos-iframe"
+                src={kratosUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Zenith Kratos"
+              />
+            </div>
+          )}
+          {activeTab === 'fuel' && (
+            <div style={{ width: '100%', height: '100%', background: '#09090b', position: 'relative' }}>
+              <iframe
+                id="fuel-iframe"
+                src={fuelUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Zenith Fuel"
+              />
+            </div>
+          )}
         </div>
-      )}
-      {activeTab === 'kratos' && (
-        <div style={{ width: '100%', height: '100vh', background: '#09090b', position: 'relative' }}>
-          <iframe
-            id="kratos-iframe"
-            src={kratosUrl}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            title="Zenith Kratos"
-          />
-        </div>
-      )}
-      {activeTab === 'fuel' && (
-        <div style={{ width: '100%', height: '100vh', background: '#09090b', position: 'relative' }}>
-          <iframe
-            id="fuel-iframe"
-            src={fuelUrl}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            title="Zenith Fuel"
-          />
-        </div>
-      )}
+      </div>
 
       {updateStatus !== 'idle' && updateInfo && (
         <div style={{
@@ -656,6 +866,13 @@ function App() {
           </div>
         </div>
       )}
+
+      <BugReportModal
+        isOpen={isBugReportOpen}
+        onClose={() => setIsBugReportOpen(false)}
+        onSubmit={handleBugReportSubmit}
+        prefilledCategory={bugPrefilledCategory}
+      />
     </div>
   );
 }

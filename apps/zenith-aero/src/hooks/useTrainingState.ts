@@ -105,13 +105,83 @@ export function useTrainingState(
 
   // ── Periodisering state ──
   const [eventDate, setEventDate] = useState(() => {
+    const saved = localStorage.getItem('zenith_event_date');
+    if (saved) return saved;
     const d = new Date(); d.setMonth(d.getMonth() + 3);
     return d.toISOString().slice(0, 10);
   });
-  const [eventName, setEventName] = useState('Mijn Event');
+  const [eventName, setEventName] = useState(() => {
+    return localStorage.getItem('zenith_event_name') ?? 'Mijn Event';
+  });
+  const [goalType, setGoalType] = useState<'event' | 'continuous'>(() => {
+    return (localStorage.getItem('zenith_goal_type') as any) ?? 'event';
+  });
+  const [activeFocus, setActiveFocus] = useState<'ftp' | 'endurance' | 'recovery' | 'vo2max'>(() => {
+    return (localStorage.getItem('zenith_active_focus') as any) ?? 'endurance';
+  });
 
-  const phaseInfo = useMemo(() => getPhase(eventDate), [eventDate]);
-  const phase = phaseConfig[phaseInfo.phase];
+  useEffect(() => {
+    localStorage.setItem('zenith_event_date', eventDate);
+    localStorage.setItem('zenith_event_name', eventName);
+    localStorage.setItem('zenith_goal_type', goalType);
+    localStorage.setItem('zenith_active_focus', activeFocus);
+  }, [eventDate, eventName, goalType, activeFocus]);
+
+  const phaseInfo = useMemo(() => {
+    if (goalType === 'continuous') {
+      let mappedPhase: TrainingPhase = 'base';
+      if (activeFocus === 'ftp') mappedPhase = 'build';
+      else if (activeFocus === 'vo2max') mappedPhase = 'peak';
+      else if (activeFocus === 'recovery') mappedPhase = 'recovery';
+
+      return {
+        phase: mappedPhase,
+        daysToEvent: 0,
+        weekLabel: 'Doorlopende focus'
+      };
+    }
+    return getPhase(eventDate);
+  }, [goalType, activeFocus, eventDate]);
+
+  const phase = useMemo(() => {
+    if (goalType === 'continuous') {
+      if (activeFocus === 'ftp') {
+        return {
+          color: '#fdcb6e',
+          emoji: '⚡',
+          label: 'FTP Verhogen',
+          description: 'Gerichte opbouw van je FTP en drempelvermogen.',
+          weekFocus: ['Duur', 'Sweet Spot', 'Rust', 'Drempel', 'Duur', 'Sweet Spot', 'Rust']
+        };
+      } else if (activeFocus === 'recovery') {
+        return {
+          color: '#94a3b8',
+          emoji: '💤',
+          label: 'Actief Herstel',
+          description: 'Herstellen en onderhouden van je basis zonder stress.',
+          weekFocus: ['Rust', 'Herstel', 'Rust', 'Herstel', 'Rust', 'Herstel', 'Rust']
+        };
+      } else if (activeFocus === 'vo2max') {
+        return {
+          color: '#ff7675',
+          emoji: '🚀',
+          label: 'VO2max Focus',
+          description: 'Korte, explosieve inspanningen om je aerobe plafond te verhogen.',
+          weekFocus: ['VO2max', 'Rust', 'VO2max', 'Rust', 'Duur', 'Rust', 'Rust']
+        };
+      } else {
+        // endurance
+        return {
+          color: '#00b894',
+          emoji: '🌱',
+          label: 'Conditieopbouw',
+          description: 'Gerichte opbouw van aerobe conditie en uithoudingsvermogen.',
+          weekFocus: ['Duur (Z2)', 'Duur (Z2)', 'Rust', 'Duur (Z2)', 'Herstel', 'Duur (Z2)', 'Rust']
+        };
+      }
+    }
+    return phaseConfig[phaseInfo.phase];
+  }, [goalType, activeFocus, phaseInfo.phase]);
 
   // ── Ritten per dag map ──
   const ridesByDay = useMemo(() => {
@@ -520,5 +590,9 @@ export function useTrainingState(
     weekLoadData,
     overtrainingRisk,
     typeCountWarning,
+    todaySleepQuality,
+    dailySteps,
+    goalType, setGoalType,
+    activeFocus, setActiveFocus,
   };
 }

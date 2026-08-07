@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Download, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
+import { Download, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
@@ -7,10 +7,9 @@ import './ZenithHub.css';
 
 interface PilotPanelProps {
   userName: string;
-  onBack: () => void;
 }
 
-export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
+export const PilotPanel: React.FC<PilotPanelProps> = ({ userName }) => {
   const [localIp, setLocalIp] = useState<string | null>(null);
   const [useLocalDevLink, setUseLocalDevLink] = useState(false);
   const [selectedApp, setSelectedApp] = useState<'pilot' | 'kratos'>('pilot');
@@ -31,10 +30,10 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
   const downloadUrl = selectedApp === 'pilot'
     ? ((useLocalDevLink && localIp)
         ? `http://${localIp}:1420/app-debug.apk` 
-        : `https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk?t=${Date.now()}`)
+        : `https://github.com/filipmonbaillieu24-prog/Zenith/raw/main/apk/app-debug.apk?t=${Date.now()}`)
     : ((useLocalDevLink && localIp)
         ? `http://${localIp}:1420/kratos.apk` 
-        : `https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos.apk?t=${Date.now()}`);
+        : `https://github.com/filipmonbaillieu24-prog/Zenith/raw/main/apk/kratos.apk?t=${Date.now()}`);
 
   return (
     <div className="zh-hub-container">
@@ -42,14 +41,32 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
       <div className="zh-hub-glow" style={{ background: 'radial-gradient(circle at 80% 20%, rgba(203, 213, 225, 0.1) 0%, transparent 60%)' }} />
 
       {/* Header */}
-      <header className="zh-hub-header animate-slide-down" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '20px', marginBottom: '24px' }}>
+      <header className="zh-hub-header animate-slide-down" style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)', 
+        padding: '16px 24px', 
+        background: 'transparent',
+        height: '70px',
+        boxSizing: 'border-box',
+        flexShrink: 0,
+        marginBottom: '24px'
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={onBack} className="zh-back-btn">
-            <ArrowLeft size={14} /> Hub
-          </button>
           <div>
-            <h1 className="zh-hub-title" style={{ fontSize: 22 }}>ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 18 }}>PILOT</span></h1>
-            <p className="zh-hub-subtitle">Android Audio Companion voor {userName}</p>
+            <h1 className="zh-hub-title" style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: 0, letterSpacing: '0.5px', lineHeight: '1.2' }}>
+              {selectedApp === 'pilot' ? (
+                <>AERO <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '16px' }}>PILOT</span></>
+              ) : (
+                <>KRATOS <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '16px' }}>PILOT</span></>
+              )}
+            </h1>
+            <p className="zh-hub-subtitle" style={{ fontSize: '9px', color: 'var(--text-muted)', margin: '4px 0 0', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+              {selectedApp === 'pilot' 
+                ? `Android Audio Companion voor ${userName}`
+                : `Android Krachttraining Tracker voor ${userName}`}
+            </p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#64748b' }}>
@@ -93,7 +110,7 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
                 letterSpacing: '0.5px'
               }}
             >
-              Zenith Pilot
+              Aero Pilot
             </button>
             <button 
               onClick={() => setSelectedApp('kratos')}
@@ -135,12 +152,12 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
           </div>
 
           <h2 style={{ fontSize: 20, fontWeight: 900, color: '#f8fafc', margin: '0 0 6px', fontFamily: 'Outfit, sans-serif' }}>
-            Download {selectedApp === 'pilot' ? 'Zenith Pilot' : 'Kratos Pilot'}
+            Download {selectedApp === 'pilot' ? 'Aero Pilot' : 'Kratos Pilot'}
           </h2>
           <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 24px', maxWidth: 280, lineHeight: 1.5 }}>
             {useLocalDevLink 
-              ? `Scan de QR-code met uw Android-telefoon op hetzelfde wifi-netwerk om uw zojuist gebouwde lokale ${selectedApp === 'pilot' ? 'Pilot' : 'Kratos'} APK direct te downloaden.`
-              : `Scan de QR-code met uw Android-toestel om de ${selectedApp === 'pilot' ? 'Pilot companion-app' : 'Kratos tracker-app'} direct te downloaden en installeren.`}
+              ? `Scan de QR-code met uw Android-telefoon op hetzelfde wifi-netwerk om uw zojuist gebouwde lokale ${selectedApp === 'pilot' ? 'Aero Pilot' : 'Kratos Pilot'} APK direct te downloaden.`
+              : `Scan de QR-code met uw Android-toestel om de ${selectedApp === 'pilot' ? 'Aero Pilot companion-app' : 'Kratos Pilot tracker-app'} direct te downloaden en installeren.`}
           </p>
 
           <a 
@@ -204,28 +221,65 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
           
           {/* App Info Card */}
           <div className="zh-pilot-card" style={{ padding: '24px 28px' }}>
-            <h3 className="zh-pilot-card-title" style={{ fontSize: 14, marginBottom: 12 }}>
-              <Smartphone size={16} /> Live In-Ear Audio Coach
-            </h3>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.6 }}>
-              Pilot is de onmisbare mobiele partner van het Zenith ecosysteem. Het functioneert als uw live spraakgestuurde coach tijdens het fietsen, direct gekoppeld aan uw trainingsschema's uit Aero.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <Wifi size={16} style={{ color: '#cbd5e1', flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <h4 style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Directe Sensor Koppeling</h4>
-                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>Maakt rechtstreeks verbinding met uw Bluetooth (BLE) hartslag-, cadans- en vermogensmeters.</p>
+            {selectedApp === 'pilot' ? (
+              <>
+                <h3 className="zh-pilot-card-title" style={{ fontSize: 14, marginBottom: 12 }}>
+                  <Smartphone size={16} /> Live In-Ear Audio Coach
+                </h3>
+                <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.6 }}>
+                  Live fietscoach die verbinding maakt met uw sensoren en u audio-instructies geeft tijdens uw rit.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <Wifi size={16} style={{ color: '#cbd5e1', flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <h4 style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Sensor Integratie</h4>
+                      <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                        Maakt rechtstreeks verbinding met uw Bluetooth (BLE) hartslag-, cadans- en vermogensmeters.
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <ShieldCheck size={16} style={{ color: '#cbd5e1', flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <h4 style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Audio Begeleiding</h4>
+                      <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                        Ontvang directe in-ear audio-feedback over uw trainingszones en schema-instructies tijdens het rijden.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <ShieldCheck size={16} style={{ color: '#cbd5e1', flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <h4 style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Cloud Sync met Zenith</h4>
-                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>Synchroniseert uw geplande workouts automatisch vanuit de kalender en uploadt voltooide ritten direct.</p>
+              </>
+            ) : (
+              <>
+                <h3 className="zh-pilot-card-title" style={{ fontSize: 14, marginBottom: 12 }}>
+                  <Smartphone size={16} /> Mobiele Krachttraining Tracker
+                </h3>
+                <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.6 }}>
+                  Mobiele companion voor krachttraining met ingebouwde rusttimer en autoregulatie.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <Wifi size={16} style={{ color: '#cbd5e1', flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <h4 style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Set & Rep Logging</h4>
+                      <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                        Log uw sets, reps en RIR eenvoudig vanaf de trainingsvloer. Werkt volledig offline-first.
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <ShieldCheck size={16} style={{ color: '#cbd5e1', flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <h4 style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#f1f5f9' }}>Rust & Herstel</h4>
+                      <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                        Ingebouwde rusttimer die automatisch schaalt en met de nieuwe luide audio-focus meldingen herinneringen geeft.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
 
           {/* Installation steps */}
@@ -241,10 +295,10 @@ export const PilotPanel: React.FC<PilotPanelProps> = ({ userName, onBack }) => {
                 <strong style={{ color: '#f1f5f9' }}>Sta onbekende bronnen toe:</strong> Tik op de gedownloade melding en sta in de browserinstellingen toe om bestanden van deze bron te installeren indien gevraagd.
               </li>
               <li>
-                <strong style={{ color: '#f1f5f9' }}>Installeer & Start:</strong> Volg de prompts om de installatie te voltooien en open de <strong style={{ color: '#cbd5e1' }}>Pilot</strong> app.
+                <strong style={{ color: '#f1f5f9' }}>Installeer & Start:</strong> Volg de prompts om de installatie te voltooien en open de <strong style={{ color: '#cbd5e1' }}>{selectedApp === 'pilot' ? 'Aero Pilot' : 'Kratos Pilot'}</strong> app.
               </li>
               <li>
-                <strong style={{ color: '#f1f5f9' }}>Log in met Zenith:</strong> Gebruik uw Zenith inloggegevens om verbinding te maken met uw profiel en live ritten te synchroniseren.
+                <strong style={{ color: '#f1f5f9' }}>Log in met Zenith:</strong> Gebruik uw Zenith inloggegevens om verbinding te maken met uw profiel en uw gegevens te synchroniseren.
               </li>
             </ol>
           </div>

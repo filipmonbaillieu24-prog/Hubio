@@ -1,25 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Calendar, 
+  X, 
+  Plus, 
+  Trash2, 
+  Dumbbell 
+} from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
+import { PlannedWorkoutItem } from '../../utils/pmc';
 import './CalendarPage.css';
 
 interface CalendarPageProps {
   userId: string;
-  userName: string;
+  onOpenRideInAero?: (rideId: string) => void;
 }
 
-type WorkoutType = 'recovery' | 'endurance' | 'sweetspot' | 'threshold' | 'vo2max';
-
-interface PlannedWorkout {
-  id: string;
-  date: string; // YYYY-MM-DD
-  title: string;
-  type: WorkoutType;
-  durationMinutes: number;
-  plannedTSS: number;
-  notes?: string;
-  steps?: any[];
-}
+type WorkoutType = 'recovery' | 'endurance' | 'sweetspot' | 'threshold' | 'vo2max' | 'custom';
 
 interface CompletedRide {
   id: string;
@@ -56,20 +54,33 @@ interface KratosWorkout {
 }
 
 type CalendarItem = 
-  | { category: 'planned'; dateStr: string; raw: PlannedWorkout }
+  | { category: 'planned'; dateStr: string; raw: PlannedWorkoutItem }
   | { category: 'ride'; dateStr: string; raw: CompletedRide }
   | { category: 'kratos'; dateStr: string; raw: KratosWorkout };
 
-export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
+export const CalendarPage: React.FC<CalendarPageProps> = ({ userId, onOpenRideInAero }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<CalendarItem[]>([]);
   const [exercisesMap, setExercisesMap] = useState<Record<string, string>>({});
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
 
+  // ── PMC Simulation States ──
+  const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutItem[]>([]);
+
+  // ── Modal & Form States ──
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingWorkout, setEditingWorkout] = useState<PlannedWorkoutItem | null>(null);
+  const [targetDate, setTargetDate] = useState('');
+  const [formTitle, setFormTitle] = useState('');
+  const [formType, setFormType] = useState<PlannedWorkoutItem['type']>('sweetspot');
+  const [formDuration, setFormDuration] = useState(60);
+  const [formTSS, setFormTSS] = useState(65);
+  const [formNotes, setFormNotes] = useState('');
+  const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
+
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
-
 
   const getLocalDateString = (dateObj: Date) => {
     const y = dateObj.getFullYear();
@@ -105,19 +116,23 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
         .select('*')
         .eq('user_id', userId);
       
-      const mappedPlanned: CalendarItem[] = (plannedData || []).map((p: any) => ({
+      const mappedPlannedWorkouts: PlannedWorkoutItem[] = (plannedData || []).map((p: any) => ({
+        id: p.id,
+        date: p.date,
+        title: p.title,
+        type: p.type as any,
+        durationMinutes: p.duration_minutes,
+        plannedTSS: p.planned_tss,
+        notes: p.notes,
+        steps: p.steps,
+        routeId: p.route_id
+      }));
+      setPlannedWorkouts(mappedPlannedWorkouts);
+      
+      const mappedPlanned: CalendarItem[] = mappedPlannedWorkouts.map((p) => ({
         category: 'planned',
         dateStr: p.date, // format YYYY-MM-DD
-        raw: {
-          id: p.id,
-          date: p.date,
-          title: p.title,
-          type: p.type,
-          durationMinutes: p.duration_minutes,
-          plannedTSS: p.planned_tss,
-          notes: p.notes,
-          steps: p.steps
-        }
+        raw: p
       }));
 
       // 2. Fetch Completed Rides
@@ -199,6 +214,150 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
     fetchData();
   }, [userId]);
 
+
+
+  // ── Modal Actions ──
+  const handleOpenAddModal = (dateStr: string) => {
+    setEditingWorkout(null);
+    setTargetDate(dateStr);
+    setFormTitle('Sweet Spot Intervallen');
+    setFormType('sweetspot');
+    setFormDuration(60);
+    setFormTSS(65);
+    setFormNotes('');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (item: PlannedWorkoutItem) => {
+    setEditingWorkout(item);
+    setTargetDate(item.date);
+    setFormTitle(item.title);
+    setFormType(item.type);
+    setFormDuration(item.durationMinutes);
+    setFormTSS(item.plannedTSS);
+    setFormNotes(item.notes ?? '');
+    setIsModalOpen(true);
+  };
+
+  const handleSaveWorkout = async () => {
+    if (!formTitle.trim()) return;
+    try {
+      if (editingWorkout) {
+        const updated: PlannedWorkoutItem = {
+          ...editingWorkout,
+          date: targetDate,
+          title: formTitle,
+          type: formType,
+          durationMinutes: formDuration,
+          plannedTSS: formTSS,
+          notes: formNotes,
+        };
+        const row = {
+          id: updated.id,
+          user_id: userId,
+          date: updated.date,
+          title: updated.title,
+          type: updated.type,
+          duration_minutes: updated.durationMinutes,
+          planned_tss: updated.plannedTSS,
+          notes: updated.notes,
+          steps: updated.steps || [],
+          route_id: updated.routeId
+        };
+        const { error } = await supabase.from('planned_workouts').upsert(row);
+        if (error) throw error;
+
+        setPlannedWorkouts(prev => prev.map(p => p.id === editingWorkout.id ? updated : p));
+      } else {
+        const newWorkout: PlannedWorkoutItem = {
+          id: 'plan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          date: targetDate,
+          title: formTitle,
+          type: formType,
+          durationMinutes: formDuration,
+          plannedTSS: formTSS,
+          notes: formNotes,
+        };
+        const row = {
+          id: newWorkout.id,
+          user_id: userId,
+          date: newWorkout.date,
+          title: newWorkout.title,
+          type: newWorkout.type,
+          duration_minutes: newWorkout.durationMinutes,
+          planned_tss: newWorkout.plannedTSS,
+          notes: newWorkout.notes,
+          steps: newWorkout.steps || [],
+          route_id: newWorkout.routeId
+        };
+        const { error } = await supabase.from('planned_workouts').upsert(row);
+        if (error) throw error;
+
+        setPlannedWorkouts(prev => [...prev, newWorkout]);
+      }
+      setIsModalOpen(false);
+      fetchData(); // reload
+    } catch (err) {
+      console.error('Fout bij opslaan geplande workout:', err);
+    }
+  };
+
+  const handleDeleteWorkout = async (id: string) => {
+    try {
+      const { error } = await supabase.from('planned_workouts').delete().eq('id', id);
+      if (error) throw error;
+
+      setPlannedWorkouts(prev => prev.filter(p => p.id !== id));
+      setIsModalOpen(false);
+      fetchData(); // reload
+    } catch (err) {
+      console.error('Fout bij verwijderen geplande workout:', err);
+    }
+  };
+
+  // ── Drag & Drop Handlers ──
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('text/plain', id);
+    setDraggedWorkoutId(id);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetDateStr: string) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain') || draggedWorkoutId;
+    if (id) {
+      const workout = plannedWorkouts.find(p => p.id === id);
+      if (workout) {
+        try {
+          const updated = { ...workout, date: targetDateStr };
+          const row = {
+            id: updated.id,
+            user_id: userId,
+            date: updated.date,
+            title: updated.title,
+            type: updated.type,
+            duration_minutes: updated.durationMinutes,
+            planned_tss: updated.plannedTSS,
+            notes: updated.notes,
+            steps: updated.steps || [],
+            route_id: updated.routeId
+          };
+          const { error } = await supabase.from('planned_workouts').upsert(row);
+          if (error) throw error;
+
+          setPlannedWorkouts(prev => prev.map(p => p.id === id ? updated : p));
+          fetchData(); // reload
+        } catch (err) {
+          console.error('Fout bij verplaatsen geplande workout:', err);
+        }
+      }
+    }
+    setDraggedWorkoutId(null);
+  };
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
   };
@@ -266,13 +425,16 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
       endurance: '#cbd5e1',
       sweetspot: '#fdcb6e',
       threshold: '#ff7675',
-      vo2max: '#6c5ce7'
+      vo2max: '#6c5ce7',
+      custom: '#cbd5e1'
     };
     return colors[type] || '#cbd5e1';
   };
 
   return (
-    <div className="zh-calendar-container">
+    <div className="zh-calendar-container animate-slide-up">
+
+
       <div className="zh-calendar-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Calendar size={18} style={{ color: '#cbd5e1' }} />
@@ -284,11 +446,18 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
           <button className="zh-calendar-btn" onClick={handlePrevMonth}>
             <ChevronLeft size={16} />
           </button>
-          <button className="zh-calendar-btn" onClick={() => setCurrentDate(new Date())}>
+          <button className="zh-calendar-btn today" onClick={() => setCurrentDate(new Date())}>
             Vandaag
           </button>
           <button className="zh-calendar-btn" onClick={handleNextMonth}>
             <ChevronRight size={16} />
+          </button>
+          <button 
+            className="zh-calendar-btn plan" 
+            style={{ width: 'auto', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#fff', fontWeight: 700, padding: '0 14px', borderRadius: 8, height: 32, cursor: 'pointer', transition: 'all 0.2s' }}
+            onClick={() => handleOpenAddModal(getLocalDateString(new Date()))}
+          >
+            <Plus size={14} /> Workout Plannen
           </button>
         </div>
       </div>
@@ -313,8 +482,19 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
                 <div 
                   key={dateStr} 
                   className={`zh-calendar-cell ${outside ? 'outside' : ''} ${isToday ? 'today' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, dateStr)}
                 >
-                  <span className="zh-calendar-date">{date.getDate()}</span>
+                  <div className="zh-calendar-date-container">
+                    <span className="zh-calendar-date">{date.getDate()}</span>
+                    <button
+                      className="zh-calendar-cell-add-btn"
+                      title="Plan workout op deze dag"
+                      onClick={() => handleOpenAddModal(dateStr)}
+                    >
+                      +
+                    </button>
+                  </div>
                   
                   <div className="zh-calendar-badge-list">
                     {dayItems.map((item, idx) => {
@@ -323,7 +503,14 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
                           <div 
                             key={`p-${item.raw.id}-${idx}`}
                             className="zh-workout-badge zh-badge-planned"
-                            onClick={() => setSelectedItem(item)}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, item.raw.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditModal(item.raw);
+                            }}
+                            title={`Gepland: ${item.raw.title}\nDuur: ${item.raw.durationMinutes} min\nTSS: ${item.raw.plannedTSS}\nSleep om te verplaatsen, klik om te bewerken.`}
+                            style={{ borderLeft: `3px solid ${getWorkoutColor(item.raw.type)}` }}
                           >
                             📅 {item.raw.title} ({item.raw.durationMinutes}m)
                           </div>
@@ -333,7 +520,14 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
                           <div 
                             key={`r-${item.raw.id}-${idx}`}
                             className="zh-workout-badge zh-badge-ride"
-                            onClick={() => setSelectedItem(item)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenRideInAero) {
+                                onOpenRideInAero(item.raw.id);
+                              } else {
+                                setSelectedItem(item);
+                              }
+                            }}
                           >
                             🚴 {item.raw.name} ({item.raw.distance.toFixed(0)}km)
                           </div>
@@ -344,8 +538,10 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
                             key={`k-${item.raw.id}-${idx}`}
                             className="zh-workout-badge zh-badge-kratos"
                             onClick={() => setSelectedItem(item)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
-                            🏋️ {item.raw.name} ({item.raw.volume.toLocaleString()} kg)
+                            <Dumbbell size={10} style={{ flexShrink: 0 }} />
+                            <span>{item.raw.name} ({item.raw.volume.toLocaleString()} kg)</span>
                           </div>
                         );
                       }
@@ -544,6 +740,122 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isModalOpen && (
+        <div className="wd-modal-backdrop animate-fade-in" onClick={() => setIsModalOpen(false)}>
+          <div className="wd-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="wd-modal-header">
+              <h3>{editingWorkout ? 'Workout Bewerken' : 'Nieuwe Workout Plannen'}</h3>
+              <button className="wd-modal-close" onClick={() => setIsModalOpen(false)}>✕</button>
+            </div>
+
+            <div className="wd-modal-body">
+              <div className="wd-form-group">
+                <label>Datum</label>
+                <input
+                  type="date"
+                  value={targetDate}
+                  onChange={e => setTargetDate(e.target.value)}
+                />
+              </div>
+
+              <div className="wd-form-group">
+                <label>Titel van Workout</label>
+                <input
+                  type="text"
+                  placeholder="bv. Sweet Spot 2x15m"
+                  value={formTitle}
+                  onChange={e => setFormTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="wd-form-group">
+                <label>Type Training</label>
+                <select
+                  value={formType}
+                  onChange={e => {
+                    const t = e.target.value as PlannedWorkoutItem['type'];
+                    setFormType(t);
+                    if (t === 'recovery') setFormTSS(Math.round(formDuration * 0.4));
+                    if (t === 'endurance') setFormTSS(Math.round(formDuration * 0.8));
+                    if (t === 'sweetspot') setFormTSS(Math.round(formDuration * 1.1));
+                    if (t === 'threshold') setFormTSS(Math.round(formDuration * 1.25));
+                    if (t === 'vo2max') setFormTSS(Math.round(formDuration * 1.4));
+                  }}
+                >
+                  <option value="recovery">💙 Actief Herstel (Z1)</option>
+                  <option value="endurance">🟢 Duurtraining (Z2)</option>
+                  <option value="sweetspot">🟡 Sweet Spot Intervallen (Z3/Z4)</option>
+                  <option value="threshold">🔴 Drempel / FTP (Z4)</option>
+                  <option value="vo2max">💜 VO2Max Intervallen (Z5)</option>
+                  <option value="custom">⚡ Aangepast</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="wd-form-group">
+                  <label>Duur (minuten)</label>
+                  <input
+                    type="number"
+                    min={15}
+                    max={360}
+                    value={formDuration}
+                    onChange={e => {
+                      const dur = parseInt(e.target.value) || 0;
+                      setFormDuration(dur);
+                    }}
+                  />
+                </div>
+
+                <div className="wd-form-group">
+                  <label>Verwachte TSS</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={500}
+                    value={formTSS}
+                    onChange={e => setFormTSS(parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+
+              <div className="wd-form-group">
+                <label>Notities / Instructies</label>
+                <textarea
+                  rows={3}
+                  placeholder="bv. Warm-up 15m, 2x 15m op 220W met 5m herstel..."
+                  value={formNotes}
+                  onChange={e => setFormNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="wd-modal-footer">
+              {editingWorkout && (
+                <button
+                  className="wd-modal-btn wd-modal-btn--danger"
+                  onClick={() => handleDeleteWorkout(editingWorkout.id)}
+                >
+                  <Trash2 size={13} style={{ marginRight: 4 }} /> Verwijderen
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              <button
+                className="wd-modal-btn wd-modal-btn--secondary"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Annuleren
+              </button>
+              <button
+                className="wd-modal-btn wd-modal-btn--primary"
+                onClick={handleSaveWorkout}
+              >
+                Opslaan & Simuleren
+              </button>
             </div>
           </div>
         </div>

@@ -1456,11 +1456,16 @@ body {
   z-index: 200;
   margin-top: 84px !important;
   padding-top: 16px !important;
-  height: calc(100vh - 84px) !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
   box-sizing: border-box !important;
 }
 .main-content {
   padding-top: 84px !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
 }
 
 /* Workout tab: full-viewport below the tab bar, no own scroll (wd-app handles it) */
@@ -1603,11 +1608,13 @@ body {
   padding-top: 0 !important;
   height: 100% !important;
   max-height: 100% !important;
+  min-height: 0 !important;
 }
 .main-content {
   padding-top: 0 !important;
   height: 100% !important;
   max-height: 100% !important;
+  min-height: 0 !important;
 }
 .workout-tab-content {
   top: 0 !important;

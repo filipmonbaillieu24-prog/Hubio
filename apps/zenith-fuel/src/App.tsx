@@ -4,8 +4,8 @@ import {
   ShieldAlert, Clock, Barcode, Activity, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { supabase } from './utils/supabaseClient';
-import { runZaneCalibration, ZaneProfile, ZaneOutput, DailyLogData, saveZaneCoefficients } from './utils/zane';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { runZaneCalibration, ZaneProfile, ZaneOutput, DailyLogData, saveZaneCoefficients, calculateMifflinBmr, calculateAge } from './utils/zane';
+import { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 interface Ingredient {
   id: string;
@@ -18,6 +18,7 @@ interface Ingredient {
   portion_name?: string;
   portion_weight_grams?: number;
   portions_per_package?: number;
+  caffeine_mg_per_100g?: number;
 }
 
 interface Recipe {
@@ -30,6 +31,7 @@ interface Recipe {
   carbs: number;
   protein: number;
   fat: number;
+  caffeine_mg?: number;
   ingredients: any[];
   instructions: string[];
 }
@@ -45,6 +47,7 @@ interface FoodLog {
   carbs: number;
   protein: number;
   fat: number;
+  caffeine_mg?: number;
 }
 
 interface DayState {
@@ -79,9 +82,10 @@ function App() {
   // Auth & Session
   const [loadingSession, setLoadingSession] = useState(true);
   const [userId, setUserId] = useState<string>('');
+  const [userName, setUserName] = useState<string>('Atleet');
 
-  // Active Tab: dashboard, logbook, ingredients, recipes
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'logbook' | 'ingredients' | 'recipes'>('dashboard');
+  // Active Tab: dashboard, logbook, ingredients, recipes, supplements
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'logbook' | 'ingredients' | 'recipes' | 'supplements'>('dashboard');
 
   // Weekly Navigation States
   const [currentWeekMonday, setCurrentWeekMonday] = useState<Date>(() => getMonday(new Date()));
@@ -99,10 +103,15 @@ function App() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [weeklyFoodLogs, setWeeklyFoodLogs] = useState<FoodLog[]>([]);
+  const [thirtyDayFoodLogs, setThirtyDayFoodLogs] = useState<any[]>([]);
+  const [supplementsLogs, setSupplementsLogs] = useState<any[]>([]);
   const [weeklyDayStates, setWeeklyDayStates] = useState<DayState[]>([]);
   const [weightLogs, setWeightLogs] = useState<any[]>([]);
   const [sleepLogs, setSleepLogs] = useState<any[]>([]);
+  const [gymLogs, setGymLogs] = useState<any[]>([]);
+  const [bodyMeasurementsLogs, setBodyMeasurementsLogs] = useState<any[]>([]);
   const [activeCaloriesMap, setActiveCaloriesMap] = useState<{ [date: string]: number }>({});
+  const [gymVolumeMap, setGymVolumeMap] = useState<{ [date: string]: number }>({});
   const [zaneHistory, setZaneHistory] = useState<any[]>([]);
 
   // ZANE Output
@@ -110,6 +119,8 @@ function App() {
     bmrOffset: 0,
     sleepQualityCoeff: 0,
     sleepDurationCoeff: 0,
+    gymVolumeCoeff: 0.15,
+    caffeineCoeff: 0.15,
     calculatedAt: '',
     isCalibrated: false,
     calibrationDays: 0,
@@ -129,6 +140,7 @@ function App() {
   // Editing States
   const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null);
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+  const [editingLogEntry, setEditingLogEntry] = useState<any | null>(null);
 
   // Autocomplete / Search States
   const [logIngredientSearch, setLogIngredientSearch] = useState('');
@@ -152,6 +164,11 @@ function App() {
   const [quickName, setQuickName] = useState('');
   const [quickCalories, setQuickCalories] = useState('');
   const [quickCarbs, setQuickCarbs] = useState('');
+  
+  // Supplement Log Fields
+  const [logSuppType, setLogSuppType] = useState<'creatine' | 'caffeine'>('creatine');
+  const [logSuppAmount, setLogSuppAmount] = useState('5');
+  const [logSuppHour, setLogSuppHour] = useState('08:00');
   const [quickProtein, setQuickProtein] = useState('');
   const [quickFat, setQuickFat] = useState('');
 
@@ -174,6 +191,7 @@ function App() {
   const [ingPortionName, setIngPortionName] = useState('');
   const [ingPortionWeight, setIngPortionWeight] = useState('');
   const [ingPortionsPackage, setIngPortionsPackage] = useState('');
+  const [ingCaffeine, setIngCaffeine] = useState('0');
   const [barcodeSearching, setBarcodeSearching] = useState(false);
 
   // Recipe Form Fields
@@ -225,6 +243,21 @@ function App() {
 
     handleAuthHandshake();
   }, []);
+
+  // Fetch username on userId change
+  useEffect(() => {
+    async function loadUserName() {
+      if (!userId) return;
+      try {
+        const { data: userDetails } = await supabase.auth.getUser();
+        const name = userDetails?.user?.user_metadata?.name || userDetails?.user?.user_metadata?.fitness_profile?.name || 'Atleet';
+        setUserName(name);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    loadUserName();
+  }, [userId]);
 
   // Show Temporary Notifications
   const triggerNotification = (text: string, isError = false) => {
@@ -318,6 +351,17 @@ function App() {
         .order('logged_at');
       setWeeklyFoodLogs(logData || []);
 
+      const startOf30DaysForSupp = new Date();
+      startOf30DaysForSupp.setDate(startOf30DaysForSupp.getDate() - 30);
+
+      const { data: suppLogData } = await supabase
+        .from('fuel_supplements_log')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('logged_at', startOf30DaysForSupp.toISOString())
+        .order('logged_at');
+      setSupplementsLogs(suppLogData || []);
+
       // 5. Fetch Daily Completeness Status for the Viewed Week
       const startOfWeekStr = formatDateString(startOfWeek);
       const endOfWeekStr = formatDateString(addDays(startOfWeek, 6));
@@ -341,6 +385,15 @@ function App() {
         .gte('logged_at', startOf30Days.toISOString())
         .order('logged_at');
       setWeightLogs(wLogs || []);
+
+      // 6b. Fetch 30-Day body measurements from Vigor
+      const { data: bMeasureLogs } = await supabase
+        .from('vigor_body_measurements')
+        .select('body_fat_pct, muscle_mass_kg, logged_at')
+        .eq('user_id', userId)
+        .gte('logged_at', startOf30Days.toISOString())
+        .order('logged_at');
+      setBodyMeasurementsLogs(bMeasureLogs || []);
 
       // 7. Fetch 30-Day sleep logs from Vigor
       const { data: sLogs } = await supabase
@@ -382,30 +435,22 @@ function App() {
         }
       });
 
+      const gymVolMap: { [date: string]: number } = {};
+      for (let i = 0; i < 7; i++) {
+        gymVolMap[formatDateString(addDays(startOfWeek, i))] = 0;
+      }
+
       kratosData?.forEach((k: any) => {
         const dStr = k.completed_at.split('T')[0];
-        if (activeCalMap[dStr] !== undefined) {
-          const kcal = Math.min(400, Math.max(100, Number(k.volume) * 0.15));
-          activeCalMap[dStr] += Math.round(kcal);
+        if (gymVolMap[dStr] !== undefined) {
+          gymVolMap[dStr] += Number(k.volume || 0);
         }
       });
 
       setActiveCaloriesMap(activeCalMap);
+      setGymVolumeMap(gymVolMap);
 
-      // 9. Fetch ZANE parameter history for chart
-      const { data: zHist } = await supabase
-        .from('fuel_zane_history')
-        .select('*')
-        .eq('user_id', userId)
-        .order('calculated_at', { ascending: true });
-      
-      const formattedHist = zHist?.map((h: any) => ({
-        date: new Date(h.calculated_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
-        offset: Number(h.bmr_offset),
-        quality: Number(h.sleep_quality_coeff),
-        duration: Number(h.sleep_duration_coeff)
-      })) || [];
-      setZaneHistory(formattedHist);
+      // Parameter history is now calculated dynamically in fetchCalibrationLogs client-side.
 
     } catch (err) {
       console.error("Fout bij ophalen van gegevens:", err);
@@ -438,6 +483,7 @@ function App() {
   }, [weeklyDayStates]);
 
   const selectedDateActiveCalories = useMemo(() => activeCaloriesMap[selectedDateStr] || 0, [activeCaloriesMap, selectedDateStr]);
+  const selectedDateGymVolume = useMemo(() => gymVolumeMap[selectedDateStr] || 0, [gymVolumeMap, selectedDateStr]);
   const selectedDateCaloriesIntake = useMemo(() => dailyCaloriesMap[selectedDateStr] || 0, [dailyCaloriesMap, selectedDateStr]);
   const selectedDateComplete = useMemo(() => dailyCompletionMap[selectedDateStr] ?? true, [dailyCompletionMap, selectedDateStr]);
 
@@ -459,7 +505,10 @@ function App() {
         activeCalories: 0,
         sleepQuality: null,
         sleepDurationHours: null,
-        isComplete: true
+        isComplete: true,
+        gymVolume: 0,
+        creatine: 0,
+        caffeine: 0
       };
     }
 
@@ -467,6 +516,14 @@ function App() {
       const dStr = w.logged_at.split('T')[0];
       if (logsMap[dStr]) {
         logsMap[dStr].weight = Number(w.weight);
+      }
+    });
+
+    bodyMeasurementsLogs.forEach(b => {
+      const dStr = b.logged_at.split('T')[0];
+      if (logsMap[dStr]) {
+        logsMap[dStr].bodyFat = b.body_fat_pct !== null ? Number(b.body_fat_pct) : null;
+        logsMap[dStr].muscleMass = b.muscle_mass_kg !== null ? Number(b.muscle_mass_kg) : null;
       }
     });
 
@@ -485,14 +542,17 @@ function App() {
 
       const { data: foodHist } = await supabase
         .from('fuel_logs')
-        .select('logged_at, calories')
+        .select('logged_at, calories, caffeine_mg')
         .eq('user_id', userId)
         .gte('logged_at', startOf30Days.toISOString());
+
+      setThirtyDayFoodLogs(foodHist || []);
 
       foodHist?.forEach(f => {
         const dStr = f.logged_at.split('T')[0];
         if (logsMap[dStr]) {
           logsMap[dStr].calories += Number(f.calories);
+          logsMap[dStr].caffeine = (logsMap[dStr].caffeine || 0) + Number(f.caffeine_mg || 0);
         }
       });
 
@@ -533,17 +593,30 @@ function App() {
         .eq('user_id', userId)
         .gte('completed_at', startOf30Days.toISOString());
 
+      setGymLogs(gymHist || []);
+
       gymHist?.forEach(k => {
         const dStr = k.completed_at.split('T')[0];
         if (logsMap[dStr]) {
-          const kcal = Math.min(400, Math.max(100, Number(k.volume) * 0.15));
-          logsMap[dStr].activeCalories += Math.round(kcal);
+          logsMap[dStr].gymVolume += Number(k.volume || 0);
+        }
+      });
+
+      supplementsLogs.forEach(s => {
+        const dStr = s.logged_at.split('T')[0];
+        if (logsMap[dStr]) {
+          if (s.supplement_type === 'creatine') {
+            logsMap[dStr].creatine = (logsMap[dStr].creatine || 0) + Number(s.amount);
+          } else if (s.supplement_type === 'caffeine') {
+            logsMap[dStr].caffeine = (logsMap[dStr].caffeine || 0) + Number(s.amount);
+          }
         }
       });
 
       if (logsMap[selectedDateStr]) {
         logsMap[selectedDateStr].calories = selectedDateCaloriesIntake;
         logsMap[selectedDateStr].activeCalories = selectedDateActiveCalories;
+        logsMap[selectedDateStr].gymVolume = selectedDateGymVolume;
         logsMap[selectedDateStr].isComplete = selectedDateComplete;
       }
 
@@ -561,24 +634,50 @@ function App() {
       };
 
       const latestWeight = weightLogs[weightLogs.length - 1]?.weight || null;
-      const zOutput = runZaneCalibration(Object.values(logsMap), activeProfile, latestWeight);
+      const zOutput = runZaneCalibration(Object.values(logsMap), activeProfile, latestWeight, selectedDateStr);
       setZaneResult(zOutput);
 
+      // Calculate dynamic day-by-day parameter evolution and confidence intervals
+      const sortedLogs = Object.values(logsMap).sort((a, b) => a.date.localeCompare(b.date));
+      const formattedHist = [];
+
+      for (let i = 2; i < sortedLogs.length; i++) {
+        const subLogs = sortedLogs.slice(0, i + 1);
+        const targetDateStr = subLogs[subLogs.length - 1].date;
+        const subOutput = runZaneCalibration(subLogs, activeProfile, latestWeight, targetDateStr);
+        
+        const calibrationDays = subOutput.calibrationDays;
+        
+        // Calculate error margin for BMR offset: starts at 600, scales down to 40 at 14 days, and goes lower as calibrationDays grows
+        const margin = Math.round(600.0 * (1.0 - Math.min(calibrationDays, 14) / 15.0));
+        const offset = subOutput.bmrOffset;
+        
+        formattedHist.push({
+          date: new Date(targetDateStr + 'T12:00:00').toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+          offset: offset,
+          offsetRange: [offset - margin, offset + margin],
+          quality: subOutput.sleepQualityCoeff,
+          duration: subOutput.sleepDurationCoeff,
+          calibrationDays: calibrationDays,
+        });
+      }
+      setZaneHistory(formattedHist);
+
       if (zOutput.isCalibrated) {
-        saveLearnedState(zOutput.bmrOffset, zOutput.sleepQualityCoeff, zOutput.sleepDurationCoeff);
+        saveLearnedState(zOutput.bmrOffset, zOutput.sleepQualityCoeff, zOutput.sleepDurationCoeff, zOutput.gymVolumeCoeff, zOutput.caffeineCoeff);
       }
     };
 
     fetchCalibrationLogs();
-  }, [userId, weightLogs, sleepLogs, weeklyFoodLogs, selectedDateActiveCalories, selectedDateCaloriesIntake, selectedDateComplete, profile, selectedDateStr]);
+  }, [userId, weightLogs, sleepLogs, weeklyFoodLogs, supplementsLogs, bodyMeasurementsLogs, selectedDateActiveCalories, selectedDateGymVolume, selectedDateCaloriesIntake, selectedDateComplete, profile, selectedDateStr]);
 
   // Save ZANE coefficients to database
-  const saveLearnedState = async (offset: number, qCoeff: number, dCoeff: number) => {
+  const saveLearnedState = async (offset: number, qCoeff: number, dCoeff: number, gCoeff: number, cCoeff: number) => {
     try {
       const todayDateStr = new Date().toISOString().split('T')[0];
       
       // Save to ml_weights (Fase 3 persistent backup)
-      await saveZaneCoefficients(supabase, userId, offset, qCoeff, dCoeff);
+      await saveZaneCoefficients(supabase, userId, offset, qCoeff, dCoeff, gCoeff, cCoeff);
 
       await supabase
         .from('fuel_profile')
@@ -632,7 +731,7 @@ function App() {
         }, { onConflict: 'user_id,date' });
 
       if (error) throw error;
-      triggerNotification(newIsCompleteStatus ? "Dagregistratie gemarkeerd als compleet!" : "Dag gemarkeerd als onvolledig (uitgesloten van ZANE).");
+      triggerNotification(newIsCompleteStatus ? "Dagregistratie gemarkeerd als compleet!" : "Dag gemarkeerd als onvolledig (uitgesloten van Zenith).");
     } catch (err) {
       console.error("Incompleetheid toggle mislukt:", err);
       setWeeklyDayStates(weeklyDayStates);
@@ -675,6 +774,17 @@ function App() {
         setIngProtein((prod.nutriments?.proteins_100g || 0).toString());
         setIngFat((prod.nutriments?.fat_100g || 0).toString());
         
+        let caffeineValue = 0;
+        const rawCaffeine = prod.nutriments?.caffeine_100g || prod.nutriments?.caffeine;
+        if (rawCaffeine !== undefined) {
+          const val = parseFloat(rawCaffeine);
+          if (!isNaN(val)) {
+            // E.g. 0.032g per 100g/ml -> 32mg
+            caffeineValue = val < 1.0 ? val * 1000 : val;
+          }
+        }
+        setIngCaffeine(Math.round(caffeineValue).toString());
+        
         if (prod.serving_size) {
           setIngPortionName("Portie");
           const sizeGrams = parseFloat(prod.serving_size);
@@ -710,7 +820,8 @@ function App() {
         fat_per_100g: parseFloat(ingFat) || 0,
         portion_name: ingPortionName || null,
         portion_weight_grams: parseFloat(ingPortionWeight) || null,
-        portions_per_package: parseInt(ingPortionsPackage) || null
+        portions_per_package: parseInt(ingPortionsPackage) || null,
+        caffeine_mg_per_100g: parseFloat(ingCaffeine) || 0
       };
 
       if (editingIngredientId) {
@@ -756,6 +867,7 @@ function App() {
     setIngPortionName(ing.portion_name || '');
     setIngPortionWeight(ing.portion_weight_grams?.toString() || '');
     setIngPortionsPackage(ing.portions_per_package?.toString() || '');
+    setIngCaffeine(ing.caffeine_mg_per_100g?.toString() || '0');
     setShowIngredientModal(true);
   };
 
@@ -788,6 +900,7 @@ function App() {
     setIngPortionName('');
     setIngPortionWeight('');
     setIngPortionsPackage('');
+    setIngCaffeine('0');
   };
 
   // Add Ingredient to Recipe Form
@@ -813,7 +926,8 @@ function App() {
       calories: Math.round(ing.calories_per_100g * ratio),
       carbs: Math.round(ing.carbs_per_100g * ratio),
       protein: Math.round(ing.protein_per_100g * ratio),
-      fat: Math.round(ing.fat_per_100g * ratio)
+      fat: Math.round(ing.fat_per_100g * ratio),
+      caffeine_mg: Math.round((ing.caffeine_mg_per_100g || 0) * ratio)
     };
 
     setRecIngredients([...recIngredients, item]);
@@ -838,6 +952,7 @@ function App() {
     const totalCarb = recIngredients.reduce((sum, item) => sum + item.carbs, 0);
     const totalProt = recIngredients.reduce((sum, item) => sum + item.protein, 0);
     const totalFat = recIngredients.reduce((sum, item) => sum + item.fat, 0);
+    const totalCaffeine = recIngredients.reduce((sum, item) => sum + (item.caffeine_mg || 0), 0);
 
     try {
       const recPayload = {
@@ -850,6 +965,7 @@ function App() {
         carbs: totalCarb,
         protein: totalProt,
         fat: totalFat,
+        caffeine_mg: totalCaffeine,
         ingredients: recIngredients,
         instructions: recInstructions.filter(i => i.trim() !== '')
       };
@@ -1013,6 +1129,7 @@ function App() {
       entry.carbs = Math.round(ing.carbs_per_100g * ratio);
       entry.protein = Math.round(ing.protein_per_100g * ratio);
       entry.fat = Math.round(ing.fat_per_100g * ratio);
+      entry.caffeine_mg = Math.round((ing.caffeine_mg_per_100g || 0) * ratio);
     } else if (logSource === 'recipe') {
       const rec = recipes.find(r => r.id === selectedLogRecipe);
       if (!rec) return;
@@ -1025,20 +1142,37 @@ function App() {
       entry.carbs = Math.round(rec.carbs * servings);
       entry.protein = Math.round(rec.protein * servings);
       entry.fat = Math.round(rec.fat * servings);
+      entry.caffeine_mg = Math.round((rec.caffeine_mg || 0) * servings);
     }
 
     try {
-      const { data, error } = await supabase
-        .from('fuel_logs')
-        .insert(entry)
-        .select()
-        .single();
+      if (editingLogEntry) {
+        const { data, error } = await supabase
+          .from('fuel_logs')
+          .update(entry)
+          .eq('id', editingLogEntry.id)
+          .select()
+          .single();
 
-      if (error) throw error;
-      setWeeklyFoodLogs([...weeklyFoodLogs, data].sort((a, b) => a.logged_at.localeCompare(b.logged_at)));
-      setShowLogModal(false);
-      resetLogForm();
-      triggerNotification("Maaltijd geregistreerd!");
+        if (error) throw error;
+        setWeeklyFoodLogs(weeklyFoodLogs.map(f => f.id === editingLogEntry.id ? data : f).sort((a, b) => a.logged_at.localeCompare(b.logged_at)));
+        setShowLogModal(false);
+        setEditingLogEntry(null);
+        resetLogForm();
+        triggerNotification("Log gewijzigd!");
+      } else {
+        const { data, error } = await supabase
+          .from('fuel_logs')
+          .insert(entry)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setWeeklyFoodLogs([...weeklyFoodLogs, data].sort((a, b) => a.logged_at.localeCompare(b.logged_at)));
+        setShowLogModal(false);
+        resetLogForm();
+        triggerNotification("Maaltijd geregistreerd!");
+      }
     } catch (err) {
       console.error("Loggen mislukt:", err);
       triggerNotification("Fout bij opslaan log.", true);
@@ -1076,10 +1210,178 @@ function App() {
     }
   };
 
+  // Edit Log Entry
+  const handleEditLogClick = (log: any) => {
+    setEditingLogEntry(log);
+    setLogMealType(log.meal_type);
+    
+    const logTime = new Date(log.logged_at);
+    const timeStr = `${String(logTime.getHours()).padStart(2, '0')}:${String(logTime.getMinutes()).padStart(2, '0')}`;
+    setLogHour(timeStr);
+    
+    setLogSource('quick');
+    setQuickName(log.custom_name);
+    setQuickCalories(String(log.calories));
+    setQuickCarbs(String(log.carbs));
+    setQuickProtein(String(log.protein || 0));
+    setQuickFat(String(log.fat || 0));
+    
+    setShowLogModal(true);
+  };
+
+  // Supplement Handlers
+  const handleAddSupplementLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId) return;
+
+    const logTimestamp = new Date(`${selectedDateStr}T${logSuppHour}:00`).toISOString();
+    const amountVal = parseFloat(logSuppAmount) || 0;
+
+    const entry = {
+      user_id: userId,
+      supplement_type: logSuppType,
+      amount: amountVal,
+      logged_at: logTimestamp
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('fuel_supplements_log')
+        .insert(entry)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setSupplementsLogs(prev => [...prev, data].sort((a, b) => a.logged_at.localeCompare(b.logged_at)));
+      triggerNotification("Supplement geregistreerd!");
+      
+      // Reset form default based on type
+      setLogSuppAmount(logSuppType === 'creatine' ? '5' : '80');
+    } catch (err) {
+      console.error("Fout bij opslaan supplement log:", err);
+      triggerNotification("Actie mislukt.", true);
+    }
+  };
+
+  const handleDeleteSupplementLog = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('fuel_supplements_log')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setSupplementsLogs(prev => prev.filter(s => s.id !== id));
+      triggerNotification("Log verwijderd.");
+    } catch (err) {
+      console.error("Fout bij verwijderen:", err);
+      triggerNotification("Actie mislukt.", true);
+    }
+  };
+
   // Filter food logs for active date
   const filteredFoodLogs = useMemo(() => {
     return weeklyFoodLogs.filter(log => log.logged_at.split('T')[0] === selectedDateStr);
   }, [weeklyFoodLogs, selectedDateStr]);
+
+  // Supplements Calculations & Stats
+  const creatineStats = useMemo(() => {
+    const sortedLogs = [...supplementsLogs].sort((a, b) => a.logged_at.localeCompare(b.logged_at));
+    const today = new Date();
+    const dates30Days: string[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      dates30Days.push(d.toISOString().split('T')[0]);
+    }
+
+    const intakeMap: { [date: string]: number } = {};
+    dates30Days.forEach(date => { intakeMap[date] = 0; });
+    sortedLogs.forEach(s => {
+      const dStr = s.logged_at.split('T')[0];
+      if (s.supplement_type === 'creatine' && dStr in intakeMap) {
+        intakeMap[dStr] += Number(s.amount);
+      }
+    });
+
+    let currentSat = 0;
+    const chartData: any[] = [];
+    dates30Days.forEach(date => {
+      const intake = intakeMap[date] || 0;
+      currentSat = Math.min(1.0, (currentSat * 0.92) + (intake / 15));
+      chartData.push({
+        dateStr: new Date(date + 'T12:00:00').toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+        intake: intake,
+        saturation: Math.round(currentSat * 100),
+        waterWeight: Math.round(currentSat * 1.2 * 100) / 100
+      });
+    });
+
+    const latestSaturation = chartData[chartData.length - 1]?.saturation ?? 0;
+    const latestWaterWeight = chartData[chartData.length - 1]?.waterWeight ?? 0;
+
+    return {
+      chartData,
+      latestSaturation,
+      latestWaterWeight
+    };
+  }, [supplementsLogs]);
+
+  const caffeineStats = useMemo(() => {
+    const today = new Date();
+    const dates30Days: string[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      dates30Days.push(d.toISOString().split('T')[0]);
+    }
+
+    const intakeMap: { [date: string]: number } = {};
+    dates30Days.forEach(date => { intakeMap[date] = 0; });
+    supplementsLogs.forEach(s => {
+      const dStr = s.logged_at.split('T')[0];
+      if (s.supplement_type === 'caffeine' && dStr in intakeMap) {
+        intakeMap[dStr] += Number(s.amount);
+      }
+    });
+
+    thirtyDayFoodLogs.forEach(f => {
+      const dStr = f.logged_at.split('T')[0];
+      if (dStr in intakeMap) {
+        intakeMap[dStr] += Number(f.caffeine_mg || 0);
+      }
+    });
+
+    const sleepMap: { [date: string]: number } = {};
+    sleepLogs.forEach(s => {
+      const dStr = s.logged_at.split('T')[0];
+      sleepMap[dStr] = Number(s.quality_score);
+    });
+
+    const chartData = dates30Days.map(date => {
+      const caffeine = intakeMap[date] || 0;
+      const sleepQuality = sleepMap[date] || 75;
+      
+      const caffeineEffect = caffeine * 0.02;
+      const sleepEffect = Math.max(0, (80 - sleepQuality) * 0.12);
+      const heartRate = Math.round(58 + caffeineEffect + sleepEffect);
+
+      return {
+        dateStr: new Date(date + 'T12:00:00').toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+        caffeine: caffeine,
+        heartRate: heartRate
+      };
+    });
+
+    const activeDateCaffeine = intakeMap[selectedDateStr] || 0;
+    const metabolicBoost = Math.round(activeDateCaffeine * (zaneResult.caffeineCoeff || 0.15));
+
+    return {
+      chartData,
+      activeDateCaffeine,
+      metabolicBoost
+    };
+  }, [supplementsLogs, thirtyDayFoodLogs, sleepLogs, selectedDateStr, zaneResult.caffeineCoeff]);
 
   const intakeCalories = useMemo(() => filteredFoodLogs.reduce((sum, f) => sum + f.calories, 0), [filteredFoodLogs]);
   const intakeCarbs = useMemo(() => filteredFoodLogs.reduce((sum, f) => sum + f.carbs, 0), [filteredFoodLogs]);
@@ -1094,6 +1396,67 @@ function App() {
   const radius = 60;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (caloriesPercentage / 100) * circumference;
+
+  const latestWeight = weightLogs[weightLogs.length - 1]?.weight || 75;
+  const height = profile.height || 175;
+  const age = calculateAge(profile.birthDate);
+  const gender = profile.gender || 'other';
+  
+  const baseBmr = Math.round(calculateMifflinBmr(latestWeight, height, age, gender));
+  const palFactor = 1.25;
+  const baseTdee = Math.round(baseBmr * palFactor);
+  const bmrOffset = zaneResult.bmrOffset || 0;
+  const activeCalories = selectedDateActiveCalories;
+  
+  // Sleep average
+  const validSleepQualities = sleepLogs.map(s => Number(s.quality_score)).filter(q => !isNaN(q));
+  const sleepQualityAvg = validSleepQualities.length > 0
+    ? validSleepQualities.reduce((sum, q) => sum + q, 0) / validSleepQualities.length
+    : 75;
+  const validSleepDurations = sleepLogs.map(s => Number(s.duration_minutes) / 60).filter(d => !isNaN(d));
+  const sleepDurationAvg = validSleepDurations.length > 0
+    ? validSleepDurations.reduce((sum, d) => sum + d, 0) / validSleepDurations.length
+    : 8;
+
+  // Today's sleep
+  const todaySleep = sleepLogs.find(s => s.logged_at.split('T')[0] === selectedDateStr);
+  const todaySleepQuality = todaySleep ? Number(todaySleep.quality_score) : null;
+  const todaySleepDuration = todaySleep ? Number(todaySleep.duration_minutes) / 60 : null;
+
+  // Sleep adjustment
+  let sleepAdjustment = 0;
+  if (zaneResult.isCalibrated) {
+    const qDiff = (todaySleepQuality ?? sleepQualityAvg) - sleepQualityAvg;
+    const dDiff = (todaySleepDuration ?? sleepDurationAvg) - sleepDurationAvg;
+    sleepAdjustment = (zaneResult.sleepQualityCoeff * qDiff) + (zaneResult.sleepDurationCoeff * dDiff);
+  } else {
+    let fallbackTdee = baseTdee + activeCalories;
+    let tdeeMultiplier = 1.0;
+    if (todaySleepQuality !== null && todaySleepQuality < 60) {
+      tdeeMultiplier *= 0.95;
+    }
+    if (todaySleepDuration !== null && todaySleepDuration < 6.5) {
+      tdeeMultiplier *= 0.95;
+    }
+    sleepAdjustment = (fallbackTdee * tdeeMultiplier) - fallbackTdee;
+  }
+  sleepAdjustment = Math.round(sleepAdjustment);
+
+  let gymCalories = 0;
+  if (selectedDateGymVolume > 0) {
+    gymCalories = zaneResult.isCalibrated
+      ? Math.round(selectedDateGymVolume * zaneResult.gymVolumeCoeff)
+      : Math.min(400, Math.max(100, Math.round(selectedDateGymVolume * 0.15)));
+  }
+
+  const tef = Math.round(intakeCalories * 0.1);
+  const totalTdee = Math.round(baseTdee + activeCalories + bmrOffset + sleepAdjustment + tef + gymCalories);
+
+  // Weight Projection
+  const netDailyBalance = intakeCalories - totalTdee;
+  const projectedWeightChange = (netDailyBalance * 28) / 7700;
+  const weeklyWeightRate = (netDailyBalance * 7) / 7700;
+  const projectedWeight = Math.round((latestWeight + projectedWeightChange) * 100) / 100;
 
   // Build the list of 7 days in the viewed week
   const weekDays = useMemo(() => {
@@ -1115,6 +1478,148 @@ function App() {
     }
     return days;
   }, [currentWeekMonday, dailyCaloriesMap, dailyCompletionMap]);
+
+  const weeklyStats = useMemo(() => {
+    let totalIntakeCalories = 0;
+    let totalTargetCalories = 0;
+    let daysWithData = 0;
+
+    let totalIntakeCarbs = 0;
+    let totalTargetCarbs = 0;
+    let totalIntakeProtein = 0;
+    let totalTargetProtein = 0;
+    let totalIntakeFat = 0;
+    let totalTargetFat = 0;
+
+    const differences: number[] = [];
+
+    // We need logsMap to run calibration for each day of the week
+    // Let's rebuild the logsMap for the 30 days up to each week day
+    const latestWeight = weightLogs[weightLogs.length - 1]?.weight || 75;
+    
+    // Create base logsMap
+    const baseLogsMap: { [date: string]: DailyLogData } = {};
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      baseLogsMap[dateStr] = {
+        date: dateStr,
+        weight: null,
+        calories: 0,
+        activeCalories: 0,
+        sleepQuality: null,
+        sleepDurationHours: null,
+        isComplete: true,
+        gymVolume: 0,
+        creatine: 0,
+        caffeine: 0
+      };
+    }
+    weightLogs.forEach(w => {
+      const dStr = w.logged_at.split('T')[0];
+      if (baseLogsMap[dStr]) baseLogsMap[dStr].weight = Number(w.weight);
+    });
+    sleepLogs.forEach(s => {
+      const dStr = s.logged_at.split('T')[0];
+      if (baseLogsMap[dStr]) {
+        baseLogsMap[dStr].sleepQuality = Number(s.quality_score);
+        baseLogsMap[dStr].sleepDurationHours = Number(s.duration_minutes) / 60;
+      }
+    });
+    weeklyFoodLogs.forEach(f => {
+      const dStr = f.logged_at.split('T')[0];
+      if (baseLogsMap[dStr]) {
+        baseLogsMap[dStr].calories += Number(f.calories);
+        baseLogsMap[dStr].caffeine = (baseLogsMap[dStr].caffeine || 0) + Number(f.caffeine_mg || 0);
+      }
+    });
+    gymLogs.forEach(k => {
+      const dStr = k.completed_at.split('T')[0];
+      if (baseLogsMap[dStr]) baseLogsMap[dStr].gymVolume += Number(k.volume || 0);
+    });
+    supplementsLogs.forEach(s => {
+      const dStr = s.logged_at.split('T')[0];
+      if (baseLogsMap[dStr]) {
+        if (s.supplement_type === 'creatine') {
+          baseLogsMap[dStr].creatine = (baseLogsMap[dStr].creatine || 0) + Number(s.amount);
+        } else if (s.supplement_type === 'caffeine') {
+          baseLogsMap[dStr].caffeine = (baseLogsMap[dStr].caffeine || 0) + Number(s.amount);
+        }
+      }
+    });
+
+    // Loop through the 7 days of the viewed week
+    weekDays.forEach(day => {
+      const dateStr = day.dateStr;
+      
+      // Calculate intake for this day
+      const dayLogs = weeklyFoodLogs.filter(log => log.logged_at.split('T')[0] === dateStr);
+      const dayCalories = dayLogs.reduce((sum, f) => sum + f.calories, 0);
+      const dayCarbs = dayLogs.reduce((sum, f) => sum + f.carbs, 0);
+      const dayProtein = dayLogs.reduce((sum, f) => sum + f.protein, 0);
+      const dayFat = dayLogs.reduce((sum, f) => sum + f.fat, 0);
+
+      // Determine today's training type for calibration
+      const activeCalories = activeCaloriesMap[dateStr] || 0;
+      let todayTrainingType: 'intense' | 'endurance' | 'rest' | null = 'rest';
+      if (activeCalories > 450) {
+        todayTrainingType = 'intense';
+      } else if (activeCalories > 150) {
+        todayTrainingType = 'endurance';
+      }
+
+      const activeProfile = {
+        ...profile,
+        todayTrainingType
+      };
+
+      // Run calibration up to this day
+      const dayLogsMap = { ...baseLogsMap };
+      if (dayLogsMap[dateStr]) {
+        dayLogsMap[dateStr].calories = dayCalories;
+        dayLogsMap[dateStr].activeCalories = activeCalories;
+      }
+
+      const zOutput = runZaneCalibration(Object.values(dayLogsMap), activeProfile, latestWeight, dateStr);
+
+      totalIntakeCalories += dayCalories;
+      totalTargetCalories += zOutput.dailyCalorieTarget;
+      
+      totalIntakeCarbs += dayCarbs;
+      totalTargetCarbs += zOutput.dailyCarbTarget;
+      totalIntakeProtein += dayProtein;
+      totalTargetProtein += zOutput.dailyProteinTarget;
+      totalIntakeFat += dayFat;
+      totalTargetFat += zOutput.dailyFatTarget;
+
+      if (dayCalories > 0) {
+        daysWithData++;
+        const diff = Math.abs(dayCalories - zOutput.dailyCalorieTarget) / zOutput.dailyCalorieTarget;
+        differences.push(diff);
+      }
+    });
+
+    const averageIntakeCal = daysWithData > 0 ? Math.round(totalIntakeCalories / daysWithData) : 0;
+    const averageTargetCal = Math.round(totalTargetCalories / 7);
+
+    // Consistency score (0 to 100%)
+    let consistencyScore = 100;
+    if (differences.length > 0) {
+      const avgDiff = differences.reduce((sum, d) => sum + d, 0) / differences.length;
+      consistencyScore = Math.max(0, Math.min(100, Math.round(100 - avgDiff * 100)));
+    }
+
+    return {
+      averageIntakeCal,
+      averageTargetCal,
+      consistencyScore,
+      carbsPercent: totalTargetCarbs > 0 ? Math.min(100, Math.round((totalIntakeCarbs / totalTargetCarbs) * 100)) : 0,
+      proteinPercent: totalTargetProtein > 0 ? Math.min(100, Math.round((totalIntakeProtein / totalTargetProtein) * 100)) : 0,
+      fatPercent: totalTargetFat > 0 ? Math.min(100, Math.round((totalIntakeFat / totalTargetFat) * 100)) : 0,
+    };
+  }, [weekDays, weeklyFoodLogs, supplementsLogs, profile, weightLogs, sleepLogs, gymLogs, activeCaloriesMap, gymVolumeMap]);
 
   const formattedWeekRange = useMemo(() => {
     const mondayStr = currentWeekMonday.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' });
@@ -1138,28 +1643,38 @@ function App() {
     );
   }
 
-  const handleClose = () => {
-    if (window.parent) {
-      window.parent.postMessage({ type: 'close-app' }, '*');
-    }
-  };
+
 
   return (
-    <div className="fuel-container animate-fade-in">
+    <div className="fuel-container animate-fade-in" style={{ padding: 0 }}>
       <div className="fuel-glow" />
       {/* TOP HEADER */}
-      <header className="fuel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <header className="fuel-header animate-slide-down" style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)', 
+        padding: '16px 24px', 
+        background: 'transparent',
+        height: '70px',
+        boxSizing: 'border-box',
+        flexShrink: 0,
+        marginBottom: '24px'
+      }}>
         <div className="fuel-brand">
-          <button className="fuel-nav-btn" onClick={handleClose}>
-            Sluiten
-          </button>
-          <div className="fuel-logo">
-            <span>ZENITH</span> FUEL
+          <div>
+            <h1 className="zh-hub-title" style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: 0, letterSpacing: '0.5px', lineHeight: '1.2' }}>
+              ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '16px' }}>FUEL</span>
+            </h1>
+            <p className="zh-hub-subtitle" style={{ fontSize: '9px', color: 'var(--text-muted)', margin: '4px 0 0', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+              Voedingsdagboek & Energiebalans voor {userName}
+            </p>
           </div>
         </div>
       </header>
 
-      {/* Navigation tabs bar in Vigor-style */}
+      <div style={{ padding: '0 28px 28px' }}>
+        {/* Navigation tabs bar in Vigor-style */}
       <div className="fuel-tabs" style={{ 
         display: 'flex', 
         gap: 8, 
@@ -1175,7 +1690,8 @@ function App() {
           { id: 'dashboard', label: 'Dashboard', icon: <Sparkles size={14} /> },
           { id: 'logbook', label: 'Logboek', icon: <BookOpen size={14} /> },
           { id: 'ingredients', label: 'Ingrediënten', icon: <Barcode size={14} /> },
-          { id: 'recipes', label: 'Recepten', icon: <ChefHat size={14} /> }
+          { id: 'recipes', label: 'Recepten', icon: <ChefHat size={14} /> },
+          { id: 'supplements', label: 'Supplementen', icon: <Activity size={14} /> }
         ].map(tab => (
           <button
             key={tab.id}
@@ -1240,7 +1756,7 @@ function App() {
 
               <div className="cal-details">
                 <div className="cal-detail-row">
-                  <span style={{ color: 'var(--text-muted)' }}>ZANE Calorie Doel</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Zenith Calorie Doel</span>
                   <span className="cal-detail-val">{zaneResult.dailyCalorieTarget} kcal</span>
                 </div>
                 <div className="cal-detail-row">
@@ -1323,13 +1839,13 @@ function App() {
             </div>
           )}
 
-          {/* ZANE Calibration Card */}
+          {/* Zenith Calibration Card */}
           <div className="fuel-card col-5">
             <h3 className="fuel-card-title">
-              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> ZANE Status & Insights
+              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> Zenith Status & Insights
             </h3>
             <div className="zane-insights-wrap">
-              <div className="zane-stat-grid">
+              <div className="zane-stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                 <div className="zane-stat-item">
                   <span className="zane-stat-lbl">BMR Offset</span>
                   <div className="zane-stat-val" style={{ color: zaneResult.bmrOffset >= 0 ? '#55efc4' : '#ff7675' }}>
@@ -1348,18 +1864,30 @@ function App() {
                     {zaneResult.isCalibrated ? `${zaneResult.sleepDurationCoeff} kcal` : '--'}
                   </div>
                 </div>
+                <div className="zane-stat-item">
+                  <span className="zane-stat-lbl">Gym Coëff</span>
+                  <div className="zane-stat-val" style={{ color: 'var(--color-protein)' }}>
+                    {zaneResult.isCalibrated ? `${zaneResult.gymVolumeCoeff.toFixed(3)}` : '0.150'}
+                  </div>
+                </div>
+                <div className="zane-stat-item">
+                  <span className="zane-stat-lbl">Cafeïne Coëff</span>
+                  <div className="zane-stat-val" style={{ color: 'var(--color-carb)' }}>
+                    {zaneResult.isCalibrated ? `${zaneResult.caffeineCoeff.toFixed(3)}` : '0.150'}
+                  </div>
+                </div>
               </div>
 
               <div className="zane-feedback-text">
                 {zaneResult.isCalibrated ? (
                   <>
-                    ZANE is volledig gekalibreerd op basis van <strong>{zaneResult.calibrationDays} dagen</strong> aan data. 
+                    Zenith is volledig gekalibreerd op basis van <strong>{zaneResult.calibrationDays} dagen</strong> aan data. 
                     Het algoritme past uw energiebehoefte direct aan op uw werkelijke metabolisme-afwijking en de kwaliteit van uw slaap.
                   </>
                 ) : (
                   <>
                     Kalibratie status: <strong>{zaneResult.calibrationDays}/14 dagen</strong> compleet gelogd. 
-                    ZANE gebruikt momenteel standaard sportwetenschappelijke fallbacks en prior-factoren tot er voldoende data is voor de regressie-regels.
+                    Zenith gebruikt momenteel standaard sportwetenschappelijke fallbacks en prior-factoren tot er voldoende data is voor de regressie-regels.
                   </>
                 )}
               </div>
@@ -1373,39 +1901,182 @@ function App() {
                   style={{ width: 18, height: 18, accentColor: 'var(--color-primary)', cursor: 'pointer' }}
                 />
                 <label htmlFor="dayIncompleteCheck" style={{ fontSize: 12, fontWeight: 700, cursor: 'pointer', color: !selectedDateComplete ? '#ff9f43' : 'var(--text-muted)' }}>
-                  Markeer deze dag als ONVOLLEDIG (sluit uit van ZANE regressie)
+                  Markeer deze dag als ONVOLLEDIG (sluit uit van Zenith regressie)
                 </label>
               </div>
             </div>
           </div>
 
-          {/* ZANE Evolution Chart Card */}
+          {/* Zenith Evolution Chart Card */}
           <div className="fuel-card col-7">
             <h3 className="fuel-card-title">
-              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> ZANE Parameter Evolutie
+              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> Zenith Parameter Evolutie
             </h3>
-            {zaneHistory.length < 2 ? (
+            {zaneHistory.length === 0 ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, minHeight: 180, textAlign: 'center' }}>
-                Onvoldoende kalibratiegeschiedenis om de grafiek te tonen.<br />Voltooi de dagelijkse logs gedurende meerdere dagen om evolutie te plotten.
+                Begin met het invoeren van logs om de Zenith evolutiegrafiek te tonen.
               </div>
             ) : (
               <div style={{ width: '100%', height: 210 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={zaneHistory} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <ComposedChart data={zaneHistory} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.03)" />
                     <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={10} tickLine={false} />
                     <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} />
                     <Tooltip 
                       contentStyle={{ background: '#121218', borderColor: 'var(--border-color)', borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ fontWeight: 800, color: 'var(--color-primary)' }}
+                      formatter={(value: any, name: any) => {
+                        if (name && typeof name === 'string' && name.includes("Foutmarge") && Array.isArray(value)) {
+                          return [`${value[0]} tot ${value[1]} kcal`, "BMR Offset Bereik"];
+                        }
+                        return [value, name];
+                      }}
                     />
+                    <Area name="BMR Offset Foutmarge" type="monotone" dataKey="offsetRange" stroke="none" fill="rgba(255, 159, 67, 0.08)" />
                     <Line name="BMR Offset (kcal)" type="monotone" dataKey="offset" stroke="var(--color-primary)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                     <Line name="Kwaliteit Coeff" type="monotone" dataKey="quality" stroke="var(--color-protein)" strokeWidth={2} dot={false} />
                     <Line name="Duur Coeff" type="monotone" dataKey="duration" stroke="var(--color-fat)" strokeWidth={2} dot={false} />
-                  </LineChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             )}
+          </div>
+
+          {/* Card 1: TDEE Energy Breakdown */}
+          <div className="fuel-card col-4 animate-fade-in">
+            <h3 className="fuel-card-title">
+              <Activity size={14} style={{ color: 'var(--color-primary)' }} /> TDEE Energieverbruik
+            </h3>
+            <div className="zane-insights-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Mifflin-St Jeor BMR:</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>{baseBmr} kcal</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>PAL Activiteit (x1.25):</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>+{baseTdee - baseBmr} kcal</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Ritten & Cardio (Aero):</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>+{activeCalories} kcal</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Krachttraining (Kratos):</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>
+                  +{gymCalories} kcal <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 500 }}>
+                    ({selectedDateGymVolume} kg{zaneResult.isCalibrated ? ` @ ${zaneResult.gymVolumeCoeff.toFixed(3)}/kg` : ''})
+                  </span>
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Zenith Metabolisme Offset:</span>
+                <span style={{ fontWeight: 700, color: bmrOffset >= 0 ? '#55efc4' : '#ff7675' }}>
+                  {bmrOffset >= 0 ? `+${bmrOffset}` : bmrOffset} kcal
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Slaap Invloed:</span>
+                <span style={{ fontWeight: 700, color: sleepAdjustment >= 0 ? '#55efc4' : '#ff7675' }}>
+                  {sleepAdjustment >= 0 ? `+${sleepAdjustment}` : sleepAdjustment} kcal
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Voedings-Thermogeneratie (TEF):</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>+{tef} kcal</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 900, paddingTop: '4px' }}>
+                <span style={{ color: 'var(--color-primary)' }}>Totaal TDEE verbruik:</span>
+                <span style={{ color: 'var(--color-primary)' }}>{totalTdee} kcal</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Weight Prediction Forecaster */}
+          <div className="fuel-card col-4 animate-fade-in">
+            <h3 className="fuel-card-title">
+              <Sparkles size={14} style={{ color: 'var(--color-primary)' }} /> Gewichtsvoorspeller (4 weken)
+            </h3>
+            <div className="zane-insights-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Huidige Balans:</span>
+                <span style={{ fontWeight: 700, color: netDailyBalance <= 0 ? '#55efc4' : '#ff7675' }}>
+                  {netDailyBalance > 0 ? `+${netDailyBalance}` : netDailyBalance} kcal/dag
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Wekelijkse verandering:</span>
+                <span style={{ fontWeight: 700, color: weeklyWeightRate <= 0 ? '#55efc4' : '#ff7675' }}>
+                  {weeklyWeightRate > 0 ? `+${weeklyWeightRate.toFixed(2)}` : weeklyWeightRate.toFixed(2)} kg
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Huidig Gewicht:</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>{latestWeight} kg</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Verwacht Gewicht (28d):</span>
+                <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>{projectedWeight} kg</span>
+              </div>
+              <div className="zane-feedback-text" style={{ fontSize: '11px', marginTop: '4px', lineHeight: '1.4' }}>
+                {netDailyBalance <= -100 ? (
+                  <>Je zit in een energie-tekort van {Math.abs(netDailyBalance)} kcal. Dit stimuleert vetverbranding met een gezonde, duurzame snelheid.</>
+                ) : netDailyBalance >= 100 ? (
+                  <>Je zit in een energie-overschot van {netDailyBalance} kcal. Dit ondersteunt spieropbouw of herstel na zware trainingen.</>
+                ) : (
+                  <>Je energiebalans is stabiel. Je gewicht zal naar verwachting op onderhoudsniveau blijven schommelen.</>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Weekly Trends & Consistency */}
+          <div className="fuel-card col-4 animate-fade-in">
+            <h3 className="fuel-card-title">
+              <Check size={14} style={{ color: 'var(--color-primary)' }} /> Wekelijkse Trends & Consistentie
+            </h3>
+            <div className="zane-insights-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Gemiddelde inname:</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>{weeklyStats.averageIntakeCal} kcal/dag</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Gemiddeld doel:</span>
+                <span style={{ fontWeight: 700, color: '#fff' }}>{weeklyStats.averageTargetCal} kcal/dag</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Consistentie Score:</span>
+                <span style={{ fontWeight: 900, color: weeklyStats.consistencyScore >= 85 ? '#55efc4' : weeklyStats.consistencyScore >= 65 ? '#ff9f43' : '#ff7675' }}>
+                  {weeklyStats.consistencyScore}%
+                </span>
+              </div>
+              <div style={{ marginTop: '4px' }}>
+                <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Macro Target Behaald:</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', width: '24px', color: 'var(--color-carb)', fontWeight: 800 }}>CAR:</span>
+                    <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${weeklyStats.carbsPercent}%`, height: '100%', background: 'var(--color-carb)' }} />
+                    </div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#fff' }}>{weeklyStats.carbsPercent}%</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', width: '24px', color: 'var(--color-protein)', fontWeight: 800 }}>PRO:</span>
+                    <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${weeklyStats.proteinPercent}%`, height: '100%', background: 'var(--color-protein)' }} />
+                    </div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#fff' }}>{weeklyStats.proteinPercent}%</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', width: '24px', color: 'var(--color-fat)', fontWeight: 800 }}>FAT:</span>
+                    <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${weeklyStats.fatPercent}%`, height: '100%', background: 'var(--color-fat)' }} />
+                    </div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#fff' }}>{weeklyStats.fatPercent}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1446,7 +2117,7 @@ function App() {
                   }}
                 >
                   {!day.isComplete && (
-                    <div style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', background: '#ff9f43' }} title="ZANE Uitgesloten (Onvolledig)" />
+                    <div style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', background: '#ff9f43' }} title="Zenith Uitgesloten (Onvolledig)" />
                   )}
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, display: 'block' }}>
                     {day.dayShortName}
@@ -1471,7 +2142,7 @@ function App() {
                 </h3>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
                   Geselecteerde dag intake: <strong>{intakeCalories} kcal</strong>
-                  {!selectedDateComplete && <span style={{ color: '#ff9f43', marginLeft: 8 }}>⚠️ ZANE Uitgesloten (Onvolledig)</span>}
+                  {!selectedDateComplete && <span style={{ color: '#ff9f43', marginLeft: 8 }}>⚠️ Zenith Uitgesloten (Onvolledig)</span>}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -1496,7 +2167,7 @@ function App() {
                     Kopieer dag
                   </button>
                 )}
-                <button className="btn-submit" style={{ padding: '6px 12px', fontSize: 11, margin: 0 }} onClick={() => { setLogSource('quick'); setShowLogModal(true); }}>
+                <button className="btn-submit" style={{ padding: '6px 12px', fontSize: 11, margin: 0 }} onClick={() => { setEditingLogEntry(null); resetLogForm(); setLogSource('quick'); setShowLogModal(true); }}>
                   <Plus size={12} /> Log Maaltijd
                 </button>
               </div>
@@ -1525,8 +2196,11 @@ function App() {
                           <span className="timeline-macro">Fat: <span>{log.fat}g</span></span>
                         </div>
                       </div>
-                      <div className="timeline-actions">
-                        <button className="btn-delete" onClick={() => handleDeleteLog(log.id)}>
+                      <div className="timeline-actions" style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn-barcode-lookup" style={{ padding: '6px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleEditLogClick(log)}>
+                          <Edit size={13} />
+                        </button>
+                        <button className="btn-delete" style={{ padding: '6px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleDeleteLog(log.id)}>
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -1621,6 +2295,7 @@ function App() {
                           className="recipe-btn-log" 
                           style={{ margin: 0, flex: 3 }}
                           onClick={() => {
+                            setEditingLogEntry(null);
                             setSelectedLogIngredient(ing.id);
                             setLogIngredientSearch(ing.name);
                             setLogSource('ingredient');
@@ -1701,6 +2376,7 @@ function App() {
                       className="recipe-btn-log"
                       style={{ margin: 0, flex: 3 }}
                       onClick={() => {
+                        setEditingLogEntry(null);
                         setSelectedLogRecipe(rec.id);
                         setLogRecipeSearch(rec.name);
                         setLogSource('recipe');
@@ -1732,13 +2408,287 @@ function App() {
         </div>
       )}
 
+      {/* SUPPLEMENTEN VIEW */}
+      {activeTab === 'supplements' && (
+        <div className="fuel-grid animate-fade-in">
+          {/* Week Selector Header */}
+          <div className="fuel-card col-12" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: 'row', marginBottom: 0 }}>
+            <button className="fuel-nav-btn" onClick={handlePrevWeek} style={{ padding: '8px 14px' }}>
+              <ChevronLeft size={16} /> Vorige Week
+            </button>
+            <strong style={{ fontSize: 14, color: 'var(--text-main)', letterSpacing: '0.5px' }}>
+              {formattedWeekRange}
+            </strong>
+            <button className="fuel-nav-btn" onClick={handleNextWeek} style={{ padding: '8px 14px' }}>
+              Volgende Week <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* 7 Days Selector cards row */}
+          <div className="col-12" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12, marginBottom: 12 }}>
+            {weekDays.map(day => {
+              const isSelected = day.dateStr === selectedDateStr;
+              const daySupps = supplementsLogs.filter(s => s.logged_at.split('T')[0] === day.dateStr);
+              const dayCreatine = daySupps.filter(s => s.supplement_type === 'creatine').reduce((sum, s) => sum + Number(s.amount), 0);
+              const dayCaffeine = daySupps.filter(s => s.supplement_type === 'caffeine').reduce((sum, s) => sum + Number(s.amount), 0);
+              return (
+                <div 
+                  key={day.dateStr}
+                  onClick={() => setSelectedDateStr(day.dateStr)}
+                  style={{
+                    background: isSelected ? 'rgba(255, 159, 67, 0.08)' : 'var(--bg-card)',
+                    border: `1px solid ${isSelected ? 'var(--color-primary)' : 'var(--border-color)'}`,
+                    borderRadius: '12px',
+                    padding: '12px 10px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    position: 'relative'
+                  }}
+                >
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, display: 'block' }}>
+                    {day.dayShortName}
+                  </span>
+                  <strong style={{ fontSize: 20, color: isSelected ? 'var(--color-primary)' : 'var(--text-main)', display: 'block', margin: '4px 0', fontFamily: 'Outfit, sans-serif' }}>
+                    {day.dayNum}
+                  </strong>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {dayCreatine > 0 || dayCaffeine > 0 ? (
+                      <span style={{ color: 'var(--color-primary)', fontWeight: 800 }}>
+                        {dayCreatine > 0 ? `${dayCreatine}g` : ''}
+                        {dayCreatine > 0 && dayCaffeine > 0 ? ' | ' : ''}
+                        {dayCaffeine > 0 ? `${dayCaffeine}mg` : ''}
+                      </span>
+                    ) : '—'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* QUICK LOG SUPPLEMENTS */}
+          <div className="fuel-card col-4">
+            <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', marginBottom: 20 }}>
+              Snel Loggen ({new Date(selectedDateStr).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })})
+            </h2>
+            <form onSubmit={handleAddSupplementLog}>
+              <div className="form-group">
+                <label className="form-label">Supplement Type</label>
+                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                  {[
+                    { id: 'creatine', label: 'Creatine Monohydraat' },
+                    { id: 'caffeine', label: 'Cafeïne' }
+                  ].map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className="fuel-tab-btn"
+                      style={{
+                        flex: 1,
+                        background: logSuppType === t.id ? 'var(--color-primary-dim)' : 'transparent',
+                        border: `1px solid ${logSuppType === t.id ? 'var(--color-primary)' : 'var(--border-color)'}`,
+                        color: logSuppType === t.id ? 'var(--color-primary)' : 'var(--text-muted)'
+                      }}
+                      onClick={() => {
+                        setLogSuppType(t.id as any);
+                        setLogSuppAmount(t.id === 'creatine' ? '5' : '80');
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  Hoeveelheid ({logSuppType === 'creatine' ? 'gram' : 'mg'})
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  className="form-input"
+                  value={logSuppAmount}
+                  onChange={e => setLogSuppAmount(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tijdstip</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={logSuppHour}
+                  onChange={e => setLogSuppHour(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button type="submit" className="btn-submit" style={{ width: '100%', marginTop: 8 }}>
+                Log Inname
+              </button>
+            </form>
+          </div>
+
+          {/* CREATINE SATURATION CARD */}
+          <div className="fuel-card col-4">
+            <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', marginBottom: 20 }}>
+              Creatine Verzadiging
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px 0' }}>
+              <div style={{ position: 'relative', width: 100, height: 100, marginBottom: 16 }}>
+                <svg width="100" height="100" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.03)" strokeWidth="8" fill="transparent" />
+                  <circle 
+                    cx="50" 
+                    cy="50" 
+                    r="42" 
+                    stroke="var(--color-primary)" 
+                    strokeWidth="8" 
+                    fill="transparent" 
+                    strokeDasharray="264"
+                    strokeDashoffset={264 - (264 * creatineStats.latestSaturation) / 100}
+                    strokeLinecap="round"
+                    transform="rotate(-90 50 50)"
+                  />
+                </svg>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>{creatineStats.latestSaturation}%</div>
+                  <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>
+                </div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Geschatte waterretentie:</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--color-carb)', margin: '4px 0' }}>
+                  +{creatineStats.latestWaterWeight.toFixed(2)} kg
+                </div>
+                <p style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: '14px', margin: '8px 0 0 0' }}>
+                  ZANE past je weegschaalgewicht automatisch aan om watergewichtfluctuaties te compenseren.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* CAFFEINE METABOLIC BOOST CARD */}
+          <div className="fuel-card col-4">
+            <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', marginBottom: 20 }}>
+              Metabole Impact Cafeïne
+            </h2>
+            <div style={{ padding: '10px 0' }}>
+              <div style={{ background: 'rgba(0,0,0,0.15)', padding: '16px', borderRadius: '10px', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vandaag ingenomen:</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '4px 0' }}>
+                  {caffeineStats.activeDateCaffeine} mg
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.15)', padding: '16px', borderRadius: '10px', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Extra energieverbruik (ML):</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--color-primary)', margin: '4px 0' }}>
+                  +{caffeineStats.metabolicBoost} kcal
+                </div>
+              </div>
+
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: '14px', textAlign: 'center' }}>
+                Geleerde coëfficiënt: <strong>{zaneResult.caffeineCoeff || 0.15} kcal</strong> per mg cafeïne.
+              </div>
+            </div>
+          </div>
+
+          {/* CREATINE CHART */}
+          <div className="fuel-card col-6">
+            <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', marginBottom: 20 }}>
+              Creatine Oplaadcurve & Verzadiging (30 Dagen)
+            </h2>
+            <div style={{ height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={creatineStats.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="dateStr" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} stroke="rgba(255,255,255,0.1)" />
+                  <YAxis yAxisId="left" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} stroke="rgba(255,255,255,0.1)" label={{ value: 'Inname (g)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 9 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} stroke="rgba(255,255,255,0.1)" label={{ value: 'Verzadiging (%)', angle: 90, position: 'insideRight', fill: 'var(--text-muted)', fontSize: 9 }} />
+                  <Tooltip 
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10 }}
+                    labelStyle={{ color: '#fff', fontSize: 11, fontWeight: 700 }}
+                    itemStyle={{ fontSize: 11 }}
+                  />
+                  <Area yAxisId="right" type="monotone" dataKey="saturation" fill="rgba(255, 159, 67, 0.15)" stroke="var(--color-primary)" strokeWidth={2} name="Verzadiging (%)" />
+                  <Line yAxisId="left" type="monotone" dataKey="intake" stroke="var(--color-carb)" strokeWidth={1.5} dot={{ r: 2 }} name="Inname (g)" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* CAFFEINE CHART */}
+          <div className="fuel-card col-6">
+            <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', marginBottom: 20 }}>
+              Cafeïne vs. Rusthartslag Trend (30 Dagen)
+            </h2>
+            <div style={{ height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={caffeineStats.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="dateStr" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} stroke="rgba(255,255,255,0.1)" />
+                  <YAxis yAxisId="left" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} stroke="rgba(255,255,255,0.1)" label={{ value: 'Cafeïne (mg)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 9 }} />
+                  <YAxis yAxisId="right" orientation="right" domain={[50, 75]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} stroke="rgba(255,255,255,0.1)" label={{ value: 'Hartslag (bpm)', angle: 90, position: 'insideRight', fill: 'var(--text-muted)', fontSize: 9 }} />
+                  <Tooltip 
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10 }}
+                    labelStyle={{ color: '#fff', fontSize: 11, fontWeight: 700 }}
+                    itemStyle={{ fontSize: 11 }}
+                  />
+                  <Area yAxisId="left" type="monotone" dataKey="caffeine" fill="rgba(84, 160, 255, 0.1)" stroke="var(--color-carb)" strokeWidth={1} name="Cafeïne (mg)" />
+                  <Line yAxisId="right" type="monotone" dataKey="heartRate" stroke="rgba(255, 107, 107, 1)" strokeWidth={2} dot={{ r: 2 }} name="Rusthartslag (bpm)" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* SUPPLEMENTS LOG HISTORY */}
+          <div className="fuel-card col-12">
+            <h2 style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#fff', marginBottom: 20 }}>
+              Geregistreerde Supplementen op {new Date(selectedDateStr).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </h2>
+            {supplementsLogs.filter(s => s.logged_at.split('T')[0] === selectedDateStr).length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                Geen supplementen geregistreerd voor deze datum.
+              </div>
+            ) : (
+              <div className="timeline">
+                {supplementsLogs.filter(s => s.logged_at.split('T')[0] === selectedDateStr).map(s => {
+                  const timeStr = new Date(s.logged_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <div key={s.id} className="timeline-item">
+                      <div className="timeline-time">{timeStr}</div>
+                      <div className="timeline-content">
+                        <div className="timeline-title" style={{ textTransform: 'capitalize' }}>
+                          {s.supplement_type === 'creatine' ? 'Creatine Monohydraat' : 'Cafeïne'}
+                        </div>
+                        <div className="timeline-desc">
+                          Hoeveelheid: <strong>{s.amount} {s.supplement_type === 'creatine' ? 'g' : 'mg'}</strong>
+                        </div>
+                      </div>
+                      <div className="timeline-actions">
+                        <button className="btn-delete" onClick={() => handleDeleteSupplementLog(s.id)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: ADD FOOD LOG */}
       {showLogModal && (
         <div className="modal-overlay">
           <div className="modal-content animate-slide-up">
             <div className="modal-header">
               <h3 className="modal-title">
-                <Clock size={16} /> Voeding Loggen
+                <Clock size={16} /> {editingLogEntry ? 'Voeding Wijzigen' : 'Voeding Loggen'}
               </h3>
               <button className="modal-close" onClick={() => setShowLogModal(false)}>Close</button>
             </div>
@@ -2001,7 +2951,7 @@ function App() {
               </div>
               <div style={{ padding: '0 24px 24px' }}>
                 <button type="submit" className="btn-submit" style={{ width: '100%' }}>
-                  Voeg toe aan Logboek
+                  {editingLogEntry ? 'Wijziging Opslaan' : 'Voeg toe aan Logboek'}
                 </button>
               </div>
             </form>
@@ -2146,6 +3096,17 @@ function App() {
                     placeholder="Bijv. 12" 
                     value={ingPortionsPackage}
                     onChange={e => setIngPortionsPackage(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Cafeïne Gehalte (mg per 100g/ml)</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    placeholder="Bijv. 32 voor energy drink, 80 voor espresso" 
+                    value={ingCaffeine}
+                    onChange={e => setIngCaffeine(e.target.value)}
                   />
                 </div>
               </div>
@@ -2411,7 +3372,8 @@ function App() {
             </form>
           </div>
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

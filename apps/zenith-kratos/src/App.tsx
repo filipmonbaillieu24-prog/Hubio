@@ -15,9 +15,7 @@ import {
   X, 
   TrendingUp, 
   Info,
-  Calendar,
-  Smartphone,
-  ArrowLeft
+  Calendar
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -107,13 +105,14 @@ export default function App() {
   const [loadingSession, setLoadingSession] = useState(true);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'exercises' | 'logs' | 'download'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'exercises' | 'logs' | 'download' | 'hypertrophy'>('dashboard');
 
   // Database State
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [latestBodyweight, setLatestBodyweight] = useState<number>(80.0);
+  const [measurements, setMeasurements] = useState<any[]>([]);
 
   // Workout edit form states
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
@@ -160,14 +159,7 @@ export default function App() {
   // UI state - Dashboard
   const [dashboardMetric, setDashboardMetric] = useState<'volume' | 'sets'>('volume');
   const [selectedExercise1RM, setSelectedExercise1RM] = useState<string>('');
-  const handleReturnToHub = () => {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'close-app' }, '*');
-    } else {
-      const isDev = import.meta.env.DEV;
-      window.location.href = isDev ? 'http://localhost:1420' : window.location.origin;
-    }
-  };
+  const [selectedCircumference, setSelectedCircumference] = useState<string>('biceps_l_cm');
 
   // 1. Hash-based login handler & regular check
   useEffect(() => {
@@ -340,6 +332,16 @@ export default function App() {
       .limit(1);
     if (weightData && weightData.length > 0) {
       setLatestBodyweight(Number(weightData[0].weight));
+    }
+
+    // Load body measurements
+    const { data: bMeasData } = await supabase
+      .from('vigor_body_measurements')
+      .select('*')
+      .eq('user_id', uid)
+      .order('logged_at', { ascending: true });
+    if (bMeasData) {
+      setMeasurements(bMeasData);
     }
 
     // Load athlete profile
@@ -998,6 +1000,177 @@ export default function App() {
     );
   }
 
+  const renderHypertrophyTab = () => {
+    const dataPoints = measurements
+      .map(m => {
+        const mDate = new Date(m.logged_at);
+        const cumVolume = workouts
+          .filter(w => new Date(w.completed_at) <= mDate)
+          .reduce((sum, w) => sum + (w.volume || 0), 0);
+
+        return {
+          dateStr: new Date(m.logged_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' }),
+          rawDate: mDate,
+          measurement: m[selectedCircumference] !== null ? Number(m[selectedCircumference]) : null,
+          volume: cumVolume
+        };
+      })
+      .filter(d => d.measurement !== null)
+      .sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime());
+
+    let rValue = 0;
+    let rStatus = 'Onvoldoende data';
+    let rColor = '#94a3b8';
+    let rExplanation = 'Log minimaal 3 metingen in Vigor om correlaties te berekenen.';
+
+    if (dataPoints.length >= 3) {
+      const n = dataPoints.length;
+      const x = dataPoints.map(d => d.volume);
+      const y = dataPoints.map(d => d.measurement!);
+
+      const sumX = x.reduce((a, b) => a + b, 0);
+      const sumY = y.reduce((a, b) => a + b, 0);
+      const avgX = sumX / n;
+      const avgY = sumY / n;
+
+      let num = 0;
+      let denX = 0;
+      let denY = 0;
+
+      for (let i = 0; i < n; i++) {
+        const diffX = x[i] - avgX;
+        const diffY = y[i] - avgY;
+        num += diffX * diffY;
+        denX += diffX * diffX;
+        denY += diffY * diffY;
+      }
+
+      const den = Math.sqrt(denX * denY);
+      rValue = den === 0 ? 0 : num / den;
+
+      if (selectedCircumference === 'waist_cm' || selectedCircumference === 'body_fat_pct') {
+        if (rValue <= -0.5) {
+          rStatus = 'Sterke Recompositie (Perfect!)';
+          rColor = 'var(--accent-neon)';
+          rExplanation = 'Geweldig! Je vetpercentage/tailleomtrek daalt gestaag naarmate je totale volume toeneemt.';
+        } else if (rValue < 0) {
+          rStatus = 'Gunstige Trend';
+          rColor = '#3b82f6';
+          rExplanation = 'Lichte daling in vetpercentage/tailleomtrek gecorreleerd met je trainingsvolume.';
+        } else {
+          rStatus = 'Neutraal / Stagnatie';
+          rColor = '#ff9f43';
+          rExplanation = 'Je tailleomtrek/vetpercentage stijgt of blijft gelijk ten opzichte van je trainingsvolume. Pas eventueel je voeding aan.';
+        }
+      } else {
+        if (rValue >= 0.6) {
+          rStatus = 'Sterk Hypertrofisch Antwoord';
+          rColor = 'var(--accent-neon)';
+          rExplanation = 'Uitstekend! Je spieromtrek stijgt direct in verhouding met je gecumuleerde trainingsvolume.';
+        } else if (rValue >= 0.3) {
+          rStatus = 'Matige Correlatie';
+          rColor = '#3b82f6';
+          rExplanation = 'Er is een positieve spiergroei trend zichtbaar gekoppeld aan je trainingsvolume.';
+        } else if (rValue > -0.3) {
+          rStatus = 'Zwakke Correlatie / Plateau';
+          rColor = '#94a3b8';
+          rExplanation = 'Weinig verandering in spieromtrek ten opzichte van volume stijging. Mogelijk is de intensiteit (RIR) te laag of herstel (slaap/eiwit) onvoldoende.';
+        } else {
+          rStatus = 'Krimp / Atrofie';
+          rColor = '#ef4444';
+          rExplanation = 'Negatieve correlatie: spieromtrek neemt af ondanks volume stijging. Let goed op overtraining of extreme calorietekorten.';
+        }
+      }
+    }
+
+    const metricNames: { [key: string]: string } = {
+      body_fat_pct: 'Vetpercentage (%)',
+      muscle_mass_kg: 'Spiermassa (kg)',
+      waist_cm: 'Tailleomtrek (cm)',
+      chest_cm: 'Borstomtrek (cm)',
+      shoulders_cm: 'Schouderomtrek (cm)',
+      hips_cm: 'Heupomtrek (cm)',
+      biceps_l_cm: 'Biceps Links (cm)',
+      biceps_r_cm: 'Biceps Rechts (cm)',
+      thigh_l_cm: 'Bovenbeen Links (cm)',
+      thigh_r_cm: 'Bovenbeen Rechts (cm)',
+      calves_l_cm: 'Kuit Links (cm)',
+      calves_r_cm: 'Kuit Rechts (cm)',
+      neck_cm: 'Nekomtrek (cm)'
+    };
+
+    return (
+      <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="kratos-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3 className="kratos-card-title" style={{ margin: 0 }}>Hypertrofie & Volume Correlatie</h3>
+            <select
+              className="kratos-input"
+              style={{ width: 'auto', padding: '6px 12px', fontSize: 12, marginTop: 0 }}
+              value={selectedCircumference}
+              onChange={e => setSelectedCircumference(e.target.value)}
+            >
+              {Object.entries(metricNames).map(([key, name]) => (
+                <option key={key} value={key}>{name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: 16, borderRadius: 12 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 800 }}>Huidige Meting</span>
+              <strong style={{ fontSize: 20, color: '#fff', display: 'block', marginTop: 4 }}>
+                {dataPoints.length > 0 ? `${dataPoints[dataPoints.length - 1].measurement} cm/%` : 'Geen data'}
+              </strong>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: 16, borderRadius: 12 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 800 }}>Cumulatief Kratos Volume</span>
+              <strong style={{ fontSize: 20, color: 'var(--accent-neon)', display: 'block', marginTop: 4 }}>
+                {workouts.reduce((sum, w) => sum + (w.volume || 0), 0).toLocaleString('nl-NL')} kg
+              </strong>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: 16, borderRadius: 12 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 800 }}>Pearson r Correlatie</span>
+              <strong style={{ fontSize: 20, color: rColor, display: 'block', marginTop: 4 }}>
+                {dataPoints.length >= 3 ? `${rValue.toFixed(3)}` : 'Onvoldoende data'}
+              </strong>
+            </div>
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.02)', borderLeft: `4px solid ${rColor}`, padding: 14, borderRadius: '0 8px 8px 0', marginBottom: 24 }}>
+            <h4 style={{ margin: '0 0 4px 0', fontSize: 12, fontWeight: 900, color: '#fff', textTransform: 'uppercase' }}>{rStatus}</h4>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{rExplanation}</p>
+          </div>
+
+          <div style={{ height: 300, width: '100%' }}>
+            {dataPoints.length < 2 ? (
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                Te weinig data om de grafiek te plotten. Voeg metingen toe in Zenith Vigor.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dataPoints} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="dateStr" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} stroke="var(--border-color)" />
+                  <YAxis yAxisId="left" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} stroke="rgba(255,255,255,0.15)" domain={['auto', 'auto']} label={{ value: 'Meting', angle: -90, position: 'insideLeft', fill: '#fff', fontSize: 10 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} stroke="rgba(57, 255, 20, 0.15)" domain={['auto', 'auto']} label={{ value: 'Cumulatief Volume (kg)', angle: 90, position: 'insideRight', fill: 'var(--accent-neon)', fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{ background: '#1c1c23', border: '1px solid var(--border-color)', borderRadius: 10 }}
+                    labelStyle={{ color: '#fff', fontSize: 11, fontWeight: 700 }}
+                  />
+                  <Line yAxisId="left" type="monotone" dataKey="measurement" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} name={metricNames[selectedCircumference]} />
+                  <Line yAxisId="right" type="monotone" dataKey="volume" stroke="var(--accent-neon)" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Cumulatief Volume" />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const userName = session?.user?.user_metadata?.name || session?.user?.user_metadata?.fitness_profile?.name || 'Atleet';
 
   return (
@@ -1007,14 +1180,26 @@ export default function App() {
         <div className="kratos-glow-purple" />
       </div>
       {/* Header */}
-      <header className="kratos-header animate-slide-down" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '20px', marginBottom: '24px', background: 'transparent' }}>
-        <div className="kratos-brand" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={handleReturnToHub} className="zh-back-btn">
-            <ArrowLeft size={14} /> Hub
-          </button>
+      <header className="kratos-header animate-slide-down" style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)', 
+        padding: '16px 24px', 
+        background: 'transparent',
+        height: '70px',
+        boxSizing: 'border-box',
+        flexShrink: 0,
+        marginBottom: '24px'
+      }}>
+        <div className="kratos-brand">
           <div>
-            <h1 className="zh-hub-title" style={{ fontSize: 22 }}>ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 18 }}>KRATOS</span></h1>
-            <p className="zh-hub-subtitle">Strength & Conditioning voor {userName}</p>
+            <h1 className="zh-hub-title" style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: 0, letterSpacing: '0.5px', lineHeight: '1.2' }}>
+              ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '16px' }}>KRATOS</span>
+            </h1>
+            <p className="zh-hub-subtitle" style={{ fontSize: '9px', color: 'var(--text-muted)', margin: '4px 0 0', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+              Strength & Conditioning voor {userName}
+            </p>
           </div>
         </div>
       </header>
@@ -1060,11 +1245,11 @@ export default function App() {
           <FileText size={13} /> Logboek
         </button>
         <button 
-          className={`kratos-nav-btn ${activeTab === 'download' ? 'active' : ''}`}
-          onClick={() => setActiveTab('download')}
+          className={`kratos-nav-btn ${activeTab === 'hypertrophy' ? 'active' : ''}`}
+          onClick={() => setActiveTab('hypertrophy')}
           style={{ flex: 1, justifyContent: 'center' }}
         >
-          <Smartphone size={13} /> Mobiele App
+          <TrendingUp size={13} /> Hypertrofie
         </button>
       </nav>      {/* Content */}
       <main className="kratos-content animate-fade-in">
@@ -1524,20 +1709,24 @@ export default function App() {
                     </thead>
                     <tbody>
                        {exercises.map(ex => {
-                        const aiIncrement = predictProgressiveOverload(
-                          1800,
-                          ex.increment_weight,
+                        const step = ex.increment_weight;
+                        const rawAiIncrement = predictProgressiveOverload(
+                          1500, // baseline session volume
+                          0,    // weight progression baseline
                           todaySleepQuality || 80,
                           currentPMC?.tsb || 0,
-                          ex.default_rir
+                          10    // standard target reps
                         );
+                        const targetRaw = ex.increment_per_side ? (rawAiIncrement / 2) : rawAiIncrement;
+                        const multiplier = Math.round(targetRaw / step);
+                        const aiIncrement = Math.max(step, multiplier * step);
                         return (
                           <tr key={ex.id}>
                             <td style={{ fontWeight: 700, color: '#fff' }}>{ex.name}</td>
                             <td>
                               <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.03)', padding: '2px 8px', borderRadius: 4 }}>{ex.category}</span>
                             </td>
-                            <td>+{ex.increment_weight} {ex.increment_per_side ? '(per kant)' : '(totaal)'} <span style={{ color: 'var(--accent-neon)', fontSize: 11, marginLeft: 4 }}>[AI: +{aiIncrement}kg]</span></td>
+                            <td>+{ex.increment_weight} {ex.increment_per_side ? '(per kant)' : '(totaal)'} <span style={{ color: 'var(--accent-neon)', fontSize: 11, marginLeft: 4 }}>[AI: +{aiIncrement} {ex.weight_unit}]</span></td>
                             <td style={{ textTransform: 'uppercase', fontWeight: 700 }}>{ex.weight_unit}</td>
                             <td>RIR {ex.default_rir}</td>
                             <td style={{ color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1698,62 +1887,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ----------------- MOBILE APP DOWNLOAD TAB ----------------- */}
-        {activeTab === 'download' && (
-          <div className="animate-slide-up" style={{ maxWidth: 800, margin: '0 auto' }}>
-            <div className="kratos-card" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 32, padding: 32 }}>
-              <div>
-                <h3 className="kratos-card-title" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 24, marginBottom: 12 }}>
-                  <Smartphone style={{ color: '#cbd5e1' }} /> Kratos Pilot App
-                </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: '1.6', marginBottom: 20 }}>
-                  Kratos Pilot is de mobiele companion app voor krachttraining. Log uw sets, reps en RIR 
-                  rechtstreeks vanaf de trainingsvloer. De app functioneert volledig <strong>offline-first</strong> 
-                  en synchroniseert uw resultaten automatisch met de cloud zodra u verbinding heeft.
-                </p>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(203, 213, 225, 0.1)', color: '#cbd5e1', fontSize: 11, fontWeight: 700 }}>1</span>
-                    <span><strong>Autoregulatie:</strong> Live aanpassing van uw target reps & gewichten op basis van RIR.</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(203, 213, 225, 0.1)', color: '#cbd5e1', fontSize: 11, fontWeight: 700 }}>2</span>
-                    <span><strong>Cardio Stress Factor:</strong> Rest timer schaling berekend uit uw meest recente ritten.</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(203, 213, 225, 0.1)', color: '#cbd5e1', fontSize: 11, fontWeight: 700 }}>3</span>
-                    <span><strong>PR-Celebrations:</strong> Epley 1RM schatting PR-meldingen om records te vieren.</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <a 
-                    href="https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos.apk"
-                    className="kratos-btn kratos-btn-neon"
-                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px' }}
-                    download
-                  >
-                    <Smartphone size={14} /> Download Kratos APK
-                  </a>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid var(--border-color)', paddingLeft: 32 }}>
-                <div style={{ background: '#fff', padding: 16, borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', marginBottom: 16 }}>
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=09090b&data=${encodeURIComponent("https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/kratos.apk")}`} 
-                    alt="Kratos Download QR Code"
-                    style={{ width: 160, height: 160, display: 'block' }}
-                  />
-                </div>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>
-                  Scan met uw telefoon om direct te installeren
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
         
         {/* ----------------- LOGBOOK TAB ----------------- */}
         {activeTab === 'logs' && (
@@ -1831,6 +1965,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {activeTab === 'hypertrophy' && renderHypertrophyTab()}
 
       </main>
 

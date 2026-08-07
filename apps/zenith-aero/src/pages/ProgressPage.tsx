@@ -137,7 +137,9 @@ export const ProgressPage: React.FC<ProgressPageProps> = ({ profile, rides }) =>
     [profile.ftp, profile.weight]);
 
   const aiFTPForecast = useMemo(() => {
-    const currentFTP = profile.ftp ?? 220;
+    const ftpHistory = rides.filter(r => r.eFTP && r.eFTP > 0).sort((a, b) => a.date - b.date);
+    const lastFTP = ftpHistory.length > 0 ? ftpHistory[ftpHistory.length - 1].eFTP : null;
+    const currentFTP = lastFTP ?? profile.ftp ?? 220;
     const nowMs = Date.now();
     const recentCount = rides.filter(r => r.date >= nowMs - 30 * 24 * 3600 * 1000).length;
     const consistency = (recentCount / 30) * 7;

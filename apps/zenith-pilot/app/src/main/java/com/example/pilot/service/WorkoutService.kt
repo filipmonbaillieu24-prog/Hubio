@@ -193,10 +193,19 @@ class WorkoutService : Service() {
         }
 
         val currentBlock = steps[currentIdx]
+        val ftp = activeWorkout?.ftp ?: 220
         
         // 30 seconds warning
         if (currentBlock.duration - _blockElapsedSeconds.value == 30) {
             coachingEngine.speak("Nog dertig seconden.", "COACHING")
+        }
+
+        // Halfway point warning (only for blocks longer than 3 minutes, i.e., 180s)
+        if (currentBlock.duration >= 180 && _blockElapsedSeconds.value == currentBlock.duration / 2) {
+            val remainingMin = (currentBlock.duration - _blockElapsedSeconds.value) / 60
+            if (remainingMin > 0) {
+                coachingEngine.speak("Je bent halverwege dit blok. Nog $remainingMin minuten te gaan.", "COACHING")
+            }
         }
 
         if (_blockElapsedSeconds.value >= currentBlock.duration) {
@@ -206,8 +215,13 @@ class WorkoutService : Service() {
                 _currentBlockIndex.value = nextIdx
                 _blockElapsedSeconds.value = 0
                 val nextBlock = steps[nextIdx]
+                val targetText = if (nextBlock.powerPct > 0.0) {
+                    "Richtlijn: probeer ${Math.round(nextBlock.powerPct * ftp)} watt aan te houden."
+                } else {
+                    "Dit is een actief herstelblok. Houd de benen soepel."
+                }
                 coachingEngine.speak(
-                    "Volgend blok: ${nextBlock.name}. Duur: ${nextBlock.duration / 60} minuten.",
+                    "Volgend blok: ${nextBlock.name}. Duur: ${nextBlock.duration / 60} minuten. $targetText",
                     "COACHING"
                 )
             } else {
@@ -218,7 +232,7 @@ class WorkoutService : Service() {
 
     private fun checkAdaptiveCoaching() {
         val now = System.currentTimeMillis()
-        if (now - lastAdaptiveCueTime < 30_000) return // Max one adaptive cue every 30 seconds to not be annoying
+        if (now - lastAdaptiveCueTime < 45_000) return // Max one adaptive cue every 45 seconds to keep it motivating but not annoying
 
         val currentIdx = _currentBlockIndex.value
         if (currentIdx >= steps.size) return
@@ -226,11 +240,12 @@ class WorkoutService : Service() {
 
         val hr = bleSensorManager.currentHR.value
         val power = bleSensorManager.currentPower.value
+        val cadence = bleSensorManager.currentCadence.value
         val ftp = activeWorkout?.ftp ?: 220
         val lthr = activeWorkout?.lthr ?: 160
 
-        // Only run zone checks every 5 minutes (or 300s) unless it is a severe zone breach
-        val isFiveMinuteCheck = (_elapsedSeconds.value > 0 && _elapsedSeconds.value % 300 == 0)
+        // Only run zone checks every 3 minutes (or 180s) unless it is a severe zone breach
+        val isThreeMinuteCheck = (_elapsedSeconds.value > 0 && _elapsedSeconds.value % 180 == 0)
 
         // 1. Check Power Target if Power Meter is connected and block has target
         if (power != null && currentBlock.powerPct > 0.0) {
@@ -239,18 +254,43 @@ class WorkoutService : Service() {
             val powerHighThreshold = targetPower + 25
 
             if (power < powerLowThreshold) {
-                coachingEngine.speak("Vermogen is te laag. Doel is $targetPower watt. Verhoog uw inspanning.", "PACING")
+                val phrases = listOf(
+                    "Blijf duwen! Je zit onder je doel van $targetPower watt.",
+                    "Iets meer vermogen leveren. Richt op $targetPower watt.",
+                    "Vermogen is gezakt tot $power watt. Breng het terug naar $targetPower watt."
+                )
+                coachingEngine.speak(phrases.random(), "PACING")
                 lastAdaptiveCueTime = now
                 return
             } else if (power > powerHighThreshold) {
-                coachingEngine.speak("Vermogen is te hoog. Doel is $targetPower watt. Neem wat gas terug.", "PACING")
+                val phrases = listOf(
+                    "Iets rustiger aan. Doel is $targetPower watt.",
+                    "Spaar je krachten. Neem wat gas terug naar $targetPower watt.",
+                    "Vermogen is te hoog. Probeer stabiel op $targetPower watt te rijden."
+                )
+                coachingEngine.speak(phrases.random(), "PACING")
                 lastAdaptiveCueTime = now
                 return
             }
         }
 
-        // 2. Check HR Target if HR is connected (only every 5 minutes to avoid heart rate drift panic)
-        if (hr != null && isFiveMinuteCheck) {
+        // 2. Check Cadence Target (Helpful advice for keeping legs fresh)
+        if (cadence != null && cadence > 0) {
+            // Avoid cadence alerts during active recovery if they just coast, but alert during intervals
+            val isIntensive = currentBlock.powerPct > 0.65
+            if (isIntensive && cadence < 70) {
+                coachingEngine.speak("Je trapfrequentie is te laag. Schakel lichter om je knieën te sparen.", "PACING")
+                lastAdaptiveCueTime = now
+                return
+            } else if (cadence > 110) {
+                coachingEngine.speak("Je trapt erg snel. Schakel zwaarder om rustiger en efficiënter te trappen.", "PACING")
+                lastAdaptiveCueTime = now
+                return
+            }
+        }
+
+        // 3. Check HR Target if HR is connected
+        if (hr != null && isThreeMinuteCheck) {
             // Estimate target HR from zone
             val targetHrMax = when (currentBlock.zone) {
                 1 -> Math.round(lthr * 0.68).toInt()
@@ -261,7 +301,7 @@ class WorkoutService : Service() {
             }
 
             if (hr > targetHrMax + 5) {
-                coachingEngine.speak("Hartslag is ${hr}. Dit is hoog voor dit herstelblok. Kalmeer uw ademhaling.", "PACING")
+                coachingEngine.speak("Hartslag is $hr slagen per minuut. Dit is hoog voor dit blok. Focus op diepe ademhaling en ontspan.", "PACING")
                 lastAdaptiveCueTime = now
             }
         }

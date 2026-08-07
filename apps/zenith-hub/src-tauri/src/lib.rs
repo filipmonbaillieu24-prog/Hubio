@@ -203,251 +203,423 @@ async fn start_native_ble_listener(app_handle: tauri::AppHandle) -> Result<(), B
                                     return;
                                 }
                                 
-                                // Zoeken naar FFF0 service en FFF1 (notify) en FFF2 (write) characteristics
-                                let mut target_char = None;
-                                let mut write_char = None;
-                                for service in peripheral_clone.services() {
-                                    let service_uuid = service.uuid.to_string().to_lowercase();
-                                    if service_uuid.contains("fff0") || service_uuid.contains("181d") {
-                                        for characteristic in service.characteristics {
-                                            let char_uuid = characteristic.uuid.to_string().to_lowercase();
-                                            if char_uuid.contains("fff1") || char_uuid.contains("2a9d") {
-                                                target_char = Some(characteristic);
-                                            } else if char_uuid.contains("fff2") {
-                                                write_char = Some(characteristic);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                let characteristic = match target_char {
-                                    Some(c) => c,
-                                    None => {
-                                        println!("Native BLE: Target notification characteristic not found");
-                                        let _ = peripheral_clone.disconnect().await;
-                                        let mut connecting_guard = connecting_clone.lock().await;
-                                        connecting_guard.remove(&id_clone);
-                                        return;
-                                    }
-                                };
-                                
-                                println!("Native BLE: Subscribing to characteristic: {}", characteristic.uuid);
-                                if let Err(e) = peripheral_clone.subscribe(&characteristic).await {
-                                    println!("Native BLE: Subscribe failed: {:?}", e);
-                                    let _ = peripheral_clone.disconnect().await;
-                                    let mut connecting_guard = connecting_clone.lock().await;
-                                    connecting_guard.remove(&id_clone);
-                                    return;
-                                }
-
-                                 let mut notification_stream = match peripheral_clone.notifications().await {
-                                     Ok(stream) => stream,
-                                     Err(e) => {
-                                         println!("Native BLE: Failed to get notification stream: {:?}", e);
-                                         let _ = peripheral_clone.disconnect().await;
-                                         let mut connecting_guard = connecting_clone.lock().await;
-                                         connecting_guard.remove(&id_clone);
-                                         return;
+                                 // Log alle gevonden services en characteristics voor diagnose en voer security-reads uit
+                                 if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") {
+                                     use std::io::Write;
+                                     let _ = writeln!(file, "[GATT-DISCOVERY] Start services opsomming:");
+                                     for service in peripheral_clone.services() {
+                                         let _ = writeln!(file, "  Service UUID: {}", service.uuid);
+                                         for characteristic in &service.characteristics {
+                                             let _ = writeln!(file, "    Char UUID: {}  properties: {:?}", characteristic.uuid, characteristic.properties);
+                                             
+                                             // Voer GATT reads uit voor manufacturer name en firmware revision (security / anti-tamper bypass)
+                                             let uuid_str = characteristic.uuid.to_string().to_lowercase();
+                                             if uuid_str.contains("2a29") || uuid_str.contains("2a26") {
+                                                 let _ = writeln!(file, "      -> Reading security char: {}", uuid_str);
+                                                 if let Ok(val) = peripheral_clone.read(characteristic).await {
+                                                     let _ = writeln!(file, "      -> Read succesvol: {:?}", String::from_utf8_lossy(&val));
+                                                 } else {
+                                                     let _ = writeln!(file, "      -> Read mislukt voor char: {}", uuid_str);
+                                                 }
+                                             }
+                                         }
                                      }
-                                 };
-
-                                 if let Some(ref w_char) = write_char {
-                                     println!("Native BLE: Writing handshake to characteristic: {}", w_char.uuid);
-                                     
-                                     // 1. Magic init bytes
-                                     let mut init_bytes = vec![0x13, 0x09, 0x15, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00];
-                                     let mut sum = 0u32;
-                                     for i in 0..8 {
-                                         sum += init_bytes[i] as u32;
-                                     }
-                                     init_bytes[8] = (sum & 0xFF) as u8;
-                                     
-                                     if let Err(e) = peripheral_clone.write(w_char, &init_bytes, WriteType::WithoutResponse).await {
-                                         println!("Native BLE: Failed to write magic init bytes: {:?}", e);
-                                     }
-                                     
-                                     // 2. Timestamp bytes
-                                     let scale_offset = 946702800u64;
-                                     let now = std::time::SystemTime::now()
-                                         .duration_since(std::time::UNIX_EPOCH)
-                                         .unwrap_or_default()
-                                         .as_secs();
-                                     let scale_time = if now > scale_offset { now - scale_offset } else { 0 };
-                                     
-                                     let mut date_payload = vec![];
-                                     date_payload.extend_from_slice(&(scale_time as u32).to_le_bytes());
-                                     date_payload.push(0x02);
-                                     
-                                     if let Err(e) = peripheral_clone.write(w_char, &date_payload, WriteType::WithoutResponse).await {
-                                         println!("Native BLE: Failed to write timestamp bytes: {:?}", e);
-                                     }
-
-                                     if let Ok(mut file) = std::fs::OpenOptions::new()
-                                         .create(true)
-                                         .append(true)
-                                         .open("e:\\Google Antgravity\\Zenith\\ble_debug.log")
-                                     {
-                                         use std::io::Write;
-                                         let _ = writeln!(file, "[System] Handshake sent to write characteristic.");
-                                     }
+                                     let _ = writeln!(file, "[GATT-DISCOVERY] Einde services opsomming.");
                                  }
 
-                                 let handle_clone = app_handle_clone.clone();
-                                 let p_clone = peripheral_clone.clone();
-                                 let conn_clone = connecting_clone.clone();
-                                 let coold_clone = cooldowns_clone.clone();
-                                 let dev_id = id_clone.clone();
-                                 
-                                 tauri::async_runtime::spawn(async move {
-                                     let mut last_emitted_weight = 0.0;
-                                     let mut last_emitted_impedance = 0.0;
-                                     let mut measurement_done = false;
-                                     let connection_time = std::time::Instant::now();
-                                     
-                                     while let Some(notification) = notification_stream.next().await {
-                                         let bytes = notification.value.clone();
-                                         if bytes.is_empty() { continue; }
-                                         
-                                         // Skip history packets (starts with 0x12 and status byte 2 is 0xFF)
-                                         if bytes[0] == 0x12 && bytes.len() >= 3 && bytes[2] == 0xFF {
-                                             continue;
-                                         }
-                                            
-                                            let log_msg = format!("Native BLE debug: UUID={} len={} bytes={:02X?}", notification.uuid, bytes.len(), bytes);
-                                            println!("{}", log_msg);
-                                            if let Ok(mut file) = std::fs::OpenOptions::new()
-                                                .create(true)
-                                                .append(true)
-                                                .open("e:\\Google Antgravity\\Zenith\\ble_debug.log")
-                                            {
-                                                use std::io::Write;
-                                                let _ = writeln!(file, "[Raw Bytes] {}", log_msg);
-                                            }
-                                            
-                                            // Decode Yolanda weight & BIA
-                                            let mut decoded_weight = None;
-                                            let mut decoded_impedance = None;
-                                            
-                                            if bytes[0] == 0x12 && bytes.len() >= 17 {
-                                                // Yolanda 18-byte metrics packet (starts with 0x12)
-                                                let raw_w = (((bytes[13] as u16) << 8) | (bytes[14] as u16)) as f64;
-                                                let w1314 = raw_w / 28.82;
-                                                let rounded_w = (w1314 * 100.0).round() / 100.0;
-                                                if rounded_w >= 40.0 && rounded_w <= 150.0 {
-                                                    decoded_weight = Some(rounded_w);
-                                                }
-                                                
-                                                let raw_imp = (((bytes[15] as u16) << 8) | (bytes[16] as u16)) as f64;
-                                                let impedance = raw_imp / 10.0;
-                                                if impedance > 100.0 && impedance < 2000.0 {
-                                                    decoded_impedance = Some(impedance);
-                                                }
-                                            } else if bytes.len() >= 17 {
-                                                // Try secondary offset
-                                                let w1516 = (((bytes[15] as u16) << 8) | (bytes[16] as u16)) as f64 / 100.0;
-                                                if w1516 >= 40.0 && w1516 <= 150.0 {
-                                                    decoded_weight = Some(w1516);
-                                                }
-                                            } else if bytes[0] != 0x12 {
-                                                // Live unstable weight packets (starts with 0x11, 0x21, etc.)
-                                                if bytes.len() >= 6 {
-                                                    let w34 = (((bytes[3] as u16) << 8) | (bytes[4] as u16)) as f64 / 100.0;
-                                                    if w34 >= 40.0 && w34 <= 150.0 {
-                                                        decoded_weight = Some(w34);
-                                                    }
-                                                }
-                                                if decoded_weight.is_none() && bytes.len() >= 3 {
-                                                    let w12 = (((bytes[1] as u16) << 8) | (bytes[2] as u16)) as f64 / 100.0;
-                                                    if w12 >= 40.0 && w12 <= 150.0 {
-                                                        decoded_weight = Some(w12);
-                                                    }
-                                                }
-                                            }
-                                            
-                                            // Standard GATT Weight Scale (2A9D)
-                                            if decoded_weight.is_none() && notification.uuid.to_string().to_lowercase().contains("2a9d") && bytes.len() >= 3 {
-                                                let flags = bytes[0];
-                                                let is_lbs = (flags & 0x01) != 0;
-                                                let raw_weight = ((bytes[2] as u16) << 8) | (bytes[1] as u16);
-                                                let mut w = raw_weight as f64 * 0.005;
-                                                if w < 20.0 {
-                                                    w = raw_weight as f64 * 0.1;
-                                                }
-                                                if is_lbs {
-                                                    w = w * 0.45359237;
-                                                }
-                                                decoded_weight = Some(w);
-                                            }
-                                            
-                                            if let Some(weight) = decoded_weight {
-                                                let rounded = (weight * 100.0).round() / 100.0;
-                                                let should_emit = last_emitted_weight == 0.0 || (rounded - last_emitted_weight).abs() > 0.01;
-                                                
-                                                if should_emit {
-                                                    last_emitted_weight = rounded;
-                                                    let log_w = format!("Native BLE: Weight ontvangen: {} kg", rounded);
-                                                    println!("{}", log_w);
-                                                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                                                        .create(true)
-                                                        .append(true)
-                                                        .open("e:\\Google Antgravity\\Zenith\\ble_debug.log")
-                                                    {
-                                                        use std::io::Write;
-                                                        let _ = writeln!(file, "[Weight] {}", log_w);
-                                                    }
-                                                    
-                                                    #[derive(Clone, serde::Serialize)]
-                                                    struct WeightPayload {
-                                                        weight: f64,
-                                                        raw_bytes: Vec<u8>,
-                                                    }
-                                                    
-                                                    use tauri::Emitter;
-                                                    let _ = handle_clone.emit("native-weight-received", WeightPayload { weight: rounded, raw_bytes: bytes.clone() });
-                                                    
-                                                    // Only mark measurement as done if it's a stable 0x12 packet or standard 2A9D
-                                                    if (bytes[0] == 0x12 && bytes.len() >= 3 && (bytes[2] == 0x01 || bytes[2] == 0x02)) || notification.uuid.to_string().to_lowercase().contains("2a9d") {
-                                                        measurement_done = true;
-                                                    }
-                                                }
-                                            }
-                                            
-                                            if let Some(impedance) = decoded_impedance {
-                                                let should_emit_metrics = last_emitted_impedance == 0.0 || (impedance - last_emitted_impedance).abs() > 0.1;
-                                                if should_emit_metrics {
-                                                    last_emitted_impedance = impedance;
-                                                    let body_fat = 20.0 + (impedance - 600.0) * 0.02;
-                                                    let water = 55.0 - (impedance - 600.0) * 0.01;
-                                                    
-                                                    let log_m = format!("Native BLE: Metrics ontvangen - Weight: {} kg, Fat: {}%, Water: {}%, Impedance: {} Ohm", last_emitted_weight, body_fat, water, impedance);
-                                                    println!("{}", log_m);
-                                                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                                                        .create(true)
-                                                        .append(true)
-                                                        .open("e:\\Google Antgravity\\Zenith\\ble_debug.log")
-                                                    {
-                                                        use std::io::Write;
-                                                        let _ = writeln!(file, "[Metrics] {}", log_m);
-                                                    }
-                                                    
-                                                    #[derive(Clone, serde::Serialize)]
-                                                    struct MetricsPayload {
-                                                        body_fat: f64,
-                                                        water: f64,
-                                                        impedance: f64,
-                                                    }
-                                                    
-                                                    use tauri::Emitter;
-                                                    let _ = handle_clone.emit("native-metrics-received", MetricsPayload { body_fat, water, impedance });
-                                                }
-                                            }
-                                            
-                                            // Break if we've successfully got both weight and fat/impedance
-                                            if measurement_done && decoded_impedance.is_some() {
-                                                println!("Native BLE: Measurement complete. Disconnecting...");
-                                                break;
-                                            }
-                                        }
+                                   let mut notify_chars = Vec::new();
+                                   let mut fff_write_chars = Vec::new();
+                                   let mut ae_write_chars = Vec::new();
+ 
+                                   for service in peripheral_clone.services() {
+                                       let service_uuid = service.uuid.to_string().to_lowercase();
+                                       if service_uuid.contains("fff0") || service_uuid.contains("ae00") || service_uuid.contains("181d") {
+                                           for characteristic in service.characteristics {
+                                               let char_uuid = characteristic.uuid.to_string().to_lowercase();
+                                               if char_uuid.contains("fff1") || char_uuid.contains("ae02") || char_uuid.contains("2a9d") {
+                                                   notify_chars.push(characteristic);
+                                               } else if char_uuid.contains("fff2") || char_uuid.contains("ffe3") {
+                                                   fff_write_chars.push(characteristic);
+                                               } else if char_uuid.contains("ae01") {
+                                                   ae_write_chars.push(characteristic);
+                                               }
+                                           }
+                                       }
+                                   }
+ 
+                                   if notify_chars.is_empty() {
+                                       println!("Native BLE: Target notification characteristic not found");
+                                       let _ = peripheral_clone.disconnect().await;
+                                       let mut connecting_guard = connecting_clone.lock().await;
+                                       connecting_guard.remove(&id_clone);
+                                       return;
+                                   }
+ 
+                                   for characteristic in &notify_chars {
+                                       println!("Native BLE: Subscribing to characteristic: {}", characteristic.uuid);
+                                       if let Err(e) = peripheral_clone.subscribe(characteristic).await {
+                                           println!("Native BLE: Subscribe failed for {}: {:?}", characteristic.uuid, e);
+                                       }
+                                   }
+ 
+                                   let mut notification_stream = match peripheral_clone.notifications().await {
+                                       Ok(stream) => stream,
+                                       Err(e) => {
+                                           println!("Native BLE: Failed to get notification stream: {:?}", e);
+                                           let _ = peripheral_clone.disconnect().await;
+                                           let mut connecting_guard = connecting_clone.lock().await;
+                                           connecting_guard.remove(&id_clone);
+                                           return;
+                                       }
+                                   };
+ 
+                                  if let Ok(mut file) = std::fs::OpenOptions::new()
+                                      .create(true)
+                                      .append(true)
+                                      .open("e:\\Google Antgravity\\Zenith\\ble_debug.log")
+                                  {
+                                      use std::io::Write;
+                                      let _ = writeln!(file, "[System] Subscribed to notify characteristics. Starting notification-driven handshake loop.");
+                                  }
+ 
+                                  let handle_clone = app_handle_clone.clone();
+                                  let p_clone = peripheral_clone.clone();
+                                  let conn_clone = connecting_clone.clone();
+                                  let coold_clone = cooldowns_clone.clone();
+                                  let dev_id = id_clone.clone();
+                                  
+                                  let fff_w_clone = fff_write_chars.clone();
+                                  let ae_w_clone = ae_write_chars.clone();
+                                  
+                                  tauri::async_runtime::spawn(async move {
+                                      let mut last_emitted_weight = 0.0;
+                                      let mut last_emitted_impedance = 0.0;
+                                      let mut measurement_done = false;
+                                      let connection_time = std::time::Instant::now();
+                                      let timeout = std::time::Duration::from_secs(15);
+                                      
+                                      let mut seen_protocol_type = 0x00;
+                                      let mut weight_scale_factor = 100;
+                                      let mut config_sent = false;
+                                      let mut time_sync_sent = false;
+                                      let mut history_response_sent = false;
+                                      
+                                      while let Some(notification) = notification_stream.next().await {
+                                          let bytes = notification.value.clone();
+                                          let elapsed_ms = connection_time.elapsed().as_millis();
+ 
+                                          if connection_time.elapsed() > timeout {
+                                             println!("Native BLE: Connection timeout reached, disconnecting.");
+                                             break;
+                                          }
+                                          
+                                          if bytes.is_empty() {
+                                              continue;
+                                          }
+                                          
+                                          let raw_hex: Vec<String> = bytes.iter().map(|b| format!("{:02X}", b)).collect();
+                                          let raw_str = raw_hex.join(", ");
+                                          let header_msg = format!(
+                                              "[PKT] t+{}ms  UUID={} len={} bytes=[{}]  byte[0]=0x{:02X} byte[1]=0x{:02X} byte[2]=0x{:02X}",
+                                              elapsed_ms, notification.uuid, bytes.len(), raw_str,
+                                              bytes[0],
+                                              if bytes.len() > 1 { bytes[1] } else { 0 },
+                                              if bytes.len() > 2 { bytes[2] } else { 0 }
+                                          );
+                                          println!("{}", header_msg);
+                                          if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", header_msg); }
+                                          
+                                          let mut decoded_weight: Option<f64> = None;
+                                          let mut decoded_impedance: Option<f64> = None;
+                                          let opcode = bytes[0];
+ 
+                                          // ── Action 1: 0x12 Scale Info ──────────────────────────────────────
+                                          if opcode == 0x12 && bytes.len() > 10 {
+                                              if bytes.len() >= 17 && bytes[1] == bytes.len() as u8 {
+                                                  seen_protocol_type = 0x00;
+                                                  weight_scale_factor = 10;
+                                              } else {
+                                                  seen_protocol_type = bytes[2];
+                                                  weight_scale_factor = if bytes[10] == 1 { 100 } else { 10 };
+                                              }
+                                              
+                                              if !config_sent {
+                                                  config_sent = true;
+                                                  let msg = format!("[System] 0x12 Scale Info: proto=0x{:02X}, factor={}, sending config.", seen_protocol_type, weight_scale_factor);
+                                                  println!("{}", msg);
+                                                  if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", msg); }
+                                                  
+                                                  // Write AE01 init only to AE01 characteristics
+                                                  let ae01_init = vec![0xFE, 0xDC, 0xBA, 0xC0, 0x06, 0x00, 0x02, 0x01, 0x01, 0xEF];
+                                                  for w_char in &ae_w_clone {
+                                                      let _ = p_clone.write(w_char, &ae01_init, WriteType::WithoutResponse).await;
+                                                  }
+                                                  
+                                                  tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                                                  
+                                                  // Write 0x13 config (unit flag 0x01 voor kg) only to FFF0 write characteristics
+                                                  let mut cmd = vec![0x13, 0x09, seen_protocol_type, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00];
+                                                  let mut sum = 0u32;
+                                                  for i in 0..8 {
+                                                      sum += cmd[i] as u32;
+                                                  }
+                                                  cmd[8] = (sum & 0xFF) as u8;
+                                                  
+                                                  for w_char in &fff_w_clone {
+                                                      let _ = p_clone.write(w_char, &cmd, WriteType::WithoutResponse).await;
+                                                  }
+                                              }
+                                          }
+                                          
+                                          // ── Action 2: 0x14 Ready ACK ──────────────────────────────────────
+                                          if opcode == 0x14 {
+                                              if !time_sync_sent {
+                                                  time_sync_sent = true;
+                                                  let msg = format!("[System] 0x14 Ready: sending time sync and profile.");
+                                                  println!("{}", msg);
+                                                  if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", msg); }
+                                                  
+                                                  // 0x20 time sync: [0x20, 0x08, seen_protocol_type, secs_le_u32, checksum]
+                                                  let scale_offset = 946684800u64;
+                                                  let now = std::time::SystemTime::now()
+                                                      .duration_since(std::time::UNIX_EPOCH)
+                                                      .unwrap_or_default()
+                                                      .as_secs();
+                                                  let secs = if now > scale_offset { now - scale_offset } else { 0 };
+                                                  
+                                                  let mut time_cmd = vec![
+                                                      0x20,
+                                                      0x08,
+                                                      seen_protocol_type,
+                                                      (secs & 0xff) as u8,
+                                                      ((secs >> 8) & 0xff) as u8,
+                                                      ((secs >> 16) & 0xff) as u8,
+                                                      ((secs >> 24) & 0xff) as u8,
+                                                      0x00,
+                                                  ];
+                                                  let mut sum = 0u32;
+                                                  for i in 0..7 {
+                                                      sum += time_cmd[i] as u32;
+                                                  }
+                                                  time_cmd[7] = (sum & 0xFF) as u8;
+                                                  
+                                                  for w_char in &fff_w_clone {
+                                                      let _ = p_clone.write(w_char, &time_cmd, WriteType::WithoutResponse).await;
+                                                  }
+                                                  
+                                                  tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                                                  
+                                                  // A2 User Profile: [0xA2, 0x06, 0x01, 0x32, age (e.g. 28), checksum]
+                                                  let age = 28u8;
+                                                  let mut profile_cmd = vec![0xa2, 0x06, 0x01, 0x32, age, 0x00];
+                                                  let mut sum = 0u32;
+                                                  for i in 0..5 {
+                                                      sum += profile_cmd[i] as u32;
+                                                  }
+                                                  profile_cmd[5] = (sum & 0xFF) as u8;
+                                                  
+                                                  for w_char in &fff_w_clone {
+                                                      let _ = p_clone.write(w_char, &profile_cmd, WriteType::WithoutResponse).await;
+                                                  }
+                                                  
+                                                  tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                                                  
+                                                  // AE01 Auth only to AE01 characteristics
+                                                  let auth_cmd = vec![0x02, 0x70, 0x61, 0x73, 0x73];
+                                                  for w_char in &ae_w_clone {
+                                                      let _ = p_clone.write(w_char, &auth_cmd, WriteType::WithoutResponse).await;
+                                                  }
+                                              }
+                                          }
+                                          
+                                          // ── Action 3: 0x21 Config Request ─────────────────────────────────
+                                          if opcode == 0x21 {
+                                              if !history_response_sent {
+                                                  history_response_sent = true;
+                                                  let msg = format!("[System] 0x21 Config Request: sending history response and query.");
+                                                  println!("{}", msg);
+                                                  if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", msg); }
+                                                  
+                                                  let mut msg1 = vec![0xa0, 0x0d, 0x04, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+                                                  let mut sum = 0u32;
+                                                  for i in 0..12 {
+                                                      sum += msg1[i] as u32;
+                                                  }
+                                                  msg1[12] = (sum & 0xFF) as u8;
+                                                  
+                                                  for w_char in &fff_w_clone {
+                                                      let _ = p_clone.write(w_char, &msg1, WriteType::WithoutResponse).await;
+                                                  }
+                                                  
+                                                  tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                                                  
+                                                  let mut msg2 = vec![0xa0, 0x0d, 0x02, 0x01, 0x00, 0x08, 0x00, 0x21, 0x06, 0xb8, 0x04, 0x02, 0x00];
+                                                  let mut sum = 0u32;
+                                                  for i in 0..12 {
+                                                      sum += msg2[i] as u32;
+                                                  }
+                                                  msg2[12] = (sum & 0xFF) as u8;
+                                                  
+                                                  for w_char in &fff_w_clone {
+                                                      let _ = p_clone.write(w_char, &msg2, WriteType::WithoutResponse).await;
+                                                  }
+                                                  
+                                                  tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                                                  
+                                                  let mut query = vec![0x22, 0x06, seen_protocol_type, 0x00, 0x03, 0x00];
+                                                  let mut sum = 0u32;
+                                                  for i in 0..5 {
+                                                      sum += query[i] as u32;
+                                                  }
+                                                  query[5] = (sum & 0xFF) as u8;
+                                                  
+                                                  for w_char in &fff_w_clone {
+                                                      let _ = p_clone.write(w_char, &query, WriteType::WithoutResponse).await;
+                                                  }
+                                              }
+                                          }
+                                          
+                                          // ── Branch D: Stored Measurement Record (0x23) ─────────────────────
+                                          if opcode == 0x23 && bytes.len() >= 17 {
+                                              let raw_w = (((bytes[10] as u16) << 8) | (bytes[11] as u16)) as f64;
+                                              let w_kg = raw_w / 100.0;
+                                              
+                                              let r1 = (((bytes[14] as u16) << 8) | (bytes[13] as u16)) as f64;
+                                              let r2 = (((bytes[16] as u16) << 8) | (bytes[15] as u16)) as f64;
+                                              let impedance = if r1 > 0.0 { r1 } else { r2 };
+                                              
+                                              let msg = format!("[DBG-0x23] raw_w={} → {:.2} kg  impedance={} Ohm", raw_w, w_kg, impedance);
+                                              println!("{}", msg);
+                                              if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", msg); }
+                                              
+                                              if w_kg >= 40.0 && w_kg <= 150.0 {
+                                                  decoded_weight = Some(w_kg);
+                                                  if impedance > 100.0 && impedance < 2000.0 {
+                                                      decoded_impedance = Some(impedance);
+                                                  }
+                                              }
+                                          }
+                                          
+                                          // ── Branch E: Live 0x10 Weight Frame ────────────────────────────────
+                                          if opcode == 0x10 && bytes.len() >= 10 {
+                                              let is_es30m = bytes.len() >= 11 && bytes[4] <= 0x02 && weight_scale_factor == 10;
+                                              let stable;
+                                              let raw_weight;
+                                              let r1;
+                                              let r2;
+                                              
+                                              if is_es30m {
+                                                  stable = bytes[4] == 0x02;
+                                                  raw_weight = (((bytes[5] as u16) << 8) | (bytes[6] as u16)) as f64;
+                                                  r1 = (((bytes[7] as u16) << 8) | (bytes[8] as u16)) as f64;
+                                                  r2 = (((bytes[9] as u16) << 8) | (bytes[10] as u16)) as f64;
+                                              } else {
+                                                  stable = bytes[5] == 1;
+                                                  raw_weight = (((bytes[3] as u16) << 8) | (bytes[4] as u16)) as f64;
+                                                  r1 = (((bytes[6] as u16) << 8) | (bytes[7] as u16)) as f64;
+                                                  r2 = (((bytes[8] as u16) << 8) | (bytes[9] as u16)) as f64;
+                                              }
+                                              
+                                              let mut w_kg = raw_weight / (weight_scale_factor as f64);
+                                              if w_kg <= 5.0 || w_kg >= 250.0 {
+                                                  let alt_factor = if weight_scale_factor == 100 { 10.0 } else { 100.0 };
+                                                  let alt_weight = raw_weight / alt_factor;
+                                                  if alt_weight > 5.0 && alt_weight < 250.0 {
+                                                      w_kg = alt_weight;
+                                                  }
+                                              }
+                                              
+                                              let impedance = if r1 > 0.0 { r1 } else { r2 };
+                                              
+                                              let msg = format!("[DBG-0x10] raw_w={} → {:.2} kg  stable={} impedance={} Ohm", raw_weight, w_kg, stable, impedance);
+                                              println!("{}", msg);
+                                              if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", msg); }
+                                              
+                                              if w_kg >= 40.0 && w_kg <= 150.0 {
+                                                  decoded_weight = Some(w_kg);
+                                                  if impedance > 100.0 && impedance < 2000.0 {
+                                                      decoded_impedance = Some(impedance);
+                                                  }
+                                              }
+                                              
+                                              if stable {
+                                                  // Send stability ACK: [0x1F, 0x05, seen_protocol_type, 0x10, checksum]
+                                                  let mut ack_cmd = vec![0x1f, 0x05, seen_protocol_type, 0x10, 0x00];
+                                                  let mut sum = 0u32;
+                                                  for i in 0..4 {
+                                                      sum += ack_cmd[i] as u32;
+                                                  }
+                                                  ack_cmd[4] = (sum & 0xFF) as u8;
+                                                  
+                                                  for w_char in &fff_w_clone {
+                                                      let _ = p_clone.write(w_char, &ack_cmd, WriteType::WithoutResponse).await;
+                                                  }
+                                              }
+                                          }
+ 
+                                          // ── Branch F: Standard GATT 2A9D ────────────────────────────────────
+                                          if decoded_weight.is_none() && notification.uuid.to_string().to_lowercase().contains("2a9d") && bytes.len() >= 3 {
+                                              let flags = bytes[0];
+                                              let is_lbs = (flags & 0x01) != 0;
+                                              let raw_weight = ((bytes[2] as u16) << 8) | (bytes[1] as u16);
+                                              let mut w = raw_weight as f64 * 0.005;
+                                              if w < 20.0 { w = raw_weight as f64 * 0.1; }
+                                              if is_lbs { w = w * 0.45359237; }
+                                              let msg = format!("[DBG-GATT] 2A9D: flags=0x{:02X} is_lbs={} raw={} → {:.2} kg", flags, is_lbs, raw_weight, w);
+                                              println!("{}", msg);
+                                              if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", msg); }
+                                              decoded_weight = Some(w);
+                                          }
+ 
+                                          // ── Emit gewicht ─────────────────────────────────────────────────────
+                                          if let Some(weight) = decoded_weight {
+                                              let rounded = (weight * 100.0).round() / 100.0;
+                                              let should_emit = last_emitted_weight == 0.0 || (rounded - last_emitted_weight).abs() > 0.01;
+                                              let emit_msg = format!("[EMIT] Gewicht: {:.2} kg  should_emit={} (vorig={:.2})", rounded, should_emit, last_emitted_weight);
+                                              println!("{}", emit_msg);
+                                              if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", emit_msg); }
+ 
+                                              if should_emit {
+                                                  last_emitted_weight = rounded;
+                                                  #[derive(Clone, serde::Serialize)]
+                                                  struct WeightPayload { weight: f64, raw_bytes: Vec<u8> }
+                                                  use tauri::Emitter;
+                                                  let _ = handle_clone.emit("native-weight-received", WeightPayload { weight: rounded, raw_bytes: bytes.clone() });
+ 
+                                                  if opcode == 0x23 || opcode == 0x10 || notification.uuid.to_string().to_lowercase().contains("2a9d") {
+                                                      measurement_done = true;
+                                                  }
+                                              }
+                                          }
+ 
+                                          // ── Emit impedantie ──────────────────────────────────────────────────
+                                          if let Some(impedance) = decoded_impedance {
+                                              let should_emit_metrics = last_emitted_impedance == 0.0 || (impedance - last_emitted_impedance).abs() > 0.1;
+                                              if should_emit_metrics {
+                                                  last_emitted_impedance = impedance;
+                                                  let body_fat = 20.0 + (impedance - 600.0) * 0.02;
+                                                  let water = 55.0 - (impedance - 600.0) * 0.01;
+                                                  let log_m = format!("[METRICS] Weight: {} kg  Fat: {:.2}%  Water: {:.2}%  Impedance: {} Ohm", last_emitted_weight, body_fat, water, impedance);
+                                                  println!("{}", log_m);
+                                                  if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", log_m); }
+                                                  #[derive(Clone, serde::Serialize)]
+                                                  struct MetricsPayload { body_fat: f64, water: f64, impedance: f64 }
+                                                  use tauri::Emitter;
+                                                  let _ = handle_clone.emit("native-metrics-received", MetricsPayload { body_fat, water, impedance });
+                                              }
+                                          }
+ 
+                                          let state_msg = format!("[STATE] t+{}ms  measurement_done={} impedance_ontvangen={}", elapsed_ms, measurement_done, decoded_impedance.is_some());
+                                          println!("{}", state_msg);
+                                          if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", state_msg); }
+                                          
+                                          if measurement_done && (decoded_impedance.is_some() || opcode == 0x23) {
+                                              let done_msg = format!("[DONE] t+{}ms  Meting volledig. Verbreken...", elapsed_ms);
+                                              println!("{}", done_msg);
+                                              if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("e:\\Google Antgravity\\Zenith\\ble_debug.log") { use std::io::Write; let _ = writeln!(f, "{}", done_msg); }
+                                              break;
+                                          }
+                                      }
                                         
                                         // Disconnect
                                         let _ = p_clone.disconnect().await;

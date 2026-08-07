@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { FitnessProfile } from './types/workout';
 import { useSavedLocations } from './hooks/useSavedLocations';
 import { useRoutePlanner } from './hooks/useRoutePlanner';
-import { Activity, Brain, Compass, Settings, LayoutDashboard, Bike, Map as MapIcon, Trophy, Calendar as CalendarIcon, ArrowLeft, Upload, Loader2 } from 'lucide-react';
+import { Activity, Brain, Compass, Settings, LayoutDashboard, Bike, Map as MapIcon, Trophy, Upload, Loader2 } from 'lucide-react';
 import { AppTitlebar } from './components/layout/AppTitlebar';
 import { RoutePage } from './components/route/RoutePage';
 
@@ -28,6 +28,7 @@ import './index.css';
 
 
 function App() {
+  const isIframe = window.self !== window.top;
   const [session, setSession] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
@@ -328,6 +329,32 @@ function App() {
 
 
 
+  // ── Listen to message events from parent Zenith Hub to open a specific ride ──
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'OPEN_RIDE') {
+        setSelectedRide(e.data.rideId);
+        setActiveTab('dashboard');
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  // ── Parse openRide query parameter on startup ───────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rideId = params.get('openRide');
+    if (rideId) {
+      setSelectedRide(rideId);
+      setActiveTab('dashboard');
+      // Clean up URL query parameters
+      const url = new URL(window.location.href);
+      url.searchParams.delete('openRide');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+  }, []);
+
   // ── Gear onderhoud check bij startup ────────────────────────────────────────
   useEffect(() => {
     const checkGearMaintenance = async () => {
@@ -515,23 +542,29 @@ function App() {
   }, [fitnessProfile, globaleFTP, profileAge]);
 
   const handleMinimize = async () => {
-    if ((window as any).__TAURI_INTERNALS__) {
+    try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       await getCurrentWindow().minimize();
+    } catch (e) {
+      console.warn("Tauri window minimize error:", e);
     }
   };
 
   const handleMaximize = async () => {
-    if ((window as any).__TAURI_INTERNALS__) {
+    try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       await getCurrentWindow().toggleMaximize();
+    } catch (e) {
+      console.warn("Tauri window maximize error:", e);
     }
   };
 
   const handleClose = async () => {
-    if ((window as any).__TAURI_INTERNALS__) {
+    try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       await getCurrentWindow().close();
+    } catch (e) {
+      console.warn("Tauri window close error:", e);
     }
   };
 
@@ -539,19 +572,17 @@ function App() {
   const paletteCommands = useMemo((): CommandItem[] => [
     { id: 'nav-dashboard', category: 'Navigatie', icon: <LayoutDashboard size={14} />, label: 'Performance Dashboard', description: 'Bekijk je fitness-cockpit en AI analyses', shortcut: '1', action: () => setActiveTab('dashboard') },
     { id: 'nav-rides',     category: 'Navigatie', icon: <Bike size={14} />,            label: 'Mijn Ritten',           description: 'Volledig activiteiten archief',                 shortcut: '2', action: () => setActiveTab('rides') },
-    { id: 'nav-calendar',  category: 'Navigatie', icon: <CalendarIcon size={14} />,    label: 'Trainingskalender',     description: 'Plan trainingen en simuleer CTL/ATL/TSB',       shortcut: '3', action: () => setActiveTab('calendar') },
-    { id: 'nav-prs',       category: 'Navigatie', icon: <Trophy size={14} />,          label: 'Progressie & PR\'s',    description: 'eFTP trend, VO2max en records',                 shortcut: '4', action: () => setActiveTab('prs') },
-    { id: 'nav-heatmap',   category: 'Navigatie', icon: <MapIcon size={14} />,         label: 'Heatmap',               description: 'Geografische rittenkaart',                      shortcut: '5', action: () => setActiveTab('heatmap') },
-    { id: 'nav-route',     category: 'Navigatie', icon: <Compass size={14} />,         label: 'Route Planner',         description: 'Genereer en plan fietsroutes',                  shortcut: '6', action: () => setActiveTab('route') },
-    { id: 'nav-training',  category: 'Navigatie', icon: <Brain size={14} />,           label: 'Smart Coach',           description: 'AI coach en trainingsschema\'s',                 shortcut: '7', action: () => setActiveTab('training') },
-    { id: 'nav-settings',  category: 'Navigatie', icon: <Settings size={14} />,        label: 'Instellingen',          description: 'Profiel en gear beheren',                       shortcut: '8', action: () => setActiveTab('settings') },
+    { id: 'nav-prs',       category: 'Navigatie', icon: <Trophy size={14} />,          label: 'Progressie & PR\'s',    description: 'eFTP trend, VO2max en records',                 shortcut: '3', action: () => setActiveTab('prs') },
+    { id: 'nav-heatmap',   category: 'Navigatie', icon: <MapIcon size={14} />,         label: 'Heatmap',               description: 'Geografische rittenkaart',                      shortcut: '4', action: () => setActiveTab('heatmap') },
+    { id: 'nav-route',     category: 'Navigatie', icon: <Compass size={14} />,         label: 'Route Planner',         description: 'Genereer en plan fietsroutes',                  shortcut: '5', action: () => setActiveTab('route') },
+    { id: 'nav-training',  category: 'Navigatie', icon: <Brain size={14} />,           label: 'Smart Coach',           description: 'AI coach en trainingsschema\'s',                 shortcut: '6', action: () => setActiveTab('training') },
+    { id: 'nav-settings',  category: 'Navigatie', icon: <Settings size={14} />,        label: 'Instellingen',          description: 'Profiel en gear beheren',                       shortcut: '7', action: () => setActiveTab('settings') },
     { id: 'action-recalc', category: 'Acties',    icon: <Activity size={14} />,        label: 'Herbereken alle ritten', description: 'Pas gewijzigde FTP/LTHR toe op alle ritten',    action: handleRecalculate },
   ], [handleRecalculate]);
 
   const navItems = [
     { key: 'dashboard', icon: <LayoutDashboard size={16} strokeWidth={1.6} />, label: 'Dashboard' },
     { key: 'rides',     icon: <Bike            size={16} strokeWidth={1.6} />, label: 'Mijn Ritten' },
-    { key: 'calendar',  icon: <CalendarIcon    size={16} strokeWidth={1.6} />, label: 'Kalender' },
     { key: 'prs',       icon: <Trophy          size={16} strokeWidth={1.6} />, label: 'Progressie & PR\'s' },
     { key: 'heatmap',   icon: <MapIcon         size={16} strokeWidth={1.6} />, label: 'Heatmap' },
     { key: 'route',     icon: <Compass         size={16} strokeWidth={1.6} />, label: 'Routeplanner' },
@@ -563,11 +594,15 @@ function App() {
   const isDashboardTab = activeTab === 'dashboard' || activeTab === 'rides' || activeTab === 'prs' || activeTab === 'heatmap';
 
   const navigateBackToHub = () => {
-    const isDev = import.meta.env.DEV;
-    const hubUrl = isDev
-      ? 'http://localhost:1420'
-      : `${window.location.origin}/index.html`;
-    window.location.href = hubUrl;
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'close-app' }, '*');
+    } else {
+      const isDev = import.meta.env.DEV;
+      const hubUrl = isDev
+        ? 'http://localhost:1420'
+        : `${window.location.origin}/index.html`;
+      window.location.href = hubUrl;
+    }
   };
 
   if (sessionLoading) {
@@ -597,11 +632,13 @@ function App() {
 
   return (
     <div className="app-container" style={{ flexDirection: 'column' }}>
-      <AppTitlebar
-        onMinimize={handleMinimize}
-        onMaximize={handleMaximize}
-        onClose={handleClose}
-      />
+      {!isIframe && (
+        <AppTitlebar
+          onMinimize={handleMinimize}
+          onMaximize={handleMaximize}
+          onClose={handleClose}
+        />
+      )}
 
       {/* ── Export toast ── */}
       {exportMsg && (
@@ -820,7 +857,7 @@ function App() {
       )}
 
       {/* Main Layout containing Topbar and Viewport - pushed down by 32px for window drag region titlebar */}
-      <div className="wd-app" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100vw', paddingTop: '32px' }}>
+      <div className="wd-app" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100vw', paddingTop: isIframe ? '0px' : '32px' }}>
         {/* Horizontal Topbar Header */}
         {activeTab !== 'hub' && activeTab !== 'cyclopilot' && (
           <>
@@ -829,20 +866,21 @@ function App() {
               justifyContent: 'space-between', 
               alignItems: 'center', 
               borderBottom: '1px solid rgba(255, 255, 255, 0.06)', 
-              padding: '16px 24px 16px', 
+              padding: '16px 24px', 
               background: 'transparent',
-              height: 'auto',
+              height: '70px',
+              boxSizing: 'border-box',
               flexShrink: 0,
+              marginBottom: '24px',
               webkitAppRegion: 'no-drag'
             } as any}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <button onClick={navigateBackToHub} className="zh-back-btn">
-                  <ArrowLeft size={14} /> Hub
-                </button>
-                <div>
-                  <h1 className="zh-hub-title" style={{ fontSize: 20 }}>ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 16 }}>AERO</span></h1>
-                  <p className="zh-hub-subtitle" style={{ fontSize: 9, marginTop: 4 }}>Desktop & Analytics voor {userName}</p>
-                </div>
+              <div>
+                <h1 className="zh-hub-title" style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: 0, letterSpacing: '0.5px', lineHeight: '1.2' }}>
+                  ZENITH <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '16px' }}>AERO</span>
+                </h1>
+                <p className="zh-hub-subtitle" style={{ fontSize: '9px', color: 'var(--text-muted)', margin: '4px 0 0', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                  Desktop & Analytics voor {userName}
+                </p>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>

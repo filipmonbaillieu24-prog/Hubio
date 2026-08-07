@@ -41,7 +41,7 @@ export const ClimbsLeaderboard: React.FC<Props> = ({ rides }) => {
   // Build leaderboard from rides that have VAM and meaningful elevation
   const climbRecords = useMemo<ClimbRecord[]>(() => {
     return rides
-      .filter(r => (r.vam ?? 0) > 200 && r.elevGain > 40 && r.distance > 0)
+      .filter(r => (r.vam ?? 0) > 50 && r.elevGain > 30 && r.distance > 0)
       .map(r => {
         const avgGrade = (r.elevGain / (r.distance * 1000)) * 100;
         return {

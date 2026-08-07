@@ -98,7 +98,7 @@ if (Test-Path "apps/zenith-hub/public") {
 $VersionJson = @{
     versionCode = $NewVersionCode
     versionName = $NewVersionName
-    apkUrl = "https://github.com/filipmonbaillieu24-prog/Hubio/raw/main/apk/app-debug.apk"
+    apkUrl = "https://github.com/filipmonbaillieu24-prog/Zenith/raw/main/apk/app-debug.apk"
 } | ConvertTo-Json
 
 Set-Content -Path $VersionJsonPath -Value $VersionJson

@@ -56,8 +56,29 @@ export const MiniRoutePreview: React.FC<MiniRoutePreviewProps> = ({ points }) =>
   const h = 120;
   const padding = 12;
 
-  const scaleX = (lng: number) => padding + ((lng - minLng) / (maxLng - minLng || 1)) * (w - 2 * padding);
-  const scaleY = (lat: number) => padding + (1 - (lat - minLat) / (maxLat - minLat || 1)) * (h - 2 * padding);
+  const latRange = maxLat - minLat || 0.0001;
+  const lngRange = maxLng - minLng || 0.0001;
+
+  // Correct for aspect ratio distortion at current latitude
+  const avgLat = (minLat + maxLat) / 2;
+  const cosLat = Math.cos((avgLat * Math.PI) / 180);
+
+  const xRange = lngRange * cosLat;
+  const yRange = latRange;
+
+  const targetW = w - 2 * padding;
+  const targetH = h - 2 * padding;
+
+  const scale = Math.min(targetW / xRange, targetH / yRange);
+
+  const shapeW = xRange * scale;
+  const shapeH = yRange * scale;
+
+  const offsetX = padding + (targetW - shapeW) / 2;
+  const offsetY = padding + (targetH - shapeH) / 2;
+
+  const scaleX = (lng: number) => offsetX + (lng - minLng) * cosLat * scale;
+  const scaleY = (lat: number) => offsetY + (1 - (lat - minLat) / latRange) * shapeH;
 
   const pathData = gpsPoints
     .map((p, idx) => {

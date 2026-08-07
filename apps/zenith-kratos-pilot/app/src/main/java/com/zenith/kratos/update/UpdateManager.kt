@@ -14,7 +14,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object UpdateManager {
-    private const val VERSION_URL = "https://raw.githubusercontent.com/filipmonbaillieu24-prog/Hubio/main/apk/kratos-version.json"
+    private const val VERSION_URL = "https://raw.githubusercontent.com/filipmonbaillieu24-prog/Zenith/main/apk/kratos-version.json"
 
     suspend fun checkForUpdates(currentVersionCode: Int): UpdateInfo? = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null

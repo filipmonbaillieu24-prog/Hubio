@@ -139,11 +139,11 @@ export const PRSection: React.FC<PRSectionProps> = ({
                   if (ftpHistory.length < 2) return null;
 
                   const lastFTP = ftpHistory[ftpHistory.length - 1];
-                  const currentFtpVal = profile.ftp ?? lastFTP ?? 220;
+                  const currentFtpVal = lastFTP ?? profile.ftp ?? 220;
 
                   const nowMs = Date.now();
                   const thirtyDaysAgo = nowMs - 30 * 24 * 3600 * 1000;
-                  const recentRidesCount = eFTPData.filter(d => new Date(d.date).getTime() >= thirtyDaysAgo).length;
+                  const recentRidesCount = rides.filter(r => r.date >= thirtyDaysAgo).length;
                   const consistency = (recentRidesCount / 30) * 7;
                   const estimatedCTL = Math.max(15, Math.round((recentRidesCount * 70) / 30));
                   const estimatedATL = Math.round(estimatedCTL * 1.1);

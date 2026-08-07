@@ -14,20 +14,49 @@ export interface Workout {
 }
 
 
-// Bepaal de aanbevolen workout op basis van de actuele TSB (Vorm) van de atleet
+// Bepaal de aanbevolen workout op basis van de actuele TSB (Vorm), actieve focus en trainingsfase
 export function getRecommendedWorkoutType(
-  tsb: number
+  tsb: number,
+  goalType?: 'event' | 'continuous',
+  activeFocus?: 'ftp' | 'endurance' | 'recovery' | 'vo2max',
+  phase?: 'base' | 'build' | 'peak' | 'race' | 'recovery'
 ): 'recovery' | 'endurance' | 'sweetspot' | 'threshold' | 'vo2max' {
+  // 1. Kritiek oververmoeidheid-override: Altijd herstelrit/rust als TSB onder -20 zakt!
   if (tsb < -20) {
-    return 'recovery';   // Hoge stress/vermoeidheid → herstelrit
-  } else if (tsb < -5) {
-    return 'endurance';  // Matige stress → duurtraining
+    return 'recovery';
+  }
+
+  // 2. Doorlopende focus overrides
+  if (goalType === 'continuous' && activeFocus) {
+    if (activeFocus === 'recovery') return 'recovery';
+    if (activeFocus === 'endurance') return 'endurance';
+    if (activeFocus === 'ftp') {
+      return tsb > 5 ? 'threshold' : 'sweetspot';
+    }
+    if (activeFocus === 'vo2max') return 'vo2max';
+  }
+
+  // 3. Event trainingsfase overrides
+  if (goalType === 'event' && phase) {
+    if (phase === 'recovery' || phase === 'race') return 'recovery';
+    if (phase === 'base') return 'endurance';
+    if (phase === 'build') {
+      return tsb > 5 ? 'threshold' : 'sweetspot';
+    }
+    if (phase === 'peak') {
+      return tsb > 8 ? 'vo2max' : 'sweetspot';
+    }
+  }
+
+  // 4. Standaard fysiologische TSB fallback
+  if (tsb < -5) {
+    return 'endurance';
   } else if (tsb > 15) {
-    return 'threshold';  // Zeer goed hersteld → drempeltraining
+    return 'threshold';
   } else if (tsb > 8) {
-    return 'vo2max';     // Goed hersteld → VO2max intervallen
+    return 'vo2max';
   } else {
-    return 'sweetspot';  // Normale status → sweet spot intervallen
+    return 'sweetspot';
   }
 }
 

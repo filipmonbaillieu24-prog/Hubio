@@ -275,7 +275,7 @@ fun TodayScreen(
                                                     val maxReps = tempEx?.sets?.filter { it.type == "working" }?.firstOrNull()?.maxReps ?: 10
                                                     val targetRir = tempEx?.sets?.filter { it.type == "working" }?.firstOrNull()?.targetRir ?: 2
                                                     
-                                                    s.reps >= maxReps && s.rir >= targetRir
+                                                    s.reps >= maxReps && s.rir <= targetRir
                                                 }
 
                                                 for (i in ae.sets.indices) {
@@ -293,7 +293,7 @@ fun TodayScreen(
                                                             ae.sets[i].targetReps = minReps
                                                         } else {
                                                             val targetRir = tempEx?.sets?.getOrNull(i)?.targetRir ?: 2
-                                                            val prevSuccessful = prevSet.rir >= targetRir
+                                                            val prevSuccessful = prevSet.rir <= targetRir
                                                             if (prevSuccessful && prevSet.reps < maxReps) {
                                                                 ae.sets[i].targetWeight = prevSet.weight
                                                                 ae.sets[i].targetReps = prevSet.reps + 1

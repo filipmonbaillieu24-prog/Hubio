@@ -1,34 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, LayoutDashboard, Calendar as CalendarIcon, Boxes, Scale, Moon, Footprints, Dumbbell, Bike, Activity, Heart } from 'lucide-react';
+import { Scale, Moon, Footprints, Dumbbell, Bike, Activity, Heart } from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
-import { CalendarPage } from './CalendarPage';
-import { predictRecoveryScore } from '../../../../../shared/ml/RecoveryScore';
+import { predictRecoveryScore, recoveryModel } from '../../../../../shared/ml/RecoveryScore';
+import { computeSimulatedPMC, PlannedWorkoutItem, interpretTSB } from '../../utils/pmc';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Line,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ReferenceLine
+} from 'recharts';
 import './ZenithHub.css';
 
 interface ZenithHubPageProps {
   fitnessProfile: any;
   fitnessMetrics: { ctl: number; atl: number; tsb: number };
-  onOpenApp: (appKey: 'cyclo' | 'cyclopilot' | 'vigor' | 'indigogym' | 'fuel') => void;
-  onOpenProfile: () => void;
-  onLogout: () => void;
   userId: string;
+  mlModelsLoaded?: boolean;
 }
 
 export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
   fitnessProfile,
   fitnessMetrics,
-  onOpenApp,
-  onOpenProfile,
-  onLogout,
   userId,
+  mlModelsLoaded,
 }) => {
-  const ctl = Math.round(fitnessMetrics.ctl);
-  const atl = Math.round(fitnessMetrics.atl);
-  const tsb = Math.round(fitnessMetrics.tsb);
 
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'calendar' | 'apps'>('dashboard');
+
 
   // Dashboard Stats States
+  const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutItem[]>([]);
+  const [allRides, setAllRides] = useState<any[]>([]);
+  const [allKratos, setAllKratos] = useState<any[]>([]);
   const [latestWeight, setLatestWeight] = useState<any | null>(null);
   const [latestSleep, setLatestSleep] = useState<any | null>(null);
   const [todaySteps, setTodaySteps] = useState<number>(0);
@@ -125,6 +132,49 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
         setWeeklyGymVolume(0);
       }
 
+      // 7. Fetch planned workouts for PMC simulation
+      const { data: plannedData } = await supabase
+        .from('planned_workouts')
+        .select('*')
+        .eq('user_id', userId);
+      if (plannedData) {
+        setPlannedWorkouts(plannedData.map((p: any) => ({
+          id: p.id,
+          date: p.date,
+          title: p.title,
+          type: p.type as any,
+          durationMinutes: p.duration_minutes,
+          plannedTSS: p.planned_tss,
+          notes: p.notes,
+          steps: p.steps,
+          routeId: p.route_id
+        })));
+      }
+
+      // 8. Fetch completed rides for PMC simulation
+      const { data: ridesData } = await supabase
+        .from('rides')
+        .select('date, metadata')
+        .eq('user_id', userId);
+      if (ridesData) {
+        setAllRides(ridesData.map((r: any) => {
+          const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata || {};
+          return {
+            date: Number(r.date),
+            tss: meta?.tss ?? meta?.hrTSS ?? 0
+          };
+        }));
+      }
+
+      // 9. Fetch Kratos workouts for PMC simulation
+      const { data: allKData } = await supabase
+        .from('kratos_workouts')
+        .select('completed_at, volume')
+        .eq('user_id', userId);
+      if (allKData) {
+        setAllKratos(allKData);
+      }
+
     } catch (err) {
       console.error('Error loading dashboard statistics:', err);
     } finally {
@@ -133,13 +183,75 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
   };
 
   useEffect(() => {
-    if (userId && activeSubTab === 'dashboard') {
+    if (userId) {
       fetchDashboardData();
     }
-  }, [userId, activeSubTab]);
+  }, [userId]);
+
+  // ── PMC Simulation Logic ──
+  const simPMC = useMemo(() => {
+    const tssList: { date: number; tss: number }[] = [];
+
+    allRides.forEach(r => {
+      if (r.tss > 0) {
+        tssList.push({ date: r.date, tss: r.tss });
+      }
+    });
+
+    allKratos.forEach(k => {
+      if (k.completed_at && k.volume) {
+        const ts = new Date(k.completed_at).getTime();
+        const volume = Number(k.volume);
+        const sTSS = Math.min(80, Math.max(15, Math.round(volume * 0.012)));
+        tssList.push({ date: ts, tss: sTSS });
+      }
+    });
+
+    return computeSimulatedPMC(tssList, plannedWorkouts, 35);
+  }, [allRides, allKratos, plannedWorkouts]);
+
+  const latestSimPoint = useMemo(() => {
+    if (simPMC.length === 0) return { ctl: 0, atl: 0, tsb: 0 };
+    return simPMC[simPMC.length - 1];
+  }, [simPMC]);
+
+  const chartData = useMemo(() => {
+    return simPMC.map(pt => ({
+      dateStr: new Date(pt.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+      rawDate: pt.date,
+      ctl: pt.ctl,
+      atl: pt.atl,
+      tsb: pt.tsb,
+      tss: pt.tss,
+      isSimulated: pt.isSimulated,
+    }));
+  }, [simPMC]);
+
+  const currentFormStatus = useMemo(() => {
+    return interpretTSB(latestSimPoint.tsb);
+  }, [latestSimPoint]);
+
+  // Find today's point in the simulation to show unified metrics (Aero + Kratos)
+  const todayPoint = useMemo(() => {
+    if (simPMC.length === 0) return { ctl: fitnessMetrics.ctl, atl: fitnessMetrics.atl, tsb: fitnessMetrics.tsb };
+    const todayKey = new Date().setHours(0,0,0,0);
+    const pt = simPMC.find(p => {
+      const d = new Date(p.date);
+      d.setHours(0,0,0,0);
+      return d.getTime() === todayKey;
+    });
+    return pt || { ctl: fitnessMetrics.ctl, atl: fitnessMetrics.atl, tsb: fitnessMetrics.tsb };
+  }, [simPMC, fitnessMetrics]);
+
+  const ctl = Math.round(todayPoint.ctl);
+  const atl = Math.round(todayPoint.atl);
+  const tsb = Math.round(todayPoint.tsb);
 
   // Calculate recovery score (CR11)
   const recoveryScore = useMemo(() => {
+    if (!recoveryModel.loaded) {
+      return null;
+    }
     const sQual = latestSleep?.quality_score ?? 80;
     const sDur = (latestSleep?.duration_minutes ?? 480) / 60;
     const weightVal = latestWeight?.weight ?? fitnessProfile.weight ?? 75;
@@ -154,76 +266,8 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
       weightVal,
       atl
     );
-  }, [tsb, latestSleep, latestWeight, fitnessProfile.weight, weeklyGymVolume, todaySteps, atl]);
+  }, [tsb, latestSleep, latestWeight, fitnessProfile.weight, weeklyGymVolume, todaySteps, atl, mlModelsLoaded]);
 
-  const apps = [
-    {
-      key: 'cyclo',
-      title: 'Aero',
-      subtitle: 'Desktop & Web Analytics',
-      desc: 'Het hart van uw fysiologische data-analyse. Krijg inzicht in uw PMC-grafieken, training stress en PRs.',
-      status: 'Geïnstalleerd',
-      statusColor: '#cbd5e1',
-      actionText: 'Open Aero',
-      enabled: true,
-      icon: '/assets/icons/aero.png'
-    },
-    {
-      key: 'cyclopilot',
-      title: 'Pilot',
-      subtitle: 'Android Audio Companion',
-      desc: 'Uw in-ear coach voor op de fiets. Real-time audio cues, geoptimaliseerd op wind en hellingen. Werkt volledig offline.',
-      status: 'Mobiel Verbonden',
-      statusColor: '#cbd5e1',
-      actionText: 'Open Pilot',
-      enabled: true,
-      icon: '/assets/icons/pilot.png'
-    },
-    {
-      key: 'vigor',
-      title: 'Vigor',
-      subtitle: 'Health & Vitality Tracker',
-      desc: 'Beheer uw gewicht via Bluetooth weegschaalkoppeling, volg uw slaappatronen en stappen om uw algemene fitheid te optimaliseren.',
-      status: 'Geïnstalleerd',
-      statusColor: '#cbd5e1',
-      actionText: 'Open Vigor',
-      enabled: true,
-      icon: '/assets/icons/vigor.png'
-    },
-    {
-      key: 'indigo',
-      title: 'Strider',
-      subtitle: 'Running Companion',
-      desc: 'Ecosysteem-extensie voor hardlopers. Geïntegreerde VO2Max loopschatting en real-time cadans-coaching.',
-      status: 'Binnenkort',
-      statusColor: '#64748b',
-      actionText: 'Installeren',
-      enabled: false,
-      icon: '/assets/icons/strider.png'
-    },
-    {
-      key: 'indigogym',
-      title: 'Kratos',
-      subtitle: 'Strength & Conditioning',
-      desc: 'Kracht- en weerstandstraining met dynamische fysiologische hersteltijden gebaseerd op uw cardiovasculaire stress.',
-      status: 'Geïnstalleerd',
-      statusColor: '#cbd5e1',
-      actionText: 'Open Kratos',
-      enabled: true,
-      icon: '/assets/icons/kratos.png'
-    },
-    {
-      key: 'fuel',
-      title: 'Fuel',
-      subtitle: 'Macro & Recipe Planner',
-      desc: 'Nutritionele macroplanner en receptenbibliotheek, volledig afgestemd op de fysiologische energiebehoefte van uw ritten.',
-      status: 'Geïnstalleerd',
-      statusColor: '#cbd5e1',
-      actionText: 'Open Fuel',
-      enabled: true,
-      icon: '/assets/icons/fuel.png'
-    }
-  ];
 
   // Helper for steps goal percentage
   const stepsGoal = Number(fitnessProfile.target_steps || 10000);
@@ -234,135 +278,8 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
       {/* Background radial glow */}
       <div className="zh-hub-glow" />
 
-      {/* Header section */}
-      <header className="zh-hub-header animate-slide-down">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div className="zh-logo-badge">
-            <img 
-              src="/assets/logo.png" 
-              alt="Zenith Logo" 
-              style={{ width: 34, height: 34, objectFit: 'contain' }} 
-            />
-          </div>
-          <div>
-            <h1 className="zh-hub-title" style={{ fontSize: 24, lineHeight: 1 }}>ZENITH</h1>
-            <p className="zh-hub-subtitle" style={{ marginTop: 4, marginBottom: 0 }}>Gecentraliseerd Fysiologisch Ecosysteem</p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div 
-            className="zh-user-badge"
-            onClick={onOpenProfile}
-            title="Profiel bewerken"
-            style={{ 
-              cursor: 'pointer', 
-              transition: 'all 0.15s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8 
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'}
-          >
-            <User size={13} style={{ color: '#94a3b8' }} />
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-              <span style={{ fontSize: 9, color: '#94a3b8', lineHeight: 1 }}>Ingelogd als:</span>
-              <strong style={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>{fitnessProfile.name ?? 'Atleet'}</strong>
-            </div>
-          </div>
-          <button
-            onClick={onOpenProfile}
-            style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '10px',
-              color: '#cbd5e1',
-              fontSize: '11px',
-              fontWeight: 800,
-              padding: '8px 16px',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontFamily: 'inherit',
-              transition: 'all 0.15s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'}
-          >
-            Profiel
-          </button>
-          <button
-            onClick={onLogout}
-            style={{
-              background: 'rgba(239, 68, 68, 0.08)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
-              borderRadius: '10px',
-              color: '#ff7675',
-              fontSize: '11px',
-              fontWeight: 800,
-              padding: '8px 16px',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontFamily: 'inherit',
-              transition: 'all 0.15s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
-          >
-            Uitloggen
-          </button>
-        </div>
-      </header>
-
-      {/* Navigation tabs bar in Vigor-style */}
-      <div className="vigor-nav" style={{ 
-        display: 'flex', 
-        gap: 8, 
-        background: 'rgba(255,255,255,0.02)', 
-        border: '1px solid rgba(255,255,255,0.05)', 
-        padding: '6px', 
-        borderRadius: '14px', 
-        marginBottom: '24px',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)'
-      }}>
-        {[
-          { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
-          { id: 'calendar', label: 'Kalender', icon: <CalendarIcon size={16} /> },
-          { id: 'apps', label: 'Applicaties', icon: <Boxes size={16} /> }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveSubTab(tab.id as any)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              padding: '10px 16px',
-              borderRadius: '10px',
-              border: '1px solid ' + (activeSubTab === tab.id ? 'rgba(203, 213, 225, 0.25)' : 'transparent'),
-              fontSize: '13px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              transition: 'all 0.2s',
-              background: activeSubTab === tab.id ? 'rgba(203, 213, 225, 0.08)' : 'transparent',
-              color: activeSubTab === tab.id ? '#fff' : '#64748b',
-              flex: 1
-            }}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* DASHBOARD TAB VIEW */}
-      {activeSubTab === 'dashboard' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in">
+      {/* DASHBOARD VIEW */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-in">
           {/* PMC & Recovery Stats row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 20 }}>
             {/* PMC Card */}
@@ -389,6 +306,33 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
                   <strong className="zh-stat-value" style={{ color: tsb >= 0 ? '#cbd5e1' : '#eccc68' }}>{tsb >= 0 ? `+${tsb}` : tsb}</strong>
                 </div>
               </div>
+              
+              {/* Recharts PMC Voorspelling Grafiek */}
+              <div className="wd-calendar-chart-wrapper" style={{ marginTop: 20, borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Periodisering & Voorspelling (+35 dagen)
+                  </span>
+                  <span style={{ fontSize: 10, color: currentFormStatus.color, fontWeight: 700 }}>
+                    Status: {currentFormStatus.label} {currentFormStatus.emoji}
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height={160}>
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+                    <XAxis dataKey="dateStr" tick={{ fill: '#64748b', fontSize: 10 }} stroke="rgba(255,255,255,0.05)" />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 10 }} stroke="rgba(255,255,255,0.05)" />
+                    <Tooltip
+                      contentStyle={{ background: '#09090b', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11, color: '#fff' }}
+                    />
+                    <ReferenceLine x={new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} stroke="#cbd5e1" strokeDasharray="3 3" label={{ value: 'Vandaag', fill: '#cbd5e1', fontSize: 10 }} />
+                    <Bar dataKey="tss" fill="rgba(255,255,255,0.08)" radius={[2, 2, 0, 0]} name="Dagelijkse TSS" />
+                    <Line type="monotone" dataKey="ctl" stroke="#cbd5e1" strokeWidth={2} dot={false} name="Fitheid (CTL)" />
+                    <Line type="monotone" dataKey="atl" stroke="#ff7675" strokeWidth={1.5} dot={false} name="Vermoeidheid (ATL)" />
+                    <Line type="monotone" dataKey="tsb" stroke="#fdcb6e" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Vorm (TSB)" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Recovery Score Card */}
@@ -403,15 +347,18 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', width: 56, height: 56, borderRadius: '50%' }}>
-                  <strong style={{ fontSize: 20, color: '#ff7675', fontWeight: 900 }}>{recoveryScore}%</strong>
+                  <strong style={{ fontSize: 20, color: '#ff7675', fontWeight: 900 }}>
+                    {recoveryScore !== null ? `${recoveryScore}%` : '--'}
+                  </strong>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
                 <div style={{ height: 6, background: 'rgba(255, 255, 255, 0.05)', borderRadius: 3 }}>
-                  <div style={{ height: '100%', width: `${recoveryScore}%`, background: 'linear-gradient(90deg, #ff7675, #ef4444)', borderRadius: 3 }} />
+                  <div style={{ height: '100%', width: `${recoveryScore ?? 0}%`, background: 'linear-gradient(90deg, #ff7675, #ef4444)', borderRadius: 3 }} />
                 </div>
                 <span style={{ fontSize: 10, color: '#cbd5e1', fontWeight: 700 }}>
-                  {recoveryScore >= 80 ? '🏆 Uitstekend hersteld. Klaar voor intensieve training!' :
+                  {recoveryScore === null ? 'Herstel berekenen...' :
+                   recoveryScore >= 80 ? '🏆 Uitstekend hersteld. Klaar voor intensieve training!' :
                    recoveryScore >= 50 ? '💪 Goed hersteld. Normale belasting is prima.' :
                    '⚠️ Vermoeidheid gedetecteerd. Focus op actieve recuperatie of rust.'}
                 </span>
@@ -533,82 +480,6 @@ export const ZenithHubPage: React.FC<ZenithHubPageProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* KALENDER TAB VIEW */}
-      {activeSubTab === 'calendar' && (
-        <CalendarPage userId={userId} userName={fitnessProfile.name ?? 'Atleet'} />
-      )}
-
-      {/* APPLICATIES TAB VIEW */}
-      {activeSubTab === 'apps' && (
-        <section className="zh-apps-section animate-slide-up" style={{ animationDelay: '0.1s' }}>
-          <h2 style={{ fontSize: 13, fontWeight: 900, color: '#fff', margin: '0 0 16px 4px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-            Ecosysteem Applicaties & Extensies
-          </h2>
-          <div className="zh-apps-grid">
-            {apps.map(app => (
-              <div key={app.key} className={`zh-app-card ${!app.enabled ? 'disabled' : ''}`}>
-                {/* Background Watermark Icon */}
-                <img 
-                  src={app.icon} 
-                  alt="" 
-                  className="zh-app-card-bg-icon" 
-                />
-
-                {/* Top Row: Icon and Status */}
-                <div className="zh-app-card-top">
-                  <div className="zh-app-icon">
-                    <img 
-                      src={app.icon} 
-                      alt={app.title} 
-                      style={{ width: 56, height: 56, objectFit: 'contain' }} 
-                    />
-                  </div>
-                  <span 
-                    className="zh-app-status-badge" 
-                    style={{ 
-                      color: app.statusColor, 
-                      background: app.statusColor + '10', 
-                      border: `1px solid ${app.statusColor}22` 
-                    }}
-                  >
-                    <span className="zh-status-dot" style={{ background: app.statusColor }} />
-                    {app.status}
-                  </span>
-                </div>
-
-                {/* Meta Block: Title & Subtitle */}
-                <div className="zh-app-meta" style={{ marginTop: 18, zIndex: 1 }}>
-                  <span className="zh-app-subtitle">{app.subtitle}</span>
-                  <h3 className="zh-app-title" style={{ marginTop: 4, marginBottom: 0 }}>{app.title}</h3>
-                </div>
-
-                {/* Body Block: Description */}
-                <div className="zh-app-card-body" style={{ flex: 1, marginTop: 12, zIndex: 1 }}>
-                  <p className="zh-app-desc" style={{ margin: 0 }}>{app.desc}</p>
-                </div>
-
-                {/* Footer Block: Button */}
-                <div className="zh-app-card-footer" style={{ marginTop: 24, zIndex: 1 }}>
-                  {app.enabled ? (
-                    <button 
-                      onClick={() => onOpenApp(app.key as any)}
-                      className="zh-app-btn"
-                    >
-                      {app.actionText}
-                    </button>
-                  ) : (
-                    <button disabled className="zh-app-btn-disabled">
-                      Binnenkort beschikbaar
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 };

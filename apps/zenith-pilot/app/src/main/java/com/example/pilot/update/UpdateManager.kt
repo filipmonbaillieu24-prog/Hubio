@@ -13,7 +13,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 object UpdateManager {
-    private const val VERSION_URL = "https://raw.githubusercontent.com/filipmonbaillieu24-prog/Hubio/main/apk/version.json"
+    private const val VERSION_URL = "https://raw.githubusercontent.com/filipmonbaillieu24-prog/Zenith/main/apk/version.json"
     private val client = OkHttpClient()
 
     suspend fun checkForUpdates(

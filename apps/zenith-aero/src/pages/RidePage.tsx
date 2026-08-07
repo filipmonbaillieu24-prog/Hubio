@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import '../workout.css';
 import { getRide, updateRideMeta, getAllGear } from '../utils/db';
 import { Ride, EFFORT_DURATIONS, POWER_ZONES, HR_ZONES, FitnessProfile, RidePoint, RIDE_LABELS, RideLabel, Gear, NeuralAnalysis } from '../types/workout';
@@ -9,7 +9,7 @@ import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Coffee, Brain } from 'lucide-react';
 import { calculateFuel } from '../utils/fueling';
-import { analyzeNotesLocally, trainOnCorrection, predictRPE, trainRPEModel, predictRideLabel, trainLabelModel, analyzeCardiacDrift, predictOptimalCadence, trainOptimalCadence } from '../utils/localNeuralNet';
+import { analyzeNotesLocally, trainOnCorrection, predictRPE, trainRPEModel, predictRideLabel, trainLabelModel, predictOptimalCadence, trainOptimalCadence } from '../utils/localNeuralNet';
 
 // Import extracted modular components
 import { StatCard } from '../components/workout/StatCard';
@@ -189,17 +189,7 @@ const RidePage: React.FC<Props> = ({ rideId, onBack, profile, compareRideId, onC
   const lthr  = profile.lthr ?? (ride?.hasHR ? estimateLTHR(ride.points) : undefined);
   const maxHR = profile.maxHR ?? (profileAge ? estimatedMaxHR(profileAge) : undefined);
 
-  const cardiacDriftResult = useMemo(() => {
-    if (!ride || !lthr) return null;
-    return analyzeCardiacDrift(
-      ride.firstHalfPower ?? 0,
-      ride.secondHalfPower ?? 0,
-      ride.firstHalfHR ?? 0,
-      ride.secondHalfHR ?? 0,
-      ride.duration,
-      lthr
-    );
-  }, [ride, lthr]);
+
 
   // ── Polar-stijl Trainingseffect & Coach ritsamenvatting ────────────────────
   const trainingBenefit = React.useMemo(() => {
@@ -212,41 +202,76 @@ const RidePage: React.FC<Props> = ({ rideId, onBack, profile, compareRideId, onC
       
       // Bepaal intensiteitsfactor of geschatte zwaarte
       const intensity = ride.intensityFactor ?? (ride.avgHR && maxHR ? (ride.avgHR / maxHR) : 0.65);
+      const activeCategory = label ?? aiPredictedLabel;
+      const activeRpe = rpe ?? aiPredictedRpe;
 
       let title = "Duurtraining";
       let desc = "Een rustige rit die helpt om je aerobe basissysteem te versterken en vetverbranding te stimuleren.";
       let category = "Aerobe Conditie";
       let color = "#38bdf8"; // Cyaan
 
-      if (durationMins < 45) {
-        if (intensity < 0.60) {
-          title = "Actief Herstel";
-          desc = "Korte, zeer lichte rit. Perfect om afvalstoffen uit je spieren af te voeren en herstel te bevorderen na zware inspanningen.";
-          category = "Herstel";
-          color = "#a29bfe"; // Lilac
-        } else {
-          title = "Korte Kwaliteitsprikkel";
-          desc = "Een korte rit met wat intensiteit. Goed om de benen wakker te schudden zonder diepe vermoeidheid op te bouwen.";
-          category = "Tempo";
-          color = "#fdcb6e"; // Goud
-        }
+      // Prioritize activeCategory (user selected or AI predicted)
+      if (activeCategory === 'herstel' || (activeRpe != null && activeRpe <= 3 && activeCategory !== 'interval' && activeCategory !== 'wedstrijd')) {
+        title = "Actief Herstel";
+        desc = "Lichte herstelrit. Perfect om afvalstoffen uit je spieren af te voeren en actief herstel te bevorderen zonder extra vermoeidheid op te bouwen.";
+        category = "Herstel";
+        color = "#a29bfe"; // Lilac
+      } else if (activeCategory === 'berg') {
+        title = "Klimtraining";
+        desc = "Gerichte training op hellingen en heuvels. Perfect voor het verbeteren van je klimkracht en klimuithoudingsvermogen.";
+        category = "Klimvermogen";
+        color = "#fd79a8"; // Roze
+      } else if (activeCategory === 'interval') {
+        title = "Intervaltraining";
+        desc = "Intensieve intervallen met wisselende tempo's. Ideaal voor het verhogen van je maximale zuurstofopname (VO2max) en anaerobe capaciteit.";
+        category = "Interval / VO2max";
+        color = "#a29bfe"; // Lilac
+      } else if (activeCategory === 'wedstrijd') {
+        title = "Wedstrijd / Intensief";
+        desc = "Zeer intensieve rit of wedstrijd-simulatie op of boven de drempel. Veroorzaakt diepe vermoeidheid en traint de maximale inspanning.";
+        category = "Wedstrijd";
+        color = "#ff7675"; // Rood
+      } else if (activeCategory === 'groepsrit') {
+        title = "Groepsrit";
+        desc = "Samen rijden in een peloton of groep. Goed voor het trainen van drafting, stuurvaardigheid en wisselende tempo's.";
+        category = "Duurvermogen";
+        color = "#00b894"; // Groen
+      } else if (activeCategory === 'pendel') {
+        title = "Pendelrit / Woon-werk";
+        desc = "Functionele verplaatsingsrit. Handig om extra wekelijks trainingsvolume en basisconditie op te bouwen.";
+        category = "Basisconditie";
+        color = "#ffeaa7"; // Geel
       } else {
-        // Langere ritten
-        if (intensity >= 0.85) {
-          title = "Drempeltraining (FTP)";
-          desc = "Zeer zware training rond je anaerobe drempel. Dit vergroot je vermogen om langdurig een hoog tempo vol te houden.";
-          category = "Drempel / FTP";
-          color = "#ff7675"; // Rood
-        } else if (intensity >= 0.75) {
-          title = "Tempo & Tempohardheid";
-          desc = "Een stevige tempo-rit. Dit traint je vermogen om gedurende langere tijd druk op de pedalen te houden en verbetert je aerobe uithoudingsvermogen.";
-          category = "Tempo";
-          color = "#fdcb6e"; // Goud
+        // Fallback to intensity & duration (classical zones)
+        if (durationMins < 45) {
+          if (intensity < 0.60) {
+            title = "Actief Herstel";
+            desc = "Korte, zeer lichte rit. Perfect om afvalstoffen uit je spieren af te voeren en herstel te bevorderen na zware inspanningen.";
+            category = "Herstel";
+            color = "#a29bfe";
+          } else {
+            title = "Korte Kwaliteitsprikkel";
+            desc = "Een korte rit met wat intensiteit. Goed om de benen wakker te schudden zonder diepe vermoeidheid op te bouwen.";
+            category = "Tempo";
+            color = "#fdcb6e";
+          }
         } else {
-          title = "Duurtraining (Vetverbranding)";
-          desc = "Een klassieke duurrit. Dit verbetert de efficiëntie van je spieren en stimuleert de vetverbranding voor lange afstanden.";
-          category = "Duurvermogen";
-          color = "#00b894"; // Groen
+          if (intensity >= 0.85) {
+            title = "Drempeltraining (FTP)";
+            desc = "Zeer zware training rond je anaerobe drempel. Dit vergroot je vermogen om langdurig een hoog tempo vol te houden.";
+            category = "Drempel / FTP";
+            color = "#ff7675";
+          } else if (intensity >= 0.75) {
+            title = "Tempo & Tempohardheid";
+            desc = "Een stevige tempo-rit. Dit traint je vermogen om gedurende langere tijd druk op de pedalen te houden en verbetert je aerobe uithoudingsvermogen.";
+            category = "Tempo";
+            color = "#fdcb6e";
+          } else {
+            title = "Duurtraining (Vetverbranding)";
+            desc = "Een klassieke duurrit. Dit verbetert de efficiëntie van je spieren en stimuleert de vetverbranding voor lange afstanden.";
+            category = "Duurvermogen";
+            color = "#00b894";
+          }
         }
       }
 
@@ -258,7 +283,7 @@ const RidePage: React.FC<Props> = ({ rideId, onBack, profile, compareRideId, onC
         } else if (dec > 5) {
           points.push(`Je hartslag steeg met ${dec.toFixed(1)}% in de tweede helft van de rit bij gelijke intensiteit. Dit duidt op cardiale drift en opbouwende aerobe vermoeidheid.`);
         } else if (dec < -5) {
-          points.push(`Je hartslag daalde met ${Math.abs(dec).toFixed(1)}% in de tweede helft van de rit. Dit wijst op een daling in intensiteit, afkoeling of uitstekende aerobe efficiëntie.`);
+          points.push(`Je hartslag daalde met ${Math.abs(dec).toFixed(1)}% in de second helft van de rit. Dit wijst op een daling in intensiteit, afkoeling of uitstekende aerobe efficiëntie.`);
         }
       }
 
@@ -283,7 +308,7 @@ const RidePage: React.FC<Props> = ({ rideId, onBack, profile, compareRideId, onC
       console.error("Fout bij berekenen training benefit:", e);
       return null;
     }
-  }, [ride, maxHR]);
+  }, [ride, maxHR, label, rpe, aiPredictedLabel, aiPredictedRpe]);
 
   if (!ride) return <div className="rp-loading"><span className="wd-spinner" /> Rit laden…</div>;
 
@@ -821,57 +846,7 @@ const RidePage: React.FC<Props> = ({ rideId, onBack, profile, compareRideId, onC
                 </div>
               )}
 
-              {/* AI Hartslagzone Tuning */}
-              {cardiacDriftResult && (
-                <div className="rp-chart-card animate-slide-up" style={{
-                  background: 'linear-gradient(135deg, rgba(203, 213, 225, 0.03), rgba(108, 92, 231, 0.01))',
-                  border: '1px solid rgba(203, 213, 225, 0.12)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  margin: 0
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#cbd5e1', fontWeight: 800, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.6px' }}>
-                    <Brain size={14} />
-                    <span>AI Hartslag Zone Tuning</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: '#cbd5e1', margin: 0, lineHeight: 1.4 }}>
-                    Je cardiale drift (aerobe decoupling) in deze rit was <strong>{cardiacDriftResult.decoupling}%</strong>. 
-                    {cardiacDriftResult.decoupling < 3.5 
-                      ? " Dit wijst op een uitstekend aerobe conditie! De AI stelt voor je LTHR-drempel te verhogen."
-                      : cardiacDriftResult.decoupling > 12.0
-                        ? " Dit wijst op cardiovasculaire vermoeidheid of een te hoog ingestelde drempel. De AI stelt voor je LTHR te verlagen."
-                        : " Dit is een stabiel aerobe verloop. Je huidige LTHR-drempel klopt goed."}
-                  </p>
-                  {cardiacDriftResult.proposeTuning && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)', marginTop: 4 }}>
-                      <span style={{ fontSize: 10, color: '#94a3b8' }}>
-                        Voorstel: <strong style={{ color: '#f8fafc' }}>{lthr} bpm</strong> ➔ <strong style={{ color: '#cbd5e1' }}>{cardiacDriftResult.proposedLthr} bpm</strong>
-                      </span>
-                      <button
-                        onClick={() => {
-                          const updatedProfile = { ...profile, lthr: cardiacDriftResult.proposedLthr };
-                          localStorage.setItem('cyclo_fitness_profile', JSON.stringify(updatedProfile));
-                          onChange?.();
-                          alert(`Hartslagdrempel (LTHR) succesvol bijgewerkt naar ${cardiacDriftResult.proposedLthr} bpm!`);
-                        }}
-                        style={{
-                          background: 'rgba(203, 213, 225, 0.1)',
-                          border: '1px solid #cbd5e1',
-                          color: '#cbd5e1',
-                          padding: '4px 10px',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          fontSize: 10,
-                          fontWeight: 700
-                        }}
-                      >
-                        Toepassen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+
 
               {/* Climbs (Automatic Climb Detection) */}
               <ClimbsSection points={ride.points} ftp={ftp} weight={profile.weight} bodyFatPct={profile.bodyFat} />

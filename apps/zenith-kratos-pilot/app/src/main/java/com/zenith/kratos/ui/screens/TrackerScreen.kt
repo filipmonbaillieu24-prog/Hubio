@@ -38,6 +38,7 @@ import com.zenith.kratos.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.TextStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,6 +118,10 @@ fun TrackerScreen(
 
     // 7. Inline PR Tracker flags (to show small "PR" tags next to specific sets)
     val setPrFlags = remember { mutableStateMapOf<String, Boolean>() } // Key: "exerciseId_setIndex"
+
+    // 8. Exercise note editing state
+    var editingNoteExerciseIndex by remember { mutableStateOf<Int?>(null) }
+    var editingNoteText by remember { mutableStateOf("") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -406,6 +411,14 @@ fun TrackerScreen(
                                         modifier = Modifier.background(Color(0xFF1C1C23))
                                     ) {
                                         DropdownMenuItem(
+                                            text = { Text("Notitie bewerken", color = Color.White, fontSize = 12.sp) },
+                                            onClick = {
+                                                exerciseDropdownExpanded[exIndex] = false
+                                                editingNoteExerciseIndex = exIndex
+                                                editingNoteText = exState.notes ?: ""
+                                            }
+                                        )
+                                        DropdownMenuItem(
                                             text = { Text("Verwijder oefening", color = ZenithError, fontSize = 12.sp) },
                                             onClick = {
                                                 exerciseDropdownExpanded[exIndex] = false
@@ -449,7 +462,7 @@ fun TrackerScreen(
                                  Spacer(modifier = Modifier.width(6.dp))
                                  Text("VORIGE", fontSize = 10.sp, fontWeight = FontWeight.Black, color = ZenithSecondary, modifier = Modifier.width(72.dp), textAlign = TextAlign.Center)
                                  Spacer(modifier = Modifier.width(6.dp))
-                                 Text("KG", fontSize = 10.sp, fontWeight = FontWeight.Black, color = ZenithSecondary, modifier = Modifier.width(58.dp), textAlign = TextAlign.Center)
+                                 Text(exState.weightUnit.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Black, color = ZenithSecondary, modifier = Modifier.width(58.dp), textAlign = TextAlign.Center)
                                  Spacer(modifier = Modifier.width(6.dp))
                                  Text("REPS", fontSize = 10.sp, fontWeight = FontWeight.Black, color = ZenithSecondary, modifier = Modifier.width(48.dp), textAlign = TextAlign.Center)
                                  Spacer(modifier = Modifier.width(6.dp))
@@ -1220,6 +1233,51 @@ fun TrackerScreen(
                 dismissButton = {
                     TextButton(onClick = { showCancelDialog = false }) {
                         Text("Nee, Doorgaan", color = Color.White)
+                    }
+                },
+                containerColor = Color(0xFF1C1C23)
+            )
+        }
+
+        // Exercise note editing dialog
+        if (editingNoteExerciseIndex != null) {
+            AlertDialog(
+                onDismissRequest = { editingNoteExerciseIndex = null },
+                title = { Text("Notitie bewerken", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                text = {
+                    OutlinedTextField(
+                        value = editingNoteText,
+                        onValueChange = { editingNoteText = it },
+                        placeholder = { Text("Voer een notitie in...", color = Color.Gray, fontSize = 12.sp) },
+                        textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ZenithPrimary,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = ZenithPrimary,
+                            cursorColor = ZenithPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = false,
+                        maxLines = 4
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val idx = editingNoteExerciseIndex!!
+                            val updatedEx = mutableExercises[idx].copy(notes = editingNoteText.ifBlank { null })
+                            mutableExercises[idx] = updatedEx
+                            exerciseNotesExpanded[idx] = !editingNoteText.isBlank()
+                            editingNoteExerciseIndex = null
+                            triggerSave()
+                        }
+                    ) {
+                        Text("Opslaan", color = ZenithPrimary, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editingNoteExerciseIndex = null }) {
+                        Text("Annuleer", color = Color.White)
                     }
                 },
                 containerColor = Color(0xFF1C1C23)

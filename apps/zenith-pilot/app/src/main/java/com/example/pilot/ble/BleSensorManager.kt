@@ -103,6 +103,15 @@ class BleSensorManager(private val context: Context) {
 
     init {
         _sensors.value = loadRememberedSensors()
+        autoConnectRememberedSensors()
+    }
+
+    fun autoConnectRememberedSensors() {
+        _sensors.value.forEach { sensor ->
+            if (sensor.status == ConnectionStatus.DISCONNECTED) {
+                connectSensor(sensor.address)
+            }
+        }
     }
 
     fun startScanning() {
@@ -222,6 +231,23 @@ class BleSensorManager(private val context: Context) {
                 _sensors.value = _sensors.value.map { if (it.address == address) it.copy(status = ConnectionStatus.DISCONNECTED, lastValue = null) else it }
                 activeGatts.remove(address)
                 gatt.close()
+
+                // Automatic background reconnection loop for remembered devices
+                val sensor = _sensors.value.find { it.address == address }
+                if (sensor != null) {
+                    val key = "sensor_${sensor.type.name}"
+                    val rememberedAddress = prefs.getString("${key}_address", null)
+                    if (rememberedAddress == address) {
+                        handler.postDelayed({
+                            // Only reconnect if still disconnected and still remembered
+                            val current = _sensors.value.find { it.address == address }
+                            if (current != null && current.status == ConnectionStatus.DISCONNECTED && 
+                                prefs.getString("${key}_address", null) == address) {
+                                connectSensor(address)
+                            }
+                        }, 5000)
+                    }
+                }
             }
         }
 
@@ -240,6 +266,27 @@ class BleSensorManager(private val context: Context) {
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             val address = gatt.device.address
+            
+            // Dynamic auto-correction of CSC sensors based on actual transmitted data flags
+            if (characteristic.uuid == CADENCE_CHAR_UUID) {
+                @Suppress("DEPRECATION")
+                val data = characteristic.value
+                if (data != null && data.isNotEmpty()) {
+                    val flags = data[0].toInt()
+                    val hasWheel = (flags and 0x01) != 0
+                    val hasCrank = (flags and 0x02) != 0
+                    
+                    val currentSensor = _sensors.value.find { it.address == address }
+                    if (currentSensor != null) {
+                        if (hasWheel && !hasCrank && currentSensor.type == SensorType.CADENCE) {
+                            updateSensorType(address, SensorType.SPEED)
+                        } else if (hasCrank && !hasWheel && currentSensor.type == SensorType.SPEED) {
+                            updateSensorType(address, SensorType.CADENCE)
+                        }
+                    }
+                }
+            }
+
             val sensorType = when (characteristic.uuid) {
                 HR_CHAR_UUID -> SensorType.HEART_RATE
                 POWER_CHAR_UUID -> SensorType.POWER
@@ -271,6 +318,31 @@ class BleSensorManager(private val context: Context) {
                     if (it.address == address) it.copy(lastValue = value) else it
                 }
             }
+        }
+    }
+
+    private fun updateSensorType(address: String, newType: SensorType) {
+        _sensors.value = _sensors.value.map {
+            if (it.address == address) {
+                val updated = it.copy(type = newType)
+                // If it was remembered, update the remembered key
+                val oldKey = "sensor_${it.type.name}"
+                if (prefs.getString("${oldKey}_address", null) == address) {
+                    prefs.edit()
+                        .remove("${oldKey}_address")
+                        .remove("${oldKey}_name")
+                        .apply()
+                    saveRememberedSensor(updated)
+                }
+                updated
+            } else it
+        }
+        
+        // Reset old live values to prevent ghost stats
+        if (newType == SensorType.SPEED) {
+            _currentCadence.value = null
+        } else if (newType == SensorType.CADENCE) {
+            _currentSpeed.value = null
         }
     }
 

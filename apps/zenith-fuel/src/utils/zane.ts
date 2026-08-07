@@ -16,12 +16,19 @@ export interface DailyLogData {
   sleepQuality: number | null;
   sleepDurationHours: number | null;
   isComplete: boolean;
+  gymVolume: number; // in kg
+  creatine?: number; // in grams
+  caffeine?: number; // in mg
+  bodyFat?: number | null; // body fat %
+  muscleMass?: number | null; // muscle mass kg
 }
 
 export interface ZaneOutput {
   bmrOffset: number;
   sleepQualityCoeff: number;
   sleepDurationCoeff: number;
+  gymVolumeCoeff: number;
+  caffeineCoeff: number;
   calculatedAt: string;
   isCalibrated: boolean;
   calibrationDays: number;
@@ -37,6 +44,13 @@ export interface ZaneOutput {
 export function calculateMifflinBmr(weightKg: number, heightCm: number, ageYears: number, gender: string = ''): number {
   const genderTerm = gender === 'male' ? 5 : gender === 'female' ? -161 : -78;
   return 10 * weightKg + 6.25 * heightCm - 5 * ageYears + genderTerm;
+}
+
+/**
+ * Calculates Katch-McArdle BMR based on Lean Body Mass (LBM) in kg.
+ */
+export function calculateKatchMcArdleBmr(lbmKg: number): number {
+  return 370 + 21.6 * lbmKg;
 }
 
 /**
@@ -62,22 +76,39 @@ export function calculateAge(birthDateStr?: string): number {
 export function runZaneCalibration(
   logs: DailyLogData[],
   profile: ZaneProfile,
-  latestWeightMeasured: number | null
+  latestWeightMeasured: number | null,
+  selectedDateStr?: string
 ): ZaneOutput {
   // Sort logs chronologically
   const sortedLogs = [...logs].sort((a, b) => a.date.localeCompare(b.date));
 
-  // 1. Linearly interpolate missing weights
+  // 1. Calculate Creatine Saturation (0.0 to 1.0) based on intake history
+  // Daily intake of 5g increases saturation by +0.33 (fully loaded in 3 days)
+  // 8% daily washout/decay when not taken
+  let currentSaturation = 0;
+  const saturationMap: { [date: string]: number } = {};
+  sortedLogs.forEach(log => {
+    const intake = log.creatine || 0;
+    currentSaturation = Math.min(1.0, (currentSaturation * 0.92) + (intake / 15));
+    saturationMap[log.date] = currentSaturation;
+  });
+
+  // 2. Linearly interpolate missing weights
   const weightsWithInterpolation = interpolateWeights(sortedLogs, latestWeightMeasured);
   
-  // Create a mapped list with interpolated weights
-  const logsWithWeight = sortedLogs.map((log, idx) => ({
-    ...log,
-    weight: weightsWithInterpolation[idx]
-  }));
+  // Create a mapped list with interpolated weights adjusted for creatine water retention
+  const logsWithWeight = sortedLogs.map((log, idx) => {
+    const rawWeight = weightsWithInterpolation[idx];
+    const saturation = saturationMap[log.date] || 0;
+    // Creatine water retention estimate: 1.2kg at 100% saturation
+    const adjustedWeight = rawWeight !== null ? rawWeight - (1.2 * saturation) : null;
+    return {
+      ...log,
+      weight: adjustedWeight
+    };
+  });
 
-  // 2. Identify complete days
-  // A day is complete if isComplete is true and calories >= 1000.
+  // 3. Identify complete days
   const completeLogs = logsWithWeight.filter(log => log.isComplete && log.calories >= 1000 && log.weight !== null);
   const calibrationDays = completeLogs.length;
   const isCalibrated = calibrationDays >= 14;
@@ -85,29 +116,27 @@ export function runZaneCalibration(
   let bmrOffset = 0;
   let sleepQualityCoeff = 0;
   let sleepDurationCoeff = 0;
+  let gymVolumeCoeff = 0.15; // baseline prior
+  let caffeineCoeff = 0.15; // baseline prior (0.15 kcal per mg)
 
   // Mifflin-St Jeor params
   const currentWeight = latestWeightMeasured || (logsWithWeight[logsWithWeight.length - 1]?.weight ?? 75);
   const height = profile.height || 175;
   const age = calculateAge(profile.birthDate);
   const gender = profile.gender || 'other';
+  const palFactor = 1.25; // PAL baseline
 
-  const baselineBmr = calculateMifflinBmr(currentWeight, height, age, gender);
-  const palFactor = 1.25; // PAL baseline (Sedentary / Light activity)
+  // Find target log for the selected date
+  const targetDate = selectedDateStr || logsWithWeight[logsWithWeight.length - 1]?.date;
+  const targetLog = logsWithWeight.find(l => l.date === targetDate) || logsWithWeight[logsWithWeight.length - 1];
+  const targetActiveCalories = targetLog?.activeCalories ?? 0;
+  const targetGymVolume = targetLog?.gymVolume ?? 0;
+  const targetCaffeine = targetLog?.caffeine ?? 0;
   
-  // Default values when not calibrated
-  if (!isCalibrated) {
-    // Return standard baseline targets
-    const defaultTdee = baselineBmr * palFactor;
-    return generateTargets(defaultTdee, currentWeight, profile, bmrOffset, sleepQualityCoeff, sleepDurationCoeff, calibrationDays, isCalibrated);
-  }
-
-  // 3. Multivariable Ridge Regression Solver
-  // We want to solve for Y = X * theta
-  // Where day t provides a row equation if day t is complete and day t-1 has weight:
-  // Y_t = 7700 * (Weight_t - Weight_t-1) - (CalorieIntake_t - BaseTDEE_t)
-  // X_t = [-1, -(SleepQuality_t - SleepQuality_avg), -(SleepDuration_t - SleepDuration_avg)]
-  // theta = [bmr_offset, sleep_quality_coeff, sleep_duration_coeff]
+  // 4. Multivariable Ridge Regression Solver
+  // We solve for Y = X * theta where:
+  // theta = [bmr_offset, sleep_quality_coeff, sleep_duration_coeff, delta_gym_coeff, delta_caffeine_coeff]
+  // We assume a gym baseline of 0.15 kcal/kg and caffeine baseline of 0.15 kcal/mg.
   
   // Calculate averages for sleep
   const validSleepQualityLogs = completeLogs.filter(l => l.sleepQuality !== null);
@@ -123,19 +152,33 @@ export function runZaneCalibration(
   const X: number[][] = [];
   const Y: number[] = [];
 
+  let lastBodyFat: number | null = null;
+
   for (let i = 1; i < logsWithWeight.length; i++) {
     const todayLog = logsWithWeight[i];
     const yesterdayLog = logsWithWeight[i - 1];
 
-    // Verify today's log is complete, yesterday has weight, and today has weight
+    if (todayLog.bodyFat !== undefined && todayLog.bodyFat !== null) {
+      lastBodyFat = todayLog.bodyFat;
+    }
+
     if (todayLog.isComplete && todayLog.calories >= 1000 && todayLog.weight !== null && yesterdayLog.weight !== null) {
       const weightDiff = todayLog.weight - yesterdayLog.weight;
       
-      const todayBaselineBmr = calculateMifflinBmr(todayLog.weight, height, age, gender);
-      const todayBaseTdee = todayBaselineBmr * palFactor + todayLog.activeCalories;
+      let todayBaselineBmr = 0;
+      if (lastBodyFat !== null && todayLog.weight !== null) {
+        const lbm = todayLog.weight * (1 - lastBodyFat / 100);
+        todayBaselineBmr = calculateKatchMcArdleBmr(lbm);
+      } else {
+        todayBaselineBmr = calculateMifflinBmr(todayLog.weight, height, age, gender);
+      }
 
-      // Y value: actual weight change energy equivalent - baseline intake surplus
-      const yVal = (weightDiff * 7700) - (todayLog.calories - todayBaseTdee);
+      const todayBaseTdee = todayBaselineBmr * palFactor + todayLog.activeCalories;
+      const baseGymCalories = todayLog.gymVolume * 0.15;
+      const todayCaffeine = todayLog.caffeine || 0;
+      const baseCaffeineCalories = todayCaffeine * 0.15;
+
+      const yVal = (weightDiff * 7700) - (todayLog.calories - (todayBaseTdee + baseGymCalories + baseCaffeineCalories));
 
       const qVal = todayLog.sleepQuality !== null ? todayLog.sleepQuality : sleepQualityAvg;
       const dVal = todayLog.sleepDurationHours !== null ? todayLog.sleepDurationHours : sleepDurationAvg;
@@ -143,49 +186,79 @@ export function runZaneCalibration(
       const x0 = -1;
       const x1 = -(qVal - sleepQualityAvg);
       const x2 = -(dVal - sleepDurationAvg);
+      const x3 = -todayLog.gymVolume;
+      const x4 = -todayCaffeine;
 
-      X.push([x0, x1, x2]);
+      X.push([x0, x1, x2, x3, x4]);
       Y.push(yVal);
     }
   }
 
-  if (X.length >= 14) {
-    // Solve Ridge Regression (X^T * X + lambda * I)^-1 * X^T * Y
-    const lambda = 1.0; // Ridge regularization factor
+  // Calculate regression coefficients if we have at least 5 equations (minimum required for a clean 5-parameter solve)
+  if (X.length >= 5) {
+    const lambda = 1.0;
     const coefficients = solveRidgeRegression(X, Y, lambda);
     bmrOffset = coefficients[0];
     sleepQualityCoeff = coefficients[1];
     sleepDurationCoeff = coefficients[2];
+    
+    const deltaGymCoeff = coefficients[3];
+    gymVolumeCoeff = Math.min(0.50, Math.max(0.02, 0.15 + deltaGymCoeff));
+
+    const deltaCaffeineCoeff = coefficients[4];
+    caffeineCoeff = Math.min(0.50, Math.max(0.02, 0.15 + deltaCaffeineCoeff));
   }
 
-  // 4. Calculate today's dynamic calorie target
-  // Pull today's sleep metrics (if logged, otherwise fallback to average)
-  const todayLog = logsWithWeight[logsWithWeight.length - 1];
-  const todaySleepQuality = todayLog?.sleepQuality !== null ? todayLog.sleepQuality : sleepQualityAvg;
-  const todaySleepDuration = todayLog?.sleepDurationHours !== null ? todayLog.sleepDurationHours : sleepDurationAvg;
+  // 5. Calculate today's dynamic calorie target
+  const todaySleepQuality = targetLog?.sleepQuality !== null ? targetLog.sleepQuality : sleepQualityAvg;
+  const todaySleepDuration = targetLog?.sleepDurationHours !== null ? targetLog.sleepDurationHours : sleepDurationAvg;
+
+  // Find latest body fat in entire logs history
+  let finalBodyFat = lastBodyFat;
+  if (finalBodyFat === null) {
+    const logsWithFat = logs.filter(l => l.bodyFat !== null && l.bodyFat !== undefined);
+    if (logsWithFat.length > 0) {
+      finalBodyFat = logsWithFat[logsWithFat.length - 1].bodyFat!;
+    }
+  }
+
+  let todayBmr = 0;
+  if (finalBodyFat !== null) {
+    const lbm = currentWeight * (1 - finalBodyFat / 100);
+    todayBmr = calculateKatchMcArdleBmr(lbm);
+  } else {
+    todayBmr = calculateMifflinBmr(currentWeight, height, age, gender);
+  }
+  let gymCalories = 0;
+  let caffeineCalories = 0;
   
-  const todayActiveCalories = todayLog?.activeCalories ?? 0;
-
-  // Baseline BMR * PAL
-  const todayBmr = calculateMifflinBmr(currentWeight, height, age, gender);
-  let todayTdee = todayBmr * palFactor + todayActiveCalories + bmrOffset;
-
-  // Add sleep modifications
   if (isCalibrated) {
+    gymCalories = targetGymVolume * gymVolumeCoeff;
+    caffeineCalories = targetCaffeine * caffeineCoeff;
+  } else {
+    gymCalories = Math.min(400, Math.max(100, targetGymVolume * 0.15));
+    if (targetGymVolume === 0) gymCalories = 0;
+    caffeineCalories = targetCaffeine * 0.15;
+  }
+
+  let todayTdee;
+
+  if (isCalibrated) {
+    todayTdee = todayBmr * palFactor + targetActiveCalories + gymCalories + caffeineCalories + bmrOffset;
     const sleepQualityDiff = (todaySleepQuality ?? sleepQualityAvg) - sleepQualityAvg;
     const sleepDurationDiff = (todaySleepDuration ?? sleepDurationAvg) - sleepDurationAvg;
     todayTdee += (sleepQualityCoeff * sleepQualityDiff) + (sleepDurationCoeff * sleepDurationDiff);
   } else {
-    // Fallback prior adjustments
+    todayTdee = todayBmr * palFactor + targetActiveCalories + gymCalories + caffeineCalories;
     if (todaySleepQuality !== null && todaySleepQuality < 60) {
-      todayTdee *= 0.95; // 5% penalty
+      todayTdee *= 0.95;
     }
     if (todaySleepDuration !== null && todaySleepDuration < 6.5) {
-      todayTdee *= 0.95; // 5% penalty
+      todayTdee *= 0.95;
     }
   }
 
-  return generateTargets(todayTdee, currentWeight, profile, bmrOffset, sleepQualityCoeff, sleepDurationCoeff, calibrationDays, isCalibrated);
+  return generateTargets(todayTdee, currentWeight, profile, bmrOffset, sleepQualityCoeff, sleepDurationCoeff, gymVolumeCoeff, caffeineCoeff, calibrationDays, isCalibrated);
 }
 
 /**
@@ -248,89 +321,95 @@ function interpolateWeights(logs: DailyLogData[], latestWeight: number | null): 
 
 /**
  * Solves OLS regression with Ridge regularization (X^T * X + lambda * I)^-1 * X^T * Y
- * for a 3-parameter model.
+ * for a model of arbitrary dimensions.
  */
 function solveRidgeRegression(X: number[][], Y: number[], lambda: number): number[] {
   const N = X.length;
-  // Initialize X^T * X (3x3 matrix)
-  const XtX = [
-    [0, 0, 0],
-    [0, 0, 0],
-    [0, 0, 0]
-  ];
-  
-  // Initialize X^T * Y (3x1 vector)
-  const XtY = [0, 0, 0];
+  if (N === 0) return [];
+  const M = X[0].length; // number of features (parameters)
+
+  // Initialize XtX (MxM matrix)
+  const XtX: number[][] = Array.from({ length: M }, () => Array(M).fill(0));
+  // Initialize XtY (Mx1 vector)
+  const XtY: number[] = Array(M).fill(0);
 
   // Compute X^T * X and X^T * Y
   for (let i = 0; i < N; i++) {
     const x = X[i];
     const y = Y[i];
     
-    for (let r = 0; r < 3; r++) {
+    for (let r = 0; r < M; r++) {
       XtY[r] += x[r] * y;
-      for (let c = 0; c < 3; c++) {
+      for (let c = 0; c < M; c++) {
         XtX[r][c] += x[r] * x[c];
       }
     }
   }
 
   // Add Ridge Regularization lambda to the diagonal
-  for (let r = 0; r < 3; r++) {
+  for (let r = 0; r < M; r++) {
     XtX[r][r] += lambda;
   }
 
-  // Invert 3x3 matrix XtX using analytical inverse formula
-  const invXtX = invert3x3(XtX);
-  if (!invXtX) {
-    // If matrix is singular, return default zeros
-    return [0, 0, 0];
-  }
-
-  // Multiply invXtX (3x3) * XtY (3x1) to get coefficients
-  const coeff = [0, 0, 0];
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 3; c++) {
-      coeff[r] += invXtX[r][c] * XtY[c];
-    }
-  }
-
-  return coeff;
+  // Solve the linear system XtX * theta = XtY using Gaussian Elimination
+  const coeff = solveLinearSystem(XtX, XtY);
+  return coeff || Array(M).fill(0);
 }
 
 /**
- * Computes the inverse of a 3x3 matrix using the determinant and cofactor method.
+ * Solves a linear system A * x = B using Gauss-Jordan elimination.
  */
-function invert3x3(A: number[][]): number[][] | null {
-  const det =
-    A[0][0] * (A[1][1] * A[2][2] - A[1][2] * A[2][1]) -
-    A[0][1] * (A[1][0] * A[2][2] - A[1][2] * A[2][0]) +
-    A[0][2] * (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
-
-  if (Math.abs(det) < 1e-8) {
-    return null; // Singular matrix
+function solveLinearSystem(A: number[][], B: number[]): number[] | null {
+  const n = A.length;
+  // Create augmented matrix [A | B]
+  const M: number[][] = [];
+  for (let i = 0; i < n; i++) {
+    M.push([...A[i], B[i]]);
   }
 
-  const invDet = 1.0 / det;
-  const inv = [
-    [0, 0, 0],
-    [0, 0, 0],
-    [0, 0, 0]
-  ];
+  for (let i = 0; i < n; i++) {
+    // Find pivot
+    let maxEl = Math.abs(M[i][i]);
+    let maxRow = i;
+    for (let k = i + 1; k < n; k++) {
+      if (Math.abs(M[k][i]) > maxEl) {
+        maxEl = Math.abs(M[k][i]);
+        maxRow = k;
+      }
+    }
 
-  inv[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]) * invDet;
-  inv[0][1] = (A[0][2] * A[2][1] - A[0][1] * A[2][2]) * invDet;
-  inv[0][2] = (A[0][1] * A[1][2] - A[0][2] * A[1][1]) * invDet;
+    // Swap maximum row with current row
+    const temp = M[maxRow];
+    M[maxRow] = M[i];
+    M[i] = temp;
 
-  inv[1][0] = (A[1][2] * A[2][0] - A[1][0] * A[2][2]) * invDet;
-  inv[1][1] = (A[0][0] * A[2][2] - A[0][2] * A[2][0]) * invDet;
-  inv[1][2] = (A[0][2] * A[1][0] - A[0][0] * A[1][2]) * invDet;
+    if (Math.abs(M[i][i]) < 1e-8) {
+      return null; // Singular matrix
+    }
 
-  inv[2][0] = (A[1][0] * A[2][1] - A[1][1] * A[2][0]) * invDet;
-  inv[2][1] = (A[0][1] * A[2][0] - A[0][0] * A[2][1]) * invDet;
-  inv[2][2] = (A[0][0] * A[1][1] - A[0][1] * A[1][0]) * invDet;
+    // Make all rows below this one 0 in current column
+    for (let k = i + 1; k < n; k++) {
+      const c = -M[k][i] / M[i][i];
+      for (let j = i; j <= n; j++) {
+        if (i === j) {
+          M[k][j] = 0;
+        } else {
+          M[k][j] += c * M[i][j];
+        }
+      }
+    }
+  }
 
-  return inv;
+  // Back substitution
+  const x = Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    x[i] = M[i][n] / M[i][i];
+    for (let k = i - 1; k >= 0; k--) {
+      M[k][n] -= M[k][i] * x[i];
+    }
+  }
+
+  return x;
 }
 
 /**
@@ -343,6 +422,8 @@ function generateTargets(
   bmrOffset: number,
   sleepQualityCoeff: number,
   sleepDurationCoeff: number,
+  gymVolumeCoeff: number,
+  caffeineCoeff: number,
   calibrationDays: number,
   isCalibrated: boolean
 ): ZaneOutput {
@@ -350,6 +431,7 @@ function generateTargets(
   let dailyCalorieTarget = tdee;
   const targetWeight = profile.targetWeight;
   const targetRate = profile.targetRateKgPerWeek ?? 0.5;
+  let phase: 'cut' | 'bulk' | 'maintain' = 'maintain';
 
   if (targetWeight) {
     const weightMargin = 0.2; // 200 grams margin
@@ -359,56 +441,92 @@ function generateTargets(
       // Lose weight: deficit (each kg is 7700 kcal, so 0.5kg/week = 3850 kcal/week = 550 kcal/day deficit)
       const deficit = (targetRate * 7700) / 7;
       dailyCalorieTarget = Math.max(1200, tdee - deficit); // Ensure minimum 1200 kcal/day safety limit
+      phase = 'cut';
     } else if (diff < -weightMargin) {
       // Gain weight: surplus
       const surplus = (targetRate * 7700) / 7;
       dailyCalorieTarget = tdee + surplus;
+      phase = 'bulk';
     }
   }
 
   dailyCalorieTarget = Math.round(dailyCalorieTarget);
 
-  // Macro target calculations
-  // Balanced: 50% Carbs, 20% Protein, 30% Fat
-  // High-carb: 60% Carbs, 15% Protein, 25% Fat
-  // Low-carb: 30% Carbs, 25% Protein, 45% Fat
+  // Macro target calculations (Sports-Science Weight-Based Model)
   const diet = profile.dietType || 'balanced';
-  let carbPct = 0.50;
-  let proteinPct = 0.20;
-  let fatPct = 0.30;
 
+  // 1. Establish Protein Target based on body weight (g/kg) and phase to preserve LBM
+  let proteinGramsPerKg = 2.0; // default/balanced
   if (diet === 'high-carb') {
-    carbPct = 0.60;
-    proteinPct = 0.15;
-    fatPct = 0.25;
+    proteinGramsPerKg = 1.7;
   } else if (diet === 'low-carb') {
-    carbPct = 0.30;
-    proteinPct = 0.25;
-    fatPct = 0.45;
+    proteinGramsPerKg = 2.3;
   }
 
-  // CR7: Ride Labels -> Fuel Macro Timing
-  const todayTrainingType = profile.todayTrainingType; // 'intense' | 'endurance' | 'rest' | null
+  // Adjust protein based on goal phase (Cut = higher protein to preserve muscle, Bulk = lower protein as energy is high)
+  if (phase === 'cut') {
+    proteinGramsPerKg += 0.2;
+  } else if (phase === 'bulk') {
+    proteinGramsPerKg -= 0.2;
+  }
+
+  const dailyProteinTarget = Math.round(weight * proteinGramsPerKg);
+  const proteinCalories = dailyProteinTarget * 4;
+
+  // 2. Allocate remaining calories to Carbs and Fat
+  const caloriesForCarbsAndFat = Math.max(500, dailyCalorieTarget - proteinCalories);
+
+  // Base split ratio of remaining calories
+  let carbRatioOfRemaining = 0.65; // balanced
+  if (diet === 'high-carb') {
+    carbRatioOfRemaining = 0.78;
+  } else if (diet === 'low-carb') {
+    carbRatioOfRemaining = 0.35;
+  }
+
+  // 3. Dynamic timing adjustments based on training type
+  // Shift energy ratio towards carbs on intense days, and fat on rest days
+  let carbAdjustmentGrams = 0;
+  const todayTrainingType = profile.todayTrainingType;
   if (todayTrainingType === 'intense') {
-    carbPct += 0.08;
-    fatPct -= 0.08;
+    carbAdjustmentGrams = weight * 1.5;
+  } else if (todayTrainingType === 'endurance') {
+    carbAdjustmentGrams = weight * 0.7;
   } else if (todayTrainingType === 'rest') {
-    carbPct -= 0.05;
-    fatPct += 0.05;
+    carbAdjustmentGrams = -weight * 0.5;
   }
 
-  // Convert percentages to grams
-  // Carbs: 4 kcal/g
-  // Protein: 4 kcal/g
-  // Fat: 9 kcal/g
-  const dailyCarbTarget = Math.round((dailyCalorieTarget * carbPct) / 4);
-  const dailyProteinTarget = Math.round((dailyCalorieTarget * proteinPct) / 4);
-  const dailyFatTarget = Math.round((dailyCalorieTarget * fatPct) / 9);
+  const baseCarbCalories = caloriesForCarbsAndFat * carbRatioOfRemaining;
+  const baseFatCalories = caloriesForCarbsAndFat * (1 - carbRatioOfRemaining);
+
+  const adjustmentCalories = carbAdjustmentGrams * 4;
+  let finalCarbCalories = baseCarbCalories + adjustmentCalories;
+  let finalFatCalories = baseFatCalories - adjustmentCalories;
+
+  // 4. Safe guards: hormonal fat safety minimum (0.6g/kg) and glycogen minimum (30g)
+  const minFatCalories = (weight * 0.6) * 9;
+  if (finalFatCalories < minFatCalories) {
+    const diff = minFatCalories - finalFatCalories;
+    finalFatCalories = minFatCalories;
+    finalCarbCalories = Math.max(30 * 4, finalCarbCalories - diff);
+  }
+
+  const minCarbCalories = 30 * 4;
+  if (finalCarbCalories < minCarbCalories) {
+    const diff = minCarbCalories - finalCarbCalories;
+    finalCarbCalories = minCarbCalories;
+    finalFatCalories = Math.max(minFatCalories, finalFatCalories - diff);
+  }
+
+  const dailyCarbTarget = Math.round(finalCarbCalories / 4);
+  const dailyFatTarget = Math.round(finalFatCalories / 9);
 
   return {
     bmrOffset: Math.round(bmrOffset),
     sleepQualityCoeff: Math.round(sleepQualityCoeff * 10) / 10,
     sleepDurationCoeff: Math.round(sleepDurationCoeff * 10) / 10,
+    gymVolumeCoeff: Math.round(gymVolumeCoeff * 1000) / 1000,
+    caffeineCoeff: Math.round(caffeineCoeff * 1000) / 1000,
     calculatedAt: new Date().toISOString(),
     isCalibrated,
     calibrationDays,
@@ -428,12 +546,14 @@ export async function saveZaneCoefficients(
   userId: string,
   bmrOffset: number,
   sleepQualityCoeff: number,
-  sleepDurationCoeff: number
+  sleepDurationCoeff: number,
+  gymVolumeCoeff: number,
+  caffeineCoeff: number
 ): Promise<void> {
   await supabase.from('ml_weights').upsert({
     user_id: userId,
     model_name: 'zane_metabolic_coefficients',
-    weights: { bmrOffset, sleepQualityCoeff, sleepDurationCoeff },
+    weights: { bmrOffset, sleepQualityCoeff, sleepDurationCoeff, gymVolumeCoeff, caffeineCoeff },
     updated_at: new Date().toISOString()
   }, { onConflict: 'user_id,model_name' });
 }
@@ -441,7 +561,7 @@ export async function saveZaneCoefficients(
 export async function loadZaneCoefficients(
   supabase: any,
   userId: string
-): Promise<{ bmrOffset: number; sleepQualityCoeff: number; sleepDurationCoeff: number } | null> {
+): Promise<{ bmrOffset: number; sleepQualityCoeff: number; sleepDurationCoeff: number; gymVolumeCoeff: number; caffeineCoeff?: number } | null> {
   const { data } = await supabase.from('ml_weights')
     .select('weights')
     .eq('user_id', userId)
