@@ -702,7 +702,6 @@ fun TrackerScreen(
                                                     }
                                                     context.startService(intent)
                                                 } else {
-                                                    // Auto-fill inputs on check if empty
                                                     val w = setVal.weightInput.toDoubleOrNull() ?: setVal.targetWeight
                                                     val r = setVal.repsInput.toIntOrNull() ?: setVal.targetReps
                                                     val rir = if (setVal.type == "warmup") 4 else (setVal.rirInput.toIntOrNull() ?: setVal.targetRir)
@@ -711,6 +710,18 @@ fun TrackerScreen(
                                                     setVal.repsInput = r.toString()
                                                     setVal.rirInput = rir.toString()
                                                     setVal.isCompleted = true
+
+                                                    // Update target parameters upon confirmation
+                                                    setVal.targetWeight = w
+                                                    setVal.targetReps = r
+                                                    if (setVal.type != "warmup") {
+                                                        setVal.targetRir = rir
+                                                    }
+
+                                                    // If this is the first working set, update warmup targets
+                                                    if (setVal.type == "working" && exState.sets.firstOrNull { it.type == "working" } == setVal) {
+                                                        recalculateWarmupTargets(exState.sets, w)
+                                                    }
 
                                                     // Dismiss keyboard if open on this set
                                                     if (activeFocusSet == setIndex && activeFocusExercise == exIndex) {
@@ -1043,6 +1054,10 @@ fun TrackerScreen(
 
                                                     if (activeFocusField == "weight") {
                                                         activeSet.weightInput = newText
+                                                        val newW = newText.toDoubleOrNull()
+                                                        if (newW != null && activeSet.type == "working" && exState.sets.firstOrNull { it.type == "working" } == activeSet) {
+                                                            recalculateWarmupTargets(exState.sets, newW)
+                                                        }
                                                     } else {
                                                         activeSet.repsInput = newText
                                                     }
@@ -1102,6 +1117,18 @@ fun TrackerScreen(
                                                 activeSet.weightInput = w.toString()
                                                 activeSet.repsInput = r.toString()
                                                 activeSet.rirInput = rir.toString()
+
+                                                // Save targetWeight and targetReps with confirmed inputs
+                                                activeSet.targetWeight = w
+                                                activeSet.targetReps = r
+                                                if (activeSet.type != "warmup") {
+                                                    activeSet.targetRir = rir
+                                                }
+
+                                                // Update warmup sets if first working set is edited
+                                                if (activeSet.type == "working" && exState.sets.firstOrNull { it.type == "working" } == activeSet) {
+                                                    recalculateWarmupTargets(exState.sets, w)
+                                                }
 
                                                 activeFocusField = null
                                                 activeFocusExercise = null

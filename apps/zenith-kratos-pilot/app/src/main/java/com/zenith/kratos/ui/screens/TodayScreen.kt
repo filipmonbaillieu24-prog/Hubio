@@ -302,9 +302,6 @@ fun TodayScreen(
                                                                 ae.sets[i].targetReps = prevSet.reps
                                                             }
                                                         }
-                                                    } else {
-                                                        ae.sets[i].targetWeight = prevSet.weight
-                                                        ae.sets[i].targetReps = prevSet.reps
                                                     }
                                                 }
                                             } else {
@@ -312,12 +309,16 @@ fun TodayScreen(
                                                     ae.sets[i].targetWeight = 20.0
                                                 }
                                             }
+                                            val workWeight = ae.sets.firstOrNull { it.type == "working" }?.targetWeight ?: 20.0
+                                            recalculateWarmupTargets(ae.sets, workWeight)
                                         }
                                     } else {
                                         for (ae in active) {
                                             for (i in ae.sets.indices) {
                                                 ae.sets[i].targetWeight = 20.0
                                             }
+                                            val workWeight = ae.sets.firstOrNull { it.type == "working" }?.targetWeight ?: 20.0
+                                            recalculateWarmupTargets(ae.sets, workWeight)
                                         }
                                     }
 
@@ -442,4 +443,36 @@ fun TodayScreen(
 @Composable
 fun safeDrawingPadding(): Modifier {
     return Modifier.systemBarsPadding()
+}
+
+fun recalculateWarmupTargets(sets: List<ActiveSetState>, workingWeight: Double) {
+    val warmupSets = sets.filter { it.type == "warmup" }
+    val count = warmupSets.size
+    var warmupIndex = 0
+    for (i in 0 until sets.size) {
+        if (sets[i].type == "warmup") {
+            // progressive scale
+            if (count <= 1) {
+                sets[i].targetWeight = Math.round(workingWeight * 0.6 * 2) / 2.0
+                sets[i].targetReps = 6
+            } else {
+                if (warmupIndex == 0) {
+                    sets[i].targetWeight = Math.round(workingWeight * 0.5 * 2) / 2.0
+                    sets[i].targetReps = 10
+                } else if (warmupIndex == count - 1) {
+                    sets[i].targetWeight = Math.round(workingWeight * 0.75 * 2) / 2.0
+                    sets[i].targetReps = 2
+                } else {
+                    val fraction = 0.5 + (0.4 * warmupIndex.toDouble() / (count - 1).coerceAtLeast(1).toDouble())
+                    sets[i].targetWeight = Math.round(workingWeight * fraction * 2) / 2.0
+                    sets[i].targetReps = when {
+                        warmupIndex == 0 -> 10
+                        warmupIndex == count - 1 -> 2
+                        else -> 5
+                    }
+                }
+            }
+            warmupIndex++
+        }
+    }
 }
