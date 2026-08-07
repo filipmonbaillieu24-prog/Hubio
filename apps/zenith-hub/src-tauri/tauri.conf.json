@@ -36,7 +36,11 @@
     ],
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "icons/installer_header.jpg",
+        "sidebarImage": "icons/installer_sidebar.jpg"
       }
     }
   },
