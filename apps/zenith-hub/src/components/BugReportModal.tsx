@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, AlertTriangle, CheckCircle, Settings, ChevronDown, ChevronUp, Bug, Loader } from 'lucide-react';
+import { X, Upload, AlertTriangle, CheckCircle, Bug, Loader } from 'lucide-react';
 import './BugReportModal.css';
 
 export interface BugReportSubmitData {
@@ -36,9 +36,7 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   
-  const [showSettings, setShowSettings] = useState(false);
-  const [devToken, setDevToken] = useState(() => localStorage.getItem('zenith_github_token') || '');
-  const [devRepo, setDevRepo] = useState(() => localStorage.getItem('zenith_github_repo') || 'filipmonbaillieu24-prog/Zenith');
+
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{ success: boolean; error?: string; githubUrl?: string } | null>(null);
@@ -119,11 +117,7 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({
     }
   };
 
-  const handleSaveDevSettings = () => {
-    localStorage.setItem('zenith_github_token', devToken);
-    localStorage.setItem('zenith_github_repo', devRepo);
-    alert('Developer instellingen opgeslagen in local storage!');
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,8 +137,8 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({
         problemType,
         severity,
         screenshot,
-        developerToken: devToken || undefined,
-        developerRepo: devRepo || undefined,
+        developerToken: undefined,
+        developerRepo: undefined,
       });
       setSubmitResult(result);
     } catch (err: any) {
@@ -321,56 +315,7 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({
                 )}
               </div>
 
-              {/* Developer Configuration Overrides (Collapsible) */}
-              <div className="bug-dev-settings">
-                <button 
-                  type="button" 
-                  className="bug-dev-settings-toggle"
-                  onClick={() => setShowSettings(!showSettings)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Settings size={14} />
-                    <span>Developer instellingen (optioneel)</span>
-                  </div>
-                  {showSettings ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
-                
-                {showSettings && (
-                  <div className="bug-dev-settings-panel animate-slide-down">
-                    <p className="bug-settings-help-text">
-                      Hier kunt u handmatig een GitHub Personal Access Token en repo instellen om de bug naar te sturen. 
-                      Indien niet ingevuld, gebruikt Zenith de backend fallback of uw `.env` config.
-                    </p>
-                    <div className="bug-form-group">
-                      <label htmlFor="devRepo">GitHub Repository</label>
-                      <input 
-                        type="text" 
-                        id="devRepo" 
-                        value={devRepo}
-                        onChange={(e) => setDevRepo(e.target.value)}
-                        placeholder="gebruiker/repo"
-                      />
-                    </div>
-                    <div className="bug-form-group">
-                      <label htmlFor="devToken">GitHub Personal Access Token (PAT)</label>
-                      <input 
-                        type="password" 
-                        id="devToken" 
-                        value={devToken}
-                        onChange={(e) => setDevToken(e.target.value)}
-                        placeholder="ghp_..."
-                      />
-                    </div>
-                    <button 
-                      type="button" 
-                      className="bug-action-btn secondary small"
-                      onClick={handleSaveDevSettings}
-                    >
-                      Instellingen Opslaan in browser
-                    </button>
-                  </div>
-                )}
-              </div>
+
 
               {/* Modal Actions */}
               <div className="bug-modal-actions">
