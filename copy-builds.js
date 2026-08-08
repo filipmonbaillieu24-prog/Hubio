@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const copyDir = (src, dest) => {
+const copyDir = (srcRel, destRel) => {
+  const src = path.resolve(__dirname, srcRel);
+  const dest = path.resolve(__dirname, destRel);
   try {
     // Ensure destination directory is clean
     if (fs.existsSync(dest)) {
