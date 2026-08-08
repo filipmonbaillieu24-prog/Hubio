@@ -542,6 +542,7 @@ function App() {
     }
 
     // 4. Format the Markdown body of the GitHub issue
+    const userName = fitnessProfile?.name || session?.user?.user_metadata?.name || 'Atleet';
     const bodyContent = `### Omschrijving / Reproductie
 ${data.description}
 
@@ -549,7 +550,7 @@ ${data.description}
 - **Categorie:** ${data.category}
 - **Type probleem:** ${data.problemType}
 - **Urgentie:** ${data.severity.toUpperCase()}
-- **Gebruiker:** ${session.user.email} (${session.user.id})
+- **Gebruiker:** ${userName} <${session.user.email}> (ID: ${session.user.id})
 
 ### Omgevingsfactoren
 - **Besturingssysteem:** ${envOs}
